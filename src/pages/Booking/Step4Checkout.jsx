@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent } from 'lucide-react';
+import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
 
 
