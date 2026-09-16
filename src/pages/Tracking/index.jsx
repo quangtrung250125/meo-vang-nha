@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Utensils, Droplets, Smile, HeartPulse, Loader2, Sparkles, ClipboardList } from 'lucide-react';
+import { Utensils, Droplets, Smile, HeartPulse, Loader2, Sparkles } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
