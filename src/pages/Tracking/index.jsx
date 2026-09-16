@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Utensils, Droplets, Smile, HeartPulse, Loader2, Sparkles } from 'lucide-react';
+import { Utensils, Droplets, Smile, HeartPulse, Loader2, Sparkles, ClipboardList } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
 import cameraFeed from '../../assets/images/camera_feed.png';
+import ActivityReport from './ActivityReport';
 
 const trackingData = {
   eating: { status: 'Bỏ ăn', meals: '1/3 bữa', details: 'Chỉ ăn một ít thức ăn mềm, không động vào hạt cứng.' },
@@ -96,9 +97,13 @@ const Tracking = () => {
     }
   };
 
-  const tabs = ['Tổng quan', 'Ăn uống', 'Vệ sinh', 'Tâm trạng', 'Sức khỏe'];
+  const tabs = ['Tổng quan', 'Báo cáo', 'Ăn uống', 'Vệ sinh', 'Tâm trạng', 'Sức khỏe'];
 
   const renderTabContent = () => {
+    if (activeTab === 'Báo cáo') {
+      return <ActivityReport bookingData={bookingData} />;
+    }
+
     if (activeTab === 'Tổng quan') {
       return (
         <>
@@ -283,8 +288,11 @@ const Tracking = () => {
             <button 
               key={idx}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-full text-sm font-semibold transition-colors ${activeTab === tab ? 'bg-primary text-white' : 'text-gray-600 hover:text-primary'}`}
+              className={`relative px-6 py-2 rounded-full text-sm font-semibold transition-colors ${activeTab === tab ? 'bg-primary text-white' : 'text-gray-600 hover:text-primary'}`}
             >
+              {tab === 'Báo cáo' && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+              )}
               {tab}
             </button>
           ))}
