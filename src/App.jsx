@@ -13,10 +13,13 @@ import { PetProvider } from './contexts/PetContext';
 
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
 
+import { Toaster } from 'react-hot-toast';
+
 function App() {
   return (
     <PetProvider>
       <BookingHistoryProvider>
+        <Toaster position="top-center" reverseOrder={false} />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<MainLayout />}>

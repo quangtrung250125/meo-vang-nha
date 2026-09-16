@@ -25,13 +25,26 @@ const Header = () => {
             <Link to="/pet-profile" className={`text-sm tracking-wide ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
             <Link to="/booking" className={`text-sm tracking-wide ${isActive('/booking')}`}>Đặt phòng</Link>
           </nav>
-          <div className="hidden md:flex items-center gap-5 text-gray-500">
-            <button className="hover:text-primary transition-colors"><Search className="h-5 w-5" /></button>
-            <button className="hover:text-primary transition-colors"><Bell className="h-5 w-5" /></button>
-            <button onClick={() => setIsAuthModalOpen(true)} className="hover:text-primary transition-colors"><User className="h-5 w-5" /></button>
+          <div className="hidden md:flex items-center gap-4 text-gray-500">
+            <button className="hover:text-primary transition-colors p-1" title="Tìm kiếm"><Search className="h-5 w-5" /></button>
+            <button className="hover:text-primary transition-colors p-1" title="Thông báo"><Bell className="h-5 w-5" /></button>
+            <button 
+              onClick={() => setIsAuthModalOpen(true)} 
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:opacity-90 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-orange-300"
+            >
+              <User className="h-4 w-4" />
+              <span>Tài khoản / Đăng ký</span>
+            </button>
           </div>
-          <div className="md:hidden flex items-center">
-            <button className="text-text-dark hover:text-primary">
+          <div className="md:hidden flex items-center gap-2">
+            <button 
+              onClick={() => setIsAuthModalOpen(true)} 
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:opacity-90"
+            >
+              <User className="h-4 w-4" />
+              <span>Đăng ký</span>
+            </button>
+            <button className="text-text-dark hover:text-primary p-2">
               <Menu className="h-6 w-6" />
             </button>
           </div>
