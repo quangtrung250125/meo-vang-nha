@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown, Flame, Percent, Sparkles, ArrowRight } from 'lucide-react';
+import { Check, ChevronDown, Flame, Percent, Sparkles, ArrowRight, Gift } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { packagesList, promotionInfo } from '../../mockData/servicesData';
 
@@ -10,7 +10,7 @@ const Pricing = () => {
 
   const tabs = [
     { label: 'Tất cả', value: 'Tất cả' },
-    { label: '🔥 Ưu đãi 10%', value: 'Ưu đãi 10%', isSpecial: true },
+    { label: '🔥 Ưu đãi 10% lần 2', value: 'Ưu đãi 10%', isSpecial: true },
     { label: 'Lưu trú', value: 'Lưu trú' },
     { label: 'Spa - Tắm cắt', value: 'Spa - Tắm cắt' },
     { label: 'Dịch vụ khác', value: 'Dịch vụ khác' },
@@ -24,20 +24,24 @@ const Pricing = () => {
 
   const faqs = [
     {
-      q: 'Chương trình ưu đãi giảm giá 10% áp dụng như thế nào?',
-      a: 'Chương trình giảm 10% được áp dụng tự động cho toàn bộ dịch vụ lưu trú, spa và tiện ích khi khách hàng đặt phòng trực tuyến qua website.'
+      q: 'Chương trình ưu đãi giảm giá 10% lần 2 áp dụng như thế nào?',
+      a: 'Chương trình giảm 10% tri ân được áp dụng tự động cho toàn bộ dịch vụ lưu trú, spa và tiện ích ngay từ lần thứ 2 bạn đặt dịch vụ tại Mèo Vắng Nhà (hoặc khi áp dụng mã THANTHIET10).'
     },
     {
-      q: 'Có cần đặt cọc trước khi đến không?',
-      a: 'Để giữ phòng và giữ nguyên mức giá ưu đãi 10%, bạn chỉ cần đặt trước một khoản cọc nhỏ qua hệ thống hoặc chuyển khoản.'
+      q: 'Làm thế nào để kiểm tra mình đã được giảm 10% lần 2 chưa?',
+      a: 'Hệ thống tự động ghi nhận số lần đặt của bạn qua lịch sử booking. Khi vào trang dịch vụ hoặc bước thanh toán, giá giảm 10% sẽ được khấu trừ trực tiếp.'
+    },
+    {
+      q: 'Có cần đặt cọc trước khi đưa bé đến không?',
+      a: 'Để giữ phòng và giữ nguyên mức giá ưu đãi 10%, bạn chỉ cần đặt trước một khoản cọc nhỏ qua hệ thống trực tuyến.'
     },
     {
       q: 'Thời gian nhận và trả bé mèo như thế nào?',
-      a: 'Khách sạn hoạt động từ 8:00 đến 21:00 hàng ngày. Bạn có thể linh hoạt đưa đón bé trong khung giờ này.'
+      a: 'Khách sạn hoạt động từ 7:30 đến 21:00 hàng ngày. Bạn có thể linh hoạt đưa đón bé trong khung giờ này.'
     },
     {
-      q: 'Khách sạn có hỗ trợ chăm sóc mèo có chế độ đặc biệt không?',
-      a: 'Có, các bé mèo cần uống thuốc, có khẩu phần kiêng hoặc cần chăm sóc y tế đều được đội ngũ chuyên viên theo dõi sát sao.'
+      q: 'Khách sạn có hỗ trợ chăm sóc mèo có chế độ ăn/uống thuốc đặc biệt không?',
+      a: 'Có, các bé mèo cần uống thuốc, có khẩu phần kiêng hoặc cần chăm sóc y tế đều được đội ngũ chuyên viên theo dõi và phục vụ tận tâm.'
     }
   ];
 
@@ -48,13 +52,13 @@ const Pricing = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-primary/20 text-primary font-bold text-xs uppercase tracking-wider mb-4 shadow-sm">
             <Sparkles className="w-4 h-4 text-accent" />
-            Bảng giá minh bạch - Tiết kiệm tối đa
+            Bảng giá minh bạch - Tri ân khách hàng
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text-dark font-title mb-4">
             Bảng Giá Dịch Vụ
           </h1>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Đang áp dụng ưu đãi <strong className="text-accent">giảm ngay 10%</strong> cho tất cả các gói dịch vụ khi đặt lịch trực tuyến.
+            Đang áp dụng ưu đãi <strong className="text-accent">giảm ngay 10%</strong> cho khách hàng sử dụng dịch vụ từ lần thứ 2 trở đi.
           </p>
         </div>
       </section>
@@ -65,21 +69,21 @@ const Pricing = () => {
         {/* Banner Alert 10% Off */}
         <div className="mb-10 bg-gradient-to-r from-emerald-50 via-white to-orange-50 border border-primary/20 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-              %
+            <div className="w-10 h-10 rounded-xl bg-accent text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+              <Gift className="w-5 h-5" />
             </div>
             <div>
               <p className="text-sm font-bold text-text-dark">
-                Giá hiển thị bên dưới đã bao gồm mức chiết khấu ưu đãi 10%.
+                Mức giá ưu đãi (đã giảm 10%) áp dụng tự động cho lần sử dụng dịch vụ thứ 2.
               </p>
               <p className="text-xs text-gray-500">
-                Nhập mã <span className="font-bold text-accent">{promotionInfo.code}</span> hoặc đặt trực tiếp để nhận trọn vẹn ưu đãi.
+                Mã tri ân: <span className="font-bold text-accent">{promotionInfo.code}</span> — Kích hoạt ngay khi đặt lịch trực tuyến.
               </p>
             </div>
           </div>
           <button 
             onClick={() => navigate('/booking')}
-            className="shrink-0 bg-primary hover:bg-secondary text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            className="shrink-0 bg-primary hover:bg-secondary text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             Đặt lịch ngay
           </button>
@@ -94,7 +98,7 @@ const Pricing = () => {
                 <button 
                   key={tab.value} 
                   onClick={() => setActiveTab(tab.value)}
-                  className={`px-5 sm:px-7 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                  className={`px-5 sm:px-7 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                     isSelected 
                       ? tab.isSpecial 
                         ? 'bg-gradient-to-r from-accent to-[#FF7B47] text-white shadow-md shadow-accent/30 scale-105' 
@@ -123,7 +127,7 @@ const Pricing = () => {
                 {plan.isPromo && (
                   <div className="absolute -top-3.5 left-6 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-[11px] font-extrabold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                     <Flame className="w-3 h-3 fill-current" />
-                    <span>ƯU ĐÃI GIẢM 10%</span>
+                    <span>LẦN 2: GIẢM 10%</span>
                   </div>
                 )}
 
@@ -152,7 +156,7 @@ const Pricing = () => {
                   </div>
                   
                   <div className="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-100">
-                    <span>Tiết kiệm: {plan.savingsString}</span>
+                    <span>Tiết kiệm: {plan.savingsString} ở lần 2</span>
                   </div>
 
                   <p className="text-gray-500 text-xs mt-3 leading-relaxed">
@@ -173,13 +177,13 @@ const Pricing = () => {
                 
                 <button 
                   onClick={() => navigate('/booking', { state: { preSelectedPackageId: plan.id } })}
-                  className={`w-full flex items-center justify-center gap-2 font-bold py-3.5 rounded-2xl transition-all shadow-md mt-auto active:scale-98 ${
+                  className={`w-full flex items-center justify-center gap-2 font-bold py-3.5 rounded-2xl transition-all shadow-md mt-auto active:scale-98 cursor-pointer ${
                     plan.isBestChoice 
                       ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/25 hover:shadow-accent/40' 
                       : 'bg-primary hover:bg-secondary text-white shadow-primary/20 hover:shadow-primary/30'
                   }`}
                 >
-                  <span>Đặt ngay với giá ưu đãi</span>
+                  <span>Đặt ngay với giá ưu đãi lần 2</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -195,7 +199,7 @@ const Pricing = () => {
         <div className="max-w-3xl mx-auto mb-16">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-extrabold text-text-dark font-title mb-2">Câu hỏi thường gặp</h2>
-            <p className="text-gray-500 text-sm">Giải đáp mọi thắc mắc về dịch vụ và chương trình ưu đãi giảm 10%.</p>
+            <p className="text-gray-500 text-sm">Giải đáp mọi thắc mắc về dịch vụ và chương trình ưu đãi giảm 10% khi đặt từ lần 2.</p>
           </div>
           
           <div className="space-y-4">
@@ -208,7 +212,7 @@ const Pricing = () => {
                 >
                   <button 
                     onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-5 text-left flex justify-between items-center gap-4 focus:outline-none"
+                    className="w-full p-5 text-left flex justify-between items-center gap-4 focus:outline-none cursor-pointer"
                   >
                     <h4 className="font-bold text-text-dark text-base">{faq.q}</h4>
                     <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 text-primary' : ''}`} />

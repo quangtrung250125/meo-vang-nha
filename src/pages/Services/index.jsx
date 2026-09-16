@@ -1,5 +1,5 @@
 // ==========================================
-// TÍNH NĂNG: LIÊN HỆ NGAY & PROFILE DOANH NGHIỆP PETHOTEL + ƯU ĐÃI GIẢM GIÁ 10%
+// TÍNH NĂNG: DANH MỤC DỊCH VỤ & ƯU ĐÃI GIẢM GIÁ 10% KHI SỬ DỤNG DỊCH VỤ LẦN 2
 // ==========================================
 
 import React, { useState } from 'react';
@@ -25,16 +25,27 @@ import {
   Flame,
   ArrowRight,
   HeartHandshake,
-  Percent
+  Percent,
+  UserCheck,
+  Gift
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { packagesList, promotionInfo } from '../../mockData/servicesData';
+import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 
 const Services = () => {
   const navigate = useNavigate();
+  const { globalBookingList } = useBookingHistory();
+  const realBookingCount = globalBookingList.length;
+
+  // Hỗ trợ toggle xem thử chế độ Lần 2 (nếu chưa có lịch sử đặt phòng nào trong máy)
+  const [simulateSecondTime, setSimulateSecondTime] = useState(true);
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [copied, setCopied] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Xác định người dùng có đủ điều kiện hưởng ưu đãi lần 2 hay không
+  const isSecondTimeEligible = realBookingCount >= 1 || simulateSecondTime;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(promotionInfo.code);
@@ -44,7 +55,7 @@ const Services = () => {
 
   const tabs = [
     { label: 'Tất cả', value: 'Tất cả' },
-    { label: '🔥 Ưu đãi 10%', value: 'Ưu đãi 10%', isSpecial: true },
+    { label: '🔥 Ưu đãi 10% lần 2', value: 'Ưu đãi 10%', isSpecial: true },
     { label: 'Lưu trú', value: 'Lưu trú' },
     { label: 'Spa - Tắm cắt', value: 'Spa - Tắm cắt' },
     { label: 'Dịch vụ khác', value: 'Dịch vụ khác' },
@@ -84,7 +95,57 @@ const Services = () => {
       {/* Main Content */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 -mt-10 relative z-10">
         
-        {/* Special 10% Discount Promotion Banner */}
+        {/* Customer Status & Simulation Switch Bar */}
+        <div className="mb-6 bg-white border border-gray-200/80 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${isSecondTimeEligible ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-text-dark">
+                  Trạng thái thành viên:
+                </span>
+                {isSecondTimeEligible ? (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    Đạt điều kiện ưu đãi 10% (Lần 2 trở đi)
+                  </span>
+                ) : (
+                  <span className="bg-gray-100 text-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                    Khách hàng lần đầu
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {realBookingCount > 0 
+                  ? `Bạn đã có ${realBookingCount} đơn đặt trước đó. Ưu đãi giảm giá 10% tự động được kích hoạt cho lần thứ 2 này!`
+                  : 'Sau khi sử dụng dịch vụ lần đầu, bạn sẽ tự động nhận voucher giảm 10% cho toàn bộ dịch vụ lần 2.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Demo toggle if user has 0 bookings */}
+          {realBookingCount === 0 && (
+            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 shrink-0">
+              <span className="text-xs font-medium text-gray-500 pl-2">Xem thử chế độ:</span>
+              <button
+                onClick={() => setSimulateSecondTime(false)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${!simulateSecondTime ? 'bg-white text-text-dark shadow-xs border border-gray-200' : 'text-gray-500 hover:text-text-dark'}`}
+              >
+                Lần đầu
+              </button>
+              <button
+                onClick={() => setSimulateSecondTime(true)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${simulateSecondTime ? 'bg-accent text-white shadow-xs' : 'text-gray-500 hover:text-text-dark'}`}
+              >
+                Lần 2 (-10%)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Special 10% Discount Promotion Banner (2nd Time Loyalty) */}
         <div className="mb-10 bg-gradient-to-r from-[#FFF4E5] via-[#FFF9F0] to-[#E8F8F0] border-2 border-accent/30 rounded-3xl p-6 sm:p-8 shadow-md relative overflow-hidden">
           <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-accent/10 rounded-full blur-2xl pointer-events-none"></div>
           <div className="absolute -left-10 -top-10 w-48 h-48 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -92,14 +153,14 @@ const Services = () => {
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
             <div className="flex items-start sm:items-center gap-4 text-left">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-accent to-[#FF7B47] text-white flex flex-col items-center justify-center shrink-0 shadow-lg shadow-accent/30">
-                <Percent className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5]" />
-                <span className="text-xs sm:text-sm font-extrabold tracking-tight">10% OFF</span>
+                <Gift className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
+                <span className="text-xs sm:text-sm font-extrabold tracking-tight">-10% LẦN 2</span>
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="bg-accent text-white font-bold text-xs px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
                     <Flame className="w-3.5 h-3.5 fill-current" />
-                    Ưu đãi giới hạn
+                    Ưu đãi tri ân
                   </span>
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
                     {promotionInfo.expiryDate}
@@ -109,7 +170,9 @@ const Services = () => {
                   {promotionInfo.title}
                 </h2>
                 <p className="text-gray-600 text-sm sm:text-base mt-1">
-                  {promotionInfo.subtitle}
+                  {isSecondTimeEligible 
+                    ? '🎉 Chúc mừng bạn! Bạn đã đủ điều kiện nhận ưu đãi giảm 10% cho lần đặt dịch vụ này.'
+                    : promotionInfo.subtitle}
                 </p>
               </div>
             </div>
@@ -117,7 +180,7 @@ const Services = () => {
             {/* Voucher Code Box */}
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto shrink-0 bg-white/90 backdrop-blur p-2.5 sm:p-3 rounded-2xl border border-orange-200/80 shadow-sm">
               <div className="text-center sm:text-left px-3">
-                <span className="text-[11px] font-bold text-gray-400 block uppercase tracking-wider">Mã khuyến mãi</span>
+                <span className="text-[11px] font-bold text-gray-400 block uppercase tracking-wider">Mã tri ân lần 2</span>
                 <span className="font-mono text-lg font-black text-accent tracking-widest">{promotionInfo.code}</span>
               </div>
               <button
@@ -169,100 +232,115 @@ const Services = () => {
         {/* Services Grid */}
         {filteredPackages.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-            {filteredPackages.map((service, idx) => (
-              <div 
-                key={service.id || idx} 
-                className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
-              >
-                {/* 10% Discount Floating Badge */}
-                {service.isPromo && (
-                  <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
-                    <span>ƯU ĐÃI GIẢM 10%</span>
-                  </div>
-                )}
-
-                {/* Category Pill */}
-                <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
-                  {service.category}
-                </div>
-
-                {/* Service Image */}
-                <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
-                   <img 
-                    src={service.image} 
-                    alt={service.name} 
-                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" 
-                   />
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
-                   
-                   {/* Saving Tag Bottom-Right of Image */}
+            {filteredPackages.map((service, idx) => {
+              const displayPrice = isSecondTimeEligible ? service.priceString : service.originalPriceString;
+              const originalPrice = service.originalPriceString;
+              
+              return (
+                <div 
+                  key={service.id || idx} 
+                  className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
+                >
+                  {/* 10% Discount Floating Badge */}
                   {service.isPromo && (
-                    <div className="absolute bottom-3 right-3 bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow">
-                      Tiết kiệm {service.savingsString}
+                    <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
+                      <span>{isSecondTimeEligible ? 'ƯU ĐÃI GIẢM 10% LẦN 2' : 'ƯU ĐÃI LẦN 2: -10%'}</span>
                     </div>
                   )}
-                </div>
 
-                {/* Service Content */}
-                <div className="p-6 flex flex-col flex-1 justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-text-dark mb-2 font-title group-hover:text-primary transition-colors">
-                      {service.name}
-                    </h3>
-                    
-                    {/* Pricing Section with 10% Discount Display */}
-                    <div className="bg-bg-cream rounded-2xl p-3.5 mb-4 border border-orange-100/70">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-black text-accent font-title">
-                          {service.priceString}
-                        </span>
-                        <span className="text-xs text-gray-500 font-semibold">
-                          {service.period}
-                        </span>
-                        
-                        {/* Original Strikethrough Price */}
-                        {service.originalPriceString && (
-                          <span className="text-sm text-gray-400 line-through font-medium ml-auto">
-                            {service.originalPriceString}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
-                        <span>✓ Đã áp dụng giảm 10%</span>
-                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
-                          -10%
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
-                      {service.desc}
-                    </p>
-
-                    {/* Features List */}
-                    <div className="space-y-2.5 mb-6 pt-2 border-t border-gray-100">
-                      <p className="text-xs font-bold uppercase text-gray-400 tracking-wider">Tiện ích đi kèm:</p>
-                      {service.features?.map((feature, fIdx) => (
-                        <div key={fIdx} className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="w-4 h-4 text-primary shrink-0 stroke-[2.5]" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
+                  {/* Category Pill */}
+                  <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
+                    {service.category}
                   </div>
 
-                  {/* Action Button */}
-                  <button 
-                    onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
-                    className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
-                  >
-                    <span>Đặt phòng với ưu đãi 10%</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {/* Service Image */}
+                  <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
+                    <img 
+                      src={service.image} 
+                      alt={service.name} 
+                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
+                    
+                    {/* Saving Tag Bottom-Right of Image */}
+                    {service.isPromo && (
+                      <div className="absolute bottom-3 right-3 bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow">
+                        {isSecondTimeEligible 
+                          ? `Đã tiết kiệm ${service.savingsString}` 
+                          : `Tiết kiệm ${service.savingsString} ở lần 2`}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Service Content */}
+                  <div className="p-6 flex flex-col flex-1 justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-text-dark mb-2 font-title group-hover:text-primary transition-colors">
+                        {service.name}
+                      </h3>
+                      
+                      {/* Pricing Section with 10% Discount Display */}
+                      <div className="bg-bg-cream rounded-2xl p-3.5 mb-4 border border-orange-100/70">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-black text-accent font-title">
+                            {displayPrice}
+                          </span>
+                          <span className="text-xs text-gray-500 font-semibold">
+                            {service.period}
+                          </span>
+                          
+                          {/* Original Strikethrough Price when discount active */}
+                          {isSecondTimeEligible && originalPrice && (
+                            <span className="text-sm text-gray-400 line-through font-medium ml-auto">
+                              {originalPrice}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Status Note */}
+                        <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
+                          <span>
+                            {isSecondTimeEligible 
+                              ? '✓ Đã kích hoạt ưu đãi lần 2' 
+                              : `Lần 2 chỉ: ${service.priceString}`}
+                          </span>
+                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
+                            -10%
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
+                        {service.desc}
+                      </p>
+
+                      {/* Features List */}
+                      <div className="space-y-2.5 mb-6 pt-2 border-t border-gray-100">
+                        <p className="text-xs font-bold uppercase text-gray-400 tracking-wider">Tiện ích đi kèm:</p>
+                        {service.features?.map((feature, fIdx) => (
+                          <div key={fIdx} className="flex items-center gap-2 text-sm text-gray-700">
+                            <Check className="w-4 h-4 text-primary shrink-0 stroke-[2.5]" />
+                            <span>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button 
+                      onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
+                      className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
+                    >
+                      <span>
+                        {isSecondTimeEligible ? 'Đặt ngay với ưu đãi 10% (Lần 2)' : 'Đặt phòng ngay'}
+                      </span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm mb-20">
@@ -279,8 +357,8 @@ const Services = () => {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="font-bold text-text-dark">Cam kết giá minh bạch</h4>
-              <p className="text-xs text-gray-500 mt-0.5">Không phát sinh phụ phí ẩn, ưu đãi 10% áp dụng trực tiếp.</p>
+              <h4 className="font-bold text-text-dark">Khách hàng thân thiết</h4>
+              <p className="text-xs text-gray-500 mt-0.5">Tự động giảm 10% không giới hạn cho mọi lần đặt từ lần 2.</p>
             </div>
           </div>
 
@@ -300,7 +378,7 @@ const Services = () => {
             </div>
             <div>
               <h4 className="font-bold text-text-dark">Tích điểm đổi quà</h4>
-              <p className="text-xs text-gray-500 mt-0.5">Nhận thêm quà tặng và ưu đãi cho lần gửi tiếp theo.</p>
+              <p className="text-xs text-gray-500 mt-0.5">Nhận thêm quà tặng phụ kiện và snack cho bé.</p>
             </div>
           </div>
         </div>
@@ -313,7 +391,7 @@ const Services = () => {
             </div>
             <h3 className="text-3xl font-bold text-text-dark font-title mb-4">Bạn cần tư vấn dịch vụ phù hợp?</h3>
             <p className="text-gray-600 mb-8 max-w-md leading-relaxed">
-              Xem hồ sơ năng lực doanh nghiệp hoặc liên hệ trực tiếp để được đội ngũ chuyên gia hỗ trợ và giữ ưu đãi 10% cho bé mèo.
+              Xem hồ sơ năng lực doanh nghiệp hoặc liên hệ trực tiếp để được đội ngũ chuyên gia hỗ trợ và kích hoạt ưu đãi lần 2 cho bé mèo.
             </p>
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
               <button 
