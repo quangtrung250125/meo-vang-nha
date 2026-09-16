@@ -1,4 +1,4 @@
-﻿.auth-overlay {
+.auth-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.65);
@@ -113,6 +113,37 @@
 
 .input-group input:focus {
   border-color: #dd6b20;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrapper input {
+  padding-right: 44px;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #a0aec0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.toggle-password-btn:hover {
+  color: #dd6b20;
+  background-color: #f7fafc;
 }
 
 .submit-btn {
