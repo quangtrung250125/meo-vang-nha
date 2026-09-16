@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Gift } from 'lucide-react';
+
 
 /* ------------------------------------------------
    Paw Icon SVG
@@ -131,6 +132,14 @@ const Step1Dates = ({ data, updateData, onNext }) => {
   const [availableRooms, setAvailableRooms] = useState(null);
   const [noRooms, setNoRooms] = useState(false);
 
+  // Kiểm tra nếu ngày check-in là Thứ 5 (getDay() === 4)
+  const isThursdayCheckIn = () => {
+    if (!data.checkIn) return false;
+    const d = new Date(data.checkIn + 'T00:00:00');
+    return d.getDay() === 4;
+  };
+  const thursdayPromo = isThursdayCheckIn();
+
   const handleCheckRoom = () => {
     if (!data.checkIn || !data.checkOut) {
       setError('Vui lòng chọn ngày nhận và ngày trả.');
@@ -195,6 +204,22 @@ const Step1Dates = ({ data, updateData, onNext }) => {
           />
         </div>
       </div>
+
+      {/* Thursday Promo Banner */}
+      {thursdayPromo && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+            <Gift className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="font-bold text-amber-800 text-sm">🎉 Ưu đãi Thứ 5 — Tặng Pate Miễn Phí!</p>
+            <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
+              Check-in vào <strong>Thứ 5</strong>, các bé mèo được tặng <strong>pate theo sở thích riêng</strong> hoàn toàn miễn phí!
+              Hãy cập nhật sở thích pate trong hồ sơ của từng bé ở bước 3.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Cat Count Picker */}
       <CatCountPicker

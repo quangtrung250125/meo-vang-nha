@@ -25,6 +25,7 @@ const PetForm = ({ initialData, onSave, onCancel, isSaving }) => {
         allergy: ''
       },
       habits: '',
+      patePreference: '',
       personality: {
         friendly: false,
         shy: false,
@@ -155,10 +156,56 @@ const PetForm = ({ initialData, onSave, onCancel, isSaving }) => {
     </div>
   );
 
+  const PATE_OPTIONS = [
+    '🐟 Cá ngừ',
+    '🐔 Gà',
+    '🥩 Bò',
+    '🦐 Tôm',
+    '🐠 Cá hồi',
+    '🐟 Cá thu',
+    '🥚 Trứng',
+    '🌿 Thuần chay',
+  ];
+
   const renderHabitsTab = () => (
-    <div>
-      <label className="block text-sm font-semibold text-text-dark mb-2">Thói quen sinh hoạt / Ăn uống</label>
-      <textarea rows="5" value={petData.habits} onChange={(e) => handleChange('habits', e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-700 bg-bg-cream resize-none"></textarea>
+    <div className="space-y-6">
+      <div>
+        <label className="block text-sm font-semibold text-text-dark mb-2">Thói quen sinh hoạt / Ăn uống</label>
+        <textarea rows="4" value={petData.habits} onChange={(e) => handleChange('habits', e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-700 bg-bg-cream resize-none"></textarea>
+      </div>
+
+      {/* Pate preference — dùng cho khuyến mãi Thứ 5 */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-lg">🎁</span>
+          <label className="block text-sm font-bold text-amber-800">Sở thích pate của bé <span className="font-normal text-amber-600">(dùng cho khuyến mãi Thứ 5 tặng pate)</span></label>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PATE_OPTIONS.map((opt) => {
+            const isSelected = petData.patePreference === opt;
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => handleChange('patePreference', isSelected ? '' : opt)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                  isSelected
+                    ? 'border-amber-500 bg-amber-100 text-amber-800 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-amber-300 hover:bg-amber-50'
+                }`}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+        {petData.patePreference && (
+          <p className="text-xs text-amber-700 font-semibold mt-2">✓ Đã chọn: {petData.patePreference}</p>
+        )}
+        {!petData.patePreference && (
+          <p className="text-xs text-gray-400 mt-2">Chưa chọn — nhân viên sẽ hỏi trực tiếp khi check-in thứ 5</p>
+        )}
+      </div>
     </div>
   );
 

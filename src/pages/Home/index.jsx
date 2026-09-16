@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Home as HomeIcon, Heart, Video, ShieldCheck, PawPrint, Flame, Sparkles, ArrowRight, Percent } from 'lucide-react';
+import { Home as HomeIcon, Heart, Video, ShieldCheck, PawPrint, Flame, Sparkles, ArrowRight, Percent, Gift } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
+
 
 const Home = () => {
   return (
@@ -15,6 +16,12 @@ const Home = () => {
               <div className="inline-flex items-center gap-2 bg-white/90 px-4 py-1.5 rounded-full border border-orange-200 text-accent font-bold text-xs uppercase tracking-wider mb-6 shadow-sm">
                 <Flame className="w-4 h-4 fill-current animate-pulse text-accent" />
                 <span>Ưu đãi HOT: Giảm 10% tất cả dịch vụ</span>
+              </div>
+
+              {/* Thursday Pate Promo Pill */}
+              <div className="inline-flex items-center gap-2 bg-amber-100 px-4 py-1.5 rounded-full border border-amber-300 text-amber-800 font-bold text-xs uppercase tracking-wider mb-6 shadow-sm ml-2">
+                <Gift className="w-4 h-4 text-amber-600" />
+                <span>🎁 Thứ 5: Tặng Pate Miễn Phí!</span>
               </div>
               
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text-dark leading-tight mb-6 font-title">
@@ -60,7 +67,7 @@ const Home = () => {
             { icon: HomeIcon, title: 'Phòng sạch sẽ', subtitle: 'an toàn, vô trùng' },
             { icon: Heart, title: 'Chăm sóc tận tâm', subtitle: 'chuyên nghiệp 24/7' },
             { icon: Video, title: 'Camera theo dõi', subtitle: 'xem trực tiếp qua App' },
-            { icon: ShieldCheck, title: 'Ưu đãi 10%', subtitle: 'tiết kiệm chi phí' },
+            { icon: Gift, title: 'Tặng Pate Thứ 5', subtitle: 'theo sở thích từng bé' },
           ].map((feature, idx) => (
             <div key={idx} className="flex flex-col items-center p-6 bg-bg-cream rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <feature.icon className="h-8 w-8 text-primary mb-4" />

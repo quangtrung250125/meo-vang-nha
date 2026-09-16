@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Info, Plus, Check } from 'lucide-react';
+import { Info, Plus, Check, Gift } from 'lucide-react';
 import { usePetProfile } from '../../contexts/PetContext';
 import PetForm from '../../components/PetForm';
 import { toast } from 'react-hot-toast';
+
 
 const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
   const { petList, savePet } = usePetProfile();
@@ -53,6 +54,12 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
     onNext();
   };
 
+  // Kiểm tra Thứ 5
+  const isThursday = (() => {
+    if (!data.checkIn) return false;
+    return new Date(data.checkIn + 'T00:00:00').getDay() === 4;
+  })();
+
   if (addingNew) {
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
@@ -75,7 +82,22 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
           (Đã chọn {selectedIds.length}/{data.catCount})
         </p>
       </div>
-      
+
+      {/* Thursday pate reminder */}
+      {isThursday && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+          <div className="w-9 h-9 bg-amber-400 rounded-xl flex items-center justify-center shrink-0">
+            <Gift className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="font-bold text-amber-800 text-sm">🎉 Check-in Thứ 5 — Đừng quên chọn pate cho bé!</p>
+            <p className="text-amber-700 text-xs mt-0.5">
+              Mở hồ sơ từng bé, vào tab <strong>“Thói quen”</strong> và chọn sở thích pate. Nhân viên sẽ chuẩn bị đúng loại cho bé.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Nút thêm mới */}
         <div 

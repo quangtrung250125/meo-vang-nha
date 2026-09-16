@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
 
+
 const Step4Checkout = ({ data, onNext, onPrev }) => {
+
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
   const [isCouponApplied, setIsCouponApplied] = useState(true);
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
@@ -131,6 +133,28 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
                 Ưu đãi giảm giá 10% ({promotionInfo.code}):
               </span>
               <span>- {discountAmount.toLocaleString()}đ</span>
+            </div>
+          )}
+
+          {/* Thứ 5 pate gift */}
+          {isThursday && (
+            <div className="flex justify-between items-start bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+              <span className="flex items-center gap-1.5 text-amber-800 font-bold">
+                <Gift className="w-4 h-4 text-amber-500" />
+                Quà tặng Thứ 5 — Pate theo sở thích:
+              </span>
+              <div className="text-right">
+                <span className="font-black text-amber-700">Miễn phí 🎉</span>
+                {data.petProfiles && data.petProfiles.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {data.petProfiles.map(pet => (
+                      <p key={pet.id} className="text-xs text-amber-600">
+                        {pet.name}: {pet.patePreference || '<nhân viên xác nhận>'}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
