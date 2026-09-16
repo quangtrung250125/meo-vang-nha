@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Calendar, Clock } from 'lucide-react';
 
 /* ------------------------------------------------
    Paw Icon SVG
@@ -165,35 +165,88 @@ const Step1Dates = ({ data, updateData, onNext }) => {
     <div className="space-y-8">
       <h2 className="text-2xl font-bold text-text-dark font-title">1. Chọn thời gian &amp; Phòng</h2>
 
-      {/* Date Inputs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày nhận</label>
-          <input
-            type="date"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
-            value={data.checkIn}
-            onChange={(e) => {
-              updateData({ checkIn: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
-            }}
-          />
+      {/* Date & Time Inputs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Check-in Group */}
+        <div className="bg-bg-cream/70 border border-gray-200/80 p-5 rounded-2xl space-y-4">
+          <div className="flex items-center gap-2 text-primary font-bold text-base">
+            <Calendar className="w-5 h-5" />
+            <span>Thông tin nhận mèo (Check-in)</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ngày nhận *</label>
+              <input
+                type="date"
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-primary text-gray-700 font-medium"
+                value={data.checkIn}
+                onChange={(e) => {
+                  updateData({ checkIn: e.target.value, selectedRoom: null });
+                  setAvailableRooms(null);
+                  setNoRooms(false);
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                <span>Giờ nhận *</span>
+              </label>
+              <input
+                type="time"
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-primary text-gray-700 font-medium"
+                value={data.checkInTime || '09:00'}
+                onChange={(e) => {
+                  updateData({ checkInTime: e.target.value });
+                }}
+              />
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày trả</label>
-          <input
-            type="date"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
-            value={data.checkOut}
-            min={data.checkIn}
-            onChange={(e) => {
-              updateData({ checkOut: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
-            }}
-          />
+
+        {/* Check-out Group */}
+        <div className="bg-bg-cream/70 border border-gray-200/80 p-5 rounded-2xl space-y-4">
+          <div className="flex items-center gap-2 text-primary font-bold text-base">
+            <Calendar className="w-5 h-5" />
+            <span>Thông tin trả mèo (Check-out)</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ngày trả *</label>
+              <input
+                type="date"
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-primary text-gray-700 font-medium"
+                value={data.checkOut}
+                min={data.checkIn}
+                onChange={(e) => {
+                  updateData({ checkOut: e.target.value, selectedRoom: null });
+                  setAvailableRooms(null);
+                  setNoRooms(false);
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                <span>Giờ trả *</span>
+              </label>
+              <input
+                type="time"
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-primary text-gray-700 font-medium"
+                value={data.checkOutTime || '18:00'}
+                onChange={(e) => {
+                  updateData({ checkOutTime: e.target.value });
+                }}
+              />
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Note about working hours */}
+      <div className="flex items-center gap-2 text-xs text-gray-600 bg-orange-50/80 border border-orange-200/60 px-4 py-3 rounded-xl">
+        <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+        <span>Khung giờ tiếp nhận &amp; đón trả bé mèo: <strong>08:00 - 20:00</strong> các ngày trong tuần.</span>
       </div>
 
       {/* Cat Count Picker */}

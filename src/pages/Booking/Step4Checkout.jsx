@@ -75,8 +75,11 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600 mb-6 bg-white p-4 rounded-2xl border border-gray-100">
           <div>
-            <span className="text-gray-400 block text-xs font-semibold uppercase">Thời gian</span>
-            <span className="font-bold text-text-dark">{data.checkIn} → {data.checkOut} ({days} ngày)</span>
+            <span className="text-gray-400 block text-xs font-semibold uppercase">Thời gian nhận &amp; trả</span>
+            <span className="font-bold text-text-dark">
+              {data.checkIn} ({data.checkInTime || '09:00'}) → {data.checkOut} ({data.checkOutTime || '18:00'})
+            </span>
+            <span className="text-xs text-primary font-semibold block mt-0.5">Thời gian lưu trú: {days} ngày</span>
           </div>
           <div>
             <span className="text-gray-400 block text-xs font-semibold uppercase">Số lượng mèo</span>

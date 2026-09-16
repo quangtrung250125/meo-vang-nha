@@ -49,13 +49,15 @@ const MyBooking = () => {
     }
   };
 
-  const formatDateRange = (checkIn, checkOut) => {
+  const formatDateRange = (checkIn, checkOut, checkInTime, checkOutTime) => {
     if (!checkIn || !checkOut) return '';
     const format = (d) => {
       const [year, month, day] = d.split('-');
       return `${day}/${month}/${year}`;
     }
-    return `${format(checkIn)} - ${format(checkOut)}`;
+    const inTime = checkInTime ? ` (${checkInTime})` : '';
+    const outTime = checkOutTime ? ` (${checkOutTime})` : '';
+    return `${format(checkIn)}${inTime} - ${format(checkOut)}${outTime}`;
   };
 
   return (
@@ -122,7 +124,9 @@ const MyBooking = () => {
                       {booking.selectedRoom?.name ? `Phòng ${booking.selectedRoom.name} • ` : ''} 
                       {packageDesc}
                     </p>
-                    <p className="text-gray-500 text-sm font-medium">{formatDateRange(booking.checkIn, booking.checkOut)}</p>
+                    <p className="text-gray-500 text-sm font-medium">
+                      {formatDateRange(booking.checkIn, booking.checkOut, booking.checkInTime, booking.checkOutTime)}
+                    </p>
                     <p className="text-xs text-gray-400 mt-2">Mã booking: {booking.id}</p>
                   </div>
 

@@ -28,7 +28,9 @@ const Booking = () => {
       
     return {
       checkIn: '',
+      checkInTime: '09:00',
       checkOut: '',
+      checkOutTime: '18:00',
       catCount: 1,
       selectedRoom: null,
       selectedPackage: initialPackage,

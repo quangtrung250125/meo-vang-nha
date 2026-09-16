@@ -22,7 +22,9 @@ const Step5Success = ({ data }) => {
     addBooking({
       id: newId,
       checkIn: data.checkIn,
+      checkInTime: data.checkInTime || '09:00',
       checkOut: data.checkOut,
+      checkOutTime: data.checkOutTime || '18:00',
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
       petIds: data.petProfiles?.map(p => p.id) || [],
