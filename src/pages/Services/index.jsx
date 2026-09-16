@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // TÍNH NĂNG: LIÊN HỆ NGAY & PROFILE DOANH NGHIỆP PETHOTEL
 // Thực hiện bởi: Hà (Nhánh: Hà-ngu-)
 // ==========================================
@@ -147,9 +147,11 @@ const Services = () => {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-md flex-shrink-0">
-                  <PawPrint className="w-10 h-10 text-primary" />
-                </div>
+                <img 
+                  src="/images/logo.png" 
+                  alt="Mèo Vắng Nhà" 
+                  className="w-16 h-16 rounded-2xl object-cover shadow-md border border-white/20 flex-shrink-0"
+                />
                 <div>
                   <h2 className="text-2xl md:text-3xl font-extrabold font-title text-white">MÈO VẮNG NHÀ - PETHOTEL</h2>
                   <p className="text-white/90 text-sm mt-0.5">Khách sạn & Dịch vụ Chăm sóc Mèo Cưng Chuẩn 5 Sao</p>

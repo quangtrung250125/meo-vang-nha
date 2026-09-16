@@ -79,7 +79,11 @@ const Home = () => {
       <section className="bg-bg-beige py-16">
         <div className="max-w-7xl mx-auto px-4 text-center flex flex-col items-center">
           <div className="flex items-center gap-3 mb-2">
-            <PawPrint className="h-10 w-10 text-primary" />
+            <img 
+              src="/images/logo.png" 
+              alt="Mèo Vắng Nhà" 
+              className="h-14 w-14 object-cover rounded-2xl shadow-md border border-gray-200"
+            />
             <h2 className="text-3xl font-bold text-text-dark font-title">Mèo Vắng Nhà</h2>
           </div>
           <p className="text-primary font-medium tracking-wide">Nơi những chú mèo được yêu thương</p>
