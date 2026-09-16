@@ -5,10 +5,13 @@ import { promotionInfo } from '../../mockData/servicesData';
 
 
 const Home = () => {
+  // Chỉ hiện banner vào Thứ 4 (getDay() === 3: 0=CN, 1=T2, 2=T3, 3=T4...)
+  const isWednesday = new Date().getDay() === 3;
+
   return (
     <div className="w-full">
-      {/* Wednesday Pate Promo Banner */}
-      <div style={{
+      {/* Wednesday Pate Promo Banner - chỉ hiện vào Thứ 4 */}
+      {isWednesday && <div style={{
         background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)',
         padding: '0',
         overflow: 'hidden',
@@ -71,7 +74,7 @@ const Home = () => {
           height: '3px',
           background: 'rgba(255,255,255,0.4)',
         }} />
-      </div>
+      </div>}
       {/* Hero Section */}
       <section className="bg-primary-light pt-12 pb-20 relative overflow-hidden rounded-b-[3rem]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
