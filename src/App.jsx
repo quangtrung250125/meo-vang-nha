@@ -10,29 +10,31 @@ import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
 import { PetProvider } from './contexts/PetContext';
-
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
+import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
   return (
-    <PetProvider>
-      <BookingHistoryProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<Home />} />
-              <Route path="services" element={<Services />} />
-              <Route path="pricing" element={<Pricing />} />
-              <Route path="booking" element={<Booking />} />
-              <Route path="pet-profile" element={<PetProfile />} />
-              <Route path="my-booking" element={<MyBooking />} />
-              <Route path="tracking" element={<Tracking />} />
-              <Route path="checkout" element={<Checkout />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </BookingHistoryProvider>
-    </PetProvider>
+    <AuthProvider>
+      <PetProvider>
+        <BookingHistoryProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<Home />} />
+                <Route path="services" element={<Services />} />
+                <Route path="pricing" element={<Pricing />} />
+                <Route path="booking" element={<Booking />} />
+                <Route path="pet-profile" element={<PetProfile />} />
+                <Route path="my-booking" element={<MyBooking />} />
+                <Route path="tracking" element={<Tracking />} />
+                <Route path="checkout" element={<Checkout />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </BookingHistoryProvider>
+      </PetProvider>
+    </AuthProvider>
   );
 }
 
