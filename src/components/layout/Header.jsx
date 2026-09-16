@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Bell, User, Menu } from 'lucide-react';
 import { PawPrint } from 'lucide-react';
+import AuthModal from '../AuthModal';
 
 const Header = () => {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const location = useLocation();
   const isActive = (path) => location.pathname === path ? 'text-primary font-bold' : 'text-gray-600 hover:text-primary font-medium';
 
   return (
+    <>
     <header className="sticky top-0 z-50 bg-white border-b border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
@@ -25,7 +28,7 @@ const Header = () => {
           <div className="hidden md:flex items-center gap-5 text-gray-500">
             <button className="hover:text-primary transition-colors"><Search className="h-5 w-5" /></button>
             <button className="hover:text-primary transition-colors"><Bell className="h-5 w-5" /></button>
-            <Link to="/my-booking" className="hover:text-primary transition-colors"><User className="h-5 w-5" /></Link>
+            <button onClick={() => setIsAuthModalOpen(true)} className="hover:text-primary transition-colors"><User className="h-5 w-5" /></button>
           </div>
           <div className="md:hidden flex items-center">
             <button className="text-text-dark hover:text-primary">
@@ -35,6 +38,8 @@ const Header = () => {
         </div>
       </div>
     </header>
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+    </>
   );
 };
 
