@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown, Flame, Percent, Sparkles, ArrowRight } from 'lucide-react';
+import { Check, ChevronDown, Flame, Sparkles, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { packagesList, promotionInfo } from '../../mockData/servicesData';
 
 const faqs = [
+  {
+    question: 'Chương trình ưu đãi giảm giá 10% áp dụng như thế nào?',
+    answer:
+      'Chương trình giảm 10% được áp dụng tự động cho toàn bộ dịch vụ lưu trú, spa và tiện ích khi khách hàng đặt phòng trực tuyến qua website.',
+  },
   {
     question: 'Có cần đặt cọc không?',
     answer:
@@ -59,36 +64,42 @@ const FAQSection = () => {
   };
 
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-2xl font-extrabold text-text-dark font-title mb-6">Câu hỏi thường gặp</h2>
+    <div className="max-w-3xl mx-auto mb-16">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-extrabold text-text-dark font-title mb-2">Câu hỏi thường gặp</h2>
+        <p className="text-gray-500 text-sm">Giải đáp mọi thắc mắc về dịch vụ và chương trình ưu đãi giảm 10%.</p>
+      </div>
       <div className="space-y-3">
-        {faqs.map((faq, idx) => (
-          <div
-            key={idx}
-            className={`border rounded-xl bg-bg-cream overflow-hidden transition-all duration-200 ${
-              openIndex === idx
-                ? 'border-primary shadow-sm'
-                : 'border-gray-200 hover:border-primary/50'
-            }`}
-          >
-            <button
-              onClick={() => toggle(idx)}
-              className="w-full flex justify-between items-center p-5 text-left cursor-pointer"
+        {faqs.map((faq, idx) => {
+          const isOpen = openIndex === idx;
+          return (
+            <div
+              key={idx}
+              className={`border rounded-2xl bg-white overflow-hidden transition-all duration-200 ${
+                isOpen
+                  ? 'border-primary shadow-sm'
+                  : 'border-gray-200/80 hover:border-primary/50'
+              }`}
             >
-              <h4 className="font-semibold text-text-dark pr-4">{faq.question}</h4>
-              <ChevronDown
-                className={`w-5 h-5 text-primary shrink-0 transition-transform duration-300 ${
-                  openIndex === idx ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {openIndex === idx && (
-              <div className="px-5 pb-5">
-                <p className="text-gray-600 text-sm leading-relaxed">{faq.answer}</p>
-              </div>
-            )}
-          </div>
-        ))}
+              <button
+                onClick={() => toggle(idx)}
+                className="w-full flex justify-between items-center p-5 text-left cursor-pointer focus:outline-none"
+              >
+                <h4 className="font-semibold text-text-dark pr-4">{faq.question}</h4>
+                <ChevronDown
+                  className={`w-5 h-5 text-primary shrink-0 transition-transform duration-300 ${
+                    isOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              {isOpen && (
+                <div className="px-5 pb-5 pt-1 border-t border-gray-100">
+                  <p className="text-gray-600 text-sm leading-relaxed">{faq.answer}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -97,7 +108,6 @@ const FAQSection = () => {
 const Pricing = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Tất cả');
-  const [openFaq, setOpenFaq] = useState(null);
 
   const tabs = [
     { label: 'Tất cả', value: 'Tất cả' },
@@ -113,37 +123,11 @@ const Pricing = () => {
     return pkg.category === activeTab;
   });
 
-  const faqs = [
-    {
-      q: 'Chương trình ưu đãi giảm giá 10% áp dụng như thế nào?',
-      a: 'Chương trình giảm 10% được áp dụng tự động cho toàn bộ dịch vụ lưu trú, spa và tiện ích khi khách hàng đặt phòng trực tuyến qua website.'
-    },
-    {
-      q: 'Có cần đặt cọc trước khi đến không?',
-      a: 'Để giữ phòng và giữ nguyên mức giá ưu đãi 10%, bạn chỉ cần đặt trước một khoản cọc nhỏ qua hệ thống hoặc chuyển khoản.'
-    },
-    {
-      q: 'Thời gian nhận và trả bé mèo như thế nào?',
-      a: 'Khách sạn hoạt động từ 8:00 đến 21:00 hàng ngày. Bạn có thể linh hoạt đưa đón bé trong khung giờ này.'
-    },
-    {
-      q: 'Khách sạn có hỗ trợ chăm sóc mèo có chế độ đặc biệt không?',
-      a: 'Có, các bé mèo cần uống thuốc, có khẩu phần kiêng hoặc cần chăm sóc y tế đều được đội ngũ chuyên viên theo dõi sát sao.'
-    }
-  ];
-
   return (
     <div className="w-full bg-[#FAF8F5]/60 min-h-screen">
       {/* Header */}
       <section className="bg-gradient-to-b from-primary-light via-primary-light/60 to-transparent pt-12 pb-20 text-center relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<<<<<<< HEAD
-          <h1 className="text-4xl md:text-5xl font-extrabold text-text-dark font-title mb-4">
-            Bảng giá
-          </h1>
-          <p className="text-gray-600 text-lg max-w-2xl">
-            Mỗi gói dịch vụ đều được thiết kế để mang lại sự thoải mái và an toàn nhất cho bé mèo.
-=======
           <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-primary/20 text-primary font-bold text-xs uppercase tracking-wider mb-4 shadow-sm">
             <Sparkles className="w-4 h-4 text-accent" />
             Bảng giá minh bạch - Tiết kiệm tối đa
@@ -153,34 +137,12 @@ const Pricing = () => {
           </h1>
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
             Đang áp dụng ưu đãi <strong className="text-accent">giảm ngay 10%</strong> cho tất cả các gói dịch vụ khi đặt lịch trực tuyến.
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
           </p>
         </div>
       </section>
 
       {/* Main Content */}
-<<<<<<< HEAD
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 -mt-12 relative z-10">
-
-        {/* Tabs */}
-        <div className="flex justify-start mb-12">
-          <div className="flex space-x-2 bg-bg-cream p-2 rounded-full shadow-sm border border-gray-100">
-            {['Tất cả', 'Lưu trú', 'Spa - Tắm cắt', 'Dịch vụ khác'].map((tab, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveTab(tab)}
-                className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-colors ${
-                  activeTab === tab
-                    ? 'bg-primary text-white'
-                    : 'text-gray-600 hover:text-primary'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-=======
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 -mt-10 relative z-10">
-        
         {/* Banner Alert 10% Off */}
         <div className="mb-10 bg-gradient-to-r from-emerald-50 via-white to-orange-50 border border-primary/20 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
@@ -227,7 +189,6 @@ const Pricing = () => {
                 </button>
               );
             })}
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
           </div>
         </div>
 
@@ -235,17 +196,6 @@ const Pricing = () => {
         {filteredPackages.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
             {filteredPackages.map((plan, idx) => (
-<<<<<<< HEAD
-              <div
-                key={plan.id || idx}
-                className={`${plan.bg} ${plan.border} border rounded-2xl p-6 flex flex-col shadow-sm hover:shadow-md transition-shadow`}
-              >
-                <div className="text-center border-b border-black/5 pb-6 mb-6">
-                  <h3 className="text-lg font-bold text-text-dark mb-2">{plan.name}</h3>
-                  <div className="flex items-center justify-center text-text-dark">
-                    <span className="text-2xl font-bold">{plan.priceString}</span>
-                    <span className="text-gray-500 text-sm ml-1">{plan.period}</span>
-=======
               <div 
                 key={plan.id || idx} 
                 className={`bg-white border-2 ${plan.isBestChoice ? 'border-accent shadow-lg ring-2 ring-accent/20' : 'border-gray-200/80'} rounded-3xl p-6 flex flex-col shadow-sm hover:shadow-xl transition-all relative group`}
@@ -255,7 +205,6 @@ const Pricing = () => {
                   <div className="absolute -top-3.5 left-6 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-[11px] font-extrabold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
                     <Flame className="w-3 h-3 fill-current" />
                     <span>ƯU ĐÃI GIẢM 10%</span>
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
                   </div>
                 )}
 
@@ -291,13 +240,8 @@ const Pricing = () => {
                     {plan.desc}
                   </p>
                 </div>
-<<<<<<< HEAD
-
-                <ul className="space-y-4 mb-8 flex-1">
-=======
                 
                 <ul className="space-y-3 mb-8 flex-1">
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
                   {plan.features.map((feature, fIdx) => (
                     <li key={fIdx} className="flex items-start gap-3">
                       <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -307,14 +251,6 @@ const Pricing = () => {
                     </li>
                   ))}
                 </ul>
-<<<<<<< HEAD
-
-                <button
-                  onClick={() =>
-                    navigate('/booking', { state: { preSelectedPackageId: plan.id } })
-                  }
-                  className="block w-full text-center bg-accent text-white font-bold py-3 rounded-xl hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20 mt-auto"
-=======
                 
                 <button 
                   onClick={() => navigate('/booking', { state: { preSelectedPackageId: plan.id } })}
@@ -323,7 +259,6 @@ const Pricing = () => {
                       ? 'bg-accent hover:bg-accent-hover text-white shadow-accent/25 hover:shadow-accent/40' 
                       : 'bg-primary hover:bg-secondary text-white shadow-primary/20 hover:shadow-primary/30'
                   }`}
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
                 >
                   <span>Đặt ngay với giá ưu đãi</span>
                   <ArrowRight className="w-4 h-4" />
@@ -332,54 +267,13 @@ const Pricing = () => {
             ))}
           </div>
         ) : (
-<<<<<<< HEAD
-          <div className="text-center py-20 bg-bg-cream rounded-3xl border border-gray-100 mb-20">
-            <p className="text-gray-500 font-medium">
-              Hiện tại chưa có gói dịch vụ nào trong danh mục này.
-            </p>
-=======
           <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 mb-20">
             <p className="text-gray-500 font-medium">Hiện tại chưa có gói dịch vụ nào trong danh mục này.</p>
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
           </div>
         )}
 
         {/* FAQs */}
-<<<<<<< HEAD
         <FAQSection />
-=======
-        <div className="max-w-3xl mx-auto mb-16">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-extrabold text-text-dark font-title mb-2">Câu hỏi thường gặp</h2>
-            <p className="text-gray-500 text-sm">Giải đáp mọi thắc mắc về dịch vụ và chương trình ưu đãi giảm 10%.</p>
-          </div>
-          
-          <div className="space-y-4">
-            {faqs.map((faq, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div 
-                  key={idx} 
-                  className={`border rounded-2xl bg-white transition-all overflow-hidden ${isOpen ? 'border-primary shadow-sm' : 'border-gray-200/80 hover:border-gray-300'}`}
-                >
-                  <button 
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-5 text-left flex justify-between items-center gap-4 focus:outline-none"
-                  >
-                    <h4 className="font-bold text-text-dark text-base">{faq.q}</h4>
-                    <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 text-primary' : ''}`} />
-                  </button>
-                  {isOpen && (
-                    <div className="px-5 pb-5 pt-1 text-gray-600 text-sm leading-relaxed border-t border-gray-100">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
->>>>>>> be7d5d7d7f77c5ac4ae47b2d488d1bdd7b6a79dc
 
       </section>
     </div>

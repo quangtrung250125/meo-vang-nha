@@ -9,6 +9,12 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
   const [isCouponApplied, setIsCouponApplied] = useState(true);
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
 
+  // Kiểm tra ngày nhận có phải Thứ 5
+  const isThursday = (() => {
+    if (!data.checkIn) return false;
+    return new Date(data.checkIn + 'T00:00:00').getDay() === 4;
+  })();
+
   // Tính số ngày lưu trú
   const calculateDays = () => {
     if (!data.checkIn || !data.checkOut) return 0;
