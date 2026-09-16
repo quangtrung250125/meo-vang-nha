@@ -7,6 +7,71 @@ import { promotionInfo } from '../../mockData/servicesData';
 const Home = () => {
   return (
     <div className="w-full">
+      {/* Wednesday Pate Promo Banner */}
+      <div style={{
+        background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)',
+        padding: '0',
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          padding: '14px 16px',
+          flexWrap: 'wrap',
+        }}>
+          {/* Sparkle decorations */}
+          <span style={{ fontSize: '20px', animation: 'pulse 2s infinite' }}>✨</span>
+          <span style={{
+            fontSize: '22px',
+          }}>🐱</span>
+          <div style={{ textAlign: 'center' }}>
+            <span style={{
+              color: 'white',
+              fontWeight: '900',
+              fontSize: 'clamp(13px, 2.5vw, 17px)',
+              letterSpacing: '0.02em',
+              textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              display: 'inline',
+            }}>
+              🎁&nbsp;<strong>ƯU ĐÃI THỨ 4:</strong>&nbsp;Các bé lưu trú tại Mèo Vắng Nhà vào&nbsp;<strong>Thứ Tư</strong>&nbsp;được tặng&nbsp;<strong>Pate theo sở thích</strong>&nbsp;miễn phí!
+            </span>
+          </div>
+          <span style={{ fontSize: '22px' }}>🐾</span>
+          <span style={{ fontSize: '20px', animation: 'pulse 2s infinite 0.5s' }}>✨</span>
+          <a
+            href="/booking"
+            style={{
+              background: 'white',
+              color: '#f97316',
+              fontWeight: '900',
+              fontSize: '13px',
+              padding: '6px 18px',
+              borderRadius: '999px',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              border: '2px solid rgba(255,255,255,0.8)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            Đặt phòng ngay →
+          </a>
+        </div>
+        {/* Animated shimmer strip */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '3px',
+          background: 'rgba(255,255,255,0.4)',
+        }} />
+      </div>
       {/* Hero Section */}
       <section className="bg-primary-light pt-12 pb-20 relative overflow-hidden rounded-b-[3rem]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -18,10 +83,10 @@ const Home = () => {
                 <span>Ưu đãi HOT: Giảm 10% tất cả dịch vụ</span>
               </div>
 
-              {/* Thursday Pate Promo Pill */}
+              {/* Wednesday Pate Promo Pill */}
               <div className="inline-flex items-center gap-2 bg-amber-100 px-4 py-1.5 rounded-full border border-amber-300 text-amber-800 font-bold text-xs uppercase tracking-wider mb-6 shadow-sm ml-2">
                 <Gift className="w-4 h-4 text-amber-600" />
-                <span>🎁 Thứ 5: Tặng Pate Miễn Phí!</span>
+                <span>🎁 Thứ 4: Tặng Pate Miễn Phí!</span>
               </div>
               
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text-dark leading-tight mb-6 font-title">
@@ -67,7 +132,7 @@ const Home = () => {
             { icon: HomeIcon, title: 'Phòng sạch sẽ', subtitle: 'an toàn, vô trùng' },
             { icon: Heart, title: 'Chăm sóc tận tâm', subtitle: 'chuyên nghiệp 24/7' },
             { icon: Video, title: 'Camera theo dõi', subtitle: 'xem trực tiếp qua App' },
-            { icon: Gift, title: 'Tặng Pate Thứ 5', subtitle: 'theo sở thích từng bé' },
+            { icon: Gift, title: 'Tặng Pate Thứ 4', subtitle: 'lưu trú thứ tư tặng pate' },
           ].map((feature, idx) => (
             <div key={idx} className="flex flex-col items-center p-6 bg-bg-cream rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <feature.icon className="h-8 w-8 text-primary mb-4" />
