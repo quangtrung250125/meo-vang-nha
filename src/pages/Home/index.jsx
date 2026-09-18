@@ -1,15 +1,76 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Home as HomeIcon, Heart, Video, ShieldCheck, PawPrint, Flame, Sparkles, ArrowRight, Percent, Gift } from 'lucide-react';
+import { Home as HomeIcon, Heart, Video, ShieldCheck, PawPrint, Flame, Sparkles, ArrowRight, Percent, Gift, UserRound, Cat, MessageSquareText, SearchCheck, DatabaseZap } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
-
+import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { usePetProfile } from '../../contexts/PetContext';
 
 const Home = () => {
-  // Chỉ hiện banner vào Thứ 4 (getDay() === 3: 0=CN, 1=T2, 2=T3, 3=T4...)
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const { customerProfile, saveCustomerProfile } = useCustomerProfile();
+  const { petList, savePet } = usePetProfile();
   const isWednesday = new Date().getDay() === 3;
+
+  useEffect(() => {
+    if (!customerProfile) {
+      const timer = setTimeout(() => setIsWelcomeOpen(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [customerProfile]);
+
+  const customerSummary = useMemo(() => {
+    if (!customerProfile) return { owner: 'Khách mới', petCount: 0, labels: ['Khách hàng mới'] };
+    return {
+      owner: customerProfile.fullName || 'Khách hàng mới',
+      petCount: Array.isArray(customerProfile.pets) ? customerProfile.pets.length : 0,
+      labels: customerProfile.labels || ['Khách hàng mới'],
+    };
+  }, [customerProfile]);
+
+  const handleProfileSubmit = async (profileData) => {
+    const pet = {
+      id: `crm-pet-${Date.now()}`,
+      name: profileData.petName,
+      age: profileData.age,
+      gender: profileData.gender,
+      breed: profileData.breed,
+      health: {
+        vaccinated: profileData.vaccinated,
+        medicalCondition: profileData.allergies,
+        medicalHistory: profileData.medicalHistory,
+        medication: '',
+        allergy: profileData.allergies,
+      },
+      habits: profileData.feeding,
+      personality: { friendly: false, shy: false, stress: false, hardToReach: false, other: Boolean(profileData.personality), otherDetail: profileData.personality },
+      specialRequests: profileData.specialCare,
+      imagePreview: null,
+      imageFile: null,
+      createdFromWelcome: true,
+      source: profileData.source,
+    };
+
+    const syncedProfile = {
+      ...profileData,
+      customerId: `customer-${Date.now()}`,
+      labels: profileData.labels || ['Khách hàng mới'],
+      pets: [pet],
+    };
+
+    saveCustomerProfile(syncedProfile);
+    if (!petList.some(item => item.name === pet.name)) {
+      savePet(pet);
+    }
+  };
 
   return (
     <div className="w-full">
+      <CustomerWelcomeModal
+        isOpen={isWelcomeOpen}
+        onClose={() => setIsWelcomeOpen(false)}
+        onSubmit={handleProfileSubmit}
+      />
       {/* Wednesday Pate Promo Banner - chỉ hiện vào Thứ 4 */}
       {isWednesday && <div style={{
         background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)',
@@ -91,7 +152,7 @@ const Home = () => {
                 <Gift className="w-4 h-4 text-amber-600" />
                 <span>🎁 Thứ 4: Tặng Pate Miễn Phí!</span>
               </div>
-              
+
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text-dark leading-tight mb-6 font-title">
                 Mèo được chăm sóc như ở nhà
               </h1>
@@ -99,14 +160,14 @@ const Home = () => {
                 Lưu trú • Spa • Tắm cắt • Theo dõi sức khoẻ 24/7 với ưu đãi 10% tháng này.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
-                <Link 
-                  to="/booking" 
+                <Link
+                  to="/booking"
                   className="w-full sm:w-auto text-center bg-accent text-white font-bold px-8 py-3.5 rounded-full hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 active:scale-95"
                 >
                   Đặt phòng ngay (-10%)
                 </Link>
-                <Link 
-                  to="/services" 
+                <Link
+                  to="/services"
                   className="w-full sm:w-auto text-center bg-white border border-gray-200 text-text-dark font-bold px-8 py-3.5 rounded-full hover:bg-gray-50 transition-colors shadow-sm"
                 >
                   Xem danh mục dịch vụ
@@ -116,7 +177,7 @@ const Home = () => {
             <div className="flex-1 w-full relative">
               <div className="aspect-[4/3] bg-white rounded-3xl overflow-hidden shadow-2xl relative">
                 <img src="/images/hero_banner.png" alt="Mèo được chăm sóc như ở nhà" className="w-full h-full object-cover" />
-                
+
                 {/* Overlay discount badge */}
                 <div className="absolute top-4 right-4 bg-accent text-white px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 font-black text-sm">
                   <Percent className="w-5 h-5" />
@@ -146,6 +207,51 @@ const Home = () => {
         </div>
       </section>
 
+      {/* CRM / Customer Identification Overview */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-10 text-center">
+          <div className="inline-flex items-center gap-2 text-accent font-bold text-xs uppercase tracking-[0.2em] mb-3">
+            <DatabaseZap className="w-4 h-4" />
+            <span>CRM & nhận diện khách hàng</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text-dark font-title">Từ lần đầu truy cập, hệ thống đã bắt đầu hiểu từng bé mèo</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {[
+            { icon: UserRound, title: 'Hồ sơ chủ nuôi', text: 'Tên, số điện thoại, email, kênh truy cập để xác định danh tính khách hàng.', accent: 'from-orange-50 to-amber-50' },
+            { icon: Cat, title: 'Hồ sơ mèo', text: 'Tên, giống, tuổi, tính cách, tiêm vaccine, dị ứng, thói quen ăn uống và yêu cầu đặc biệt.', accent: 'from-amber-50 to-yellow-50' },
+            { icon: MessageSquareText, title: 'Tương tác & chat', text: 'Lưu câu hỏi, yêu cầu tư vấn, ghi chú chăm sóc để bổ sung hồ sơ CRM.', accent: 'from-emerald-50 to-teal-50' },
+            { icon: SearchCheck, title: 'Phân đoạn khách hàng', text: 'Gắn nhãn khách hàng mới, cũ, quay lại, nhiều mèo và ưu tiên chăm sóc.', accent: 'from-rose-50 to-pink-50' },
+          ].map((item) => (
+            <div key={item.title} className={`rounded-3xl border border-gray-100 bg-gradient-to-br ${item.accent} p-6 shadow-sm`}>
+              <div className="mb-4 inline-flex rounded-2xl bg-white p-3 text-primary shadow-sm">
+                <item.icon className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-text-dark mb-3">{item.title}</h3>
+              <p className="text-sm leading-relaxed text-gray-600">{item.text}</p>
+            </div>
+          ))}
+        </div>
+
+        {customerProfile && (
+          <div className="mt-8 rounded-3xl border border-primary/20 bg-gradient-to-r from-primary-light via-white to-orange-50 p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-primary font-bold mb-2">Trạng thái CRM đang đồng bộ</p>
+                <h3 className="text-2xl font-extrabold text-text-dark">{customerSummary.owner}</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Đã tạo {customerSummary.petCount} hồ sơ mèo và gắn nhãn: {customerSummary.labels.join(', ')}.
+                </p>
+              </div>
+              <Link to="/pet-profile" className="inline-flex items-center justify-center rounded-2xl bg-accent px-5 py-3 font-bold text-white shadow-lg shadow-accent/30 hover:bg-accent-hover transition-colors">
+                Xem hồ sơ mèo
+              </Link>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* Popular Services */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10">
@@ -156,8 +262,8 @@ const Home = () => {
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-text-dark font-title">Các dịch vụ nổi bật</h2>
           </div>
-          <Link 
-            to="/services" 
+          <Link
+            to="/services"
             className="mt-4 sm:mt-0 inline-flex items-center gap-2 text-primary hover:text-secondary font-bold text-sm"
           >
             <span>Xem toàn bộ dịch vụ (-10%)</span>
@@ -167,25 +273,25 @@ const Home = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { 
-              title: 'Lưu trú khách sạn', 
-              desc: 'Không gian riêng tư, vô trùng, bữa ăn dinh dưỡng và camera 24/7.', 
+            {
+              title: 'Lưu trú khách sạn',
+              desc: 'Không gian riêng tư, vô trùng, bữa ăn dinh dưỡng và camera 24/7.',
               image: '/images/service_hotel.png',
               price: 'Từ 180.000đ/ngày',
               originalPrice: '200.000đ',
               discount: '-10%'
             },
-            { 
-              title: 'Spa - Tắm cắt chuyên sâu', 
-              desc: 'Tắm nano thảo mộc khử mùi, vệ sinh toàn diện và tạo phom lông xinh.', 
+            {
+              title: 'Spa - Tắm cắt chuyên sâu',
+              desc: 'Tắm nano thảo mộc khử mùi, vệ sinh toàn diện và tạo phom lông xinh.',
               image: '/images/service_spa.png',
               price: 'Từ 198.000đ/lần',
               originalPrice: '220.000đ',
               discount: '-10%'
             },
-            { 
-              title: 'Chăm sóc VIP & Đưa đón', 
-              desc: 'Phòng VIP lớn, chế độ ăn organic, massage và xe đón tận nhà an toàn.', 
+            {
+              title: 'Chăm sóc VIP & Đưa đón',
+              desc: 'Phòng VIP lớn, chế độ ăn organic, massage và xe đón tận nhà an toàn.',
               image: '/images/service_care.png',
               price: 'Từ 135.000đ/dịch vụ',
               originalPrice: '150.000đ',
@@ -203,7 +309,7 @@ const Home = () => {
                 <div className="p-6">
                   <h3 className="text-xl font-bold text-text-dark mb-2">{service.title}</h3>
                   <p className="text-gray-500 text-sm mb-4 leading-relaxed">{service.desc}</p>
-                  
+
                   <div className="flex items-baseline gap-2 mb-4">
                     <span className="text-lg font-black text-accent">{service.price}</span>
                     <span className="text-xs text-gray-400 line-through">{service.originalPrice}</span>
@@ -212,8 +318,8 @@ const Home = () => {
               </div>
 
               <div className="px-6 pb-6">
-                <Link 
-                  to="/services" 
+                <Link
+                  to="/services"
                   className="block text-center w-full py-3 bg-white border border-primary/30 text-primary hover:bg-primary hover:text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
                 >
                   Xem chi tiết & Đặt ngay
