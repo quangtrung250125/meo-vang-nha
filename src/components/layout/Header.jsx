@@ -15,7 +15,9 @@ import {
   Utensils,
   Droplets,
   Smile,
-  Video
+  Video,
+  Gift,
+  BookOpen
 } from 'lucide-react';
 
 const Header = () => {
@@ -67,20 +69,32 @@ const Header = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav ref={navRef} className="hidden lg:flex items-center space-x-5 xl:space-x-7">
-            <Link to="/" className={`text-sm tracking-wide transition-colors ${isActive('/')}`}>
+          <nav ref={navRef} className="hidden lg:flex items-center space-x-2.5 xl:space-x-4">
+            <Link to="/" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/')}`}>
               Trang chủ
             </Link>
-            <Link to="/services" className={`text-sm tracking-wide transition-colors ${isActive('/services')}`}>
+            <Link to="/services" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/services')}`}>
               Dịch vụ
             </Link>
-            <Link to="/pricing" className={`text-sm tracking-wide transition-colors ${isActive('/pricing')}`}>
+            <Link to="/pricing" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/pricing')}`}>
               Bảng giá
             </Link>
-            <Link to="/pet-profile" className={`text-sm tracking-wide transition-colors ${isActive('/pet-profile')}`}>
+            <Link 
+              to="/promotions" 
+              className={`text-xs xl:text-sm tracking-wide transition-colors flex items-center gap-1.5 ${isActive('/promotions')}`}
+            >
+              <span>Khuyến mãi</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-500 text-white animate-pulse leading-none">
+                HOT
+              </span>
+            </Link>
+            <Link to="/news" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/news')}`}>
+              Tin tức
+            </Link>
+            <Link to="/pet-profile" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/pet-profile')}`}>
               Hồ sơ mèo
             </Link>
-            <Link to="/booking" className={`text-sm tracking-wide transition-colors ${isActive('/booking')}`}>
+            <Link to="/booking" className={`text-xs xl:text-sm tracking-wide transition-colors ${isActive('/booking')}`}>
               Đặt phòng
             </Link>
 
@@ -347,6 +361,25 @@ const Header = () => {
               className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${location.pathname.startsWith('/pricing') ? 'bg-primary-light text-primary font-bold' : 'text-text-dark hover:bg-gray-50'}`}
             >
               Bảng giá
+            </Link>
+            <Link 
+              to="/promotions" 
+              className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${location.pathname.startsWith('/promotions') ? 'bg-primary-light text-primary font-bold' : 'text-text-dark hover:bg-gray-50'}`}
+            >
+              <span className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-rose-500" />
+                Hoạt động khuyến mãi
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-600 uppercase">
+                Hot
+              </span>
+            </Link>
+            <Link 
+              to="/news" 
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${location.pathname.startsWith('/news') ? 'bg-primary-light text-primary font-bold' : 'text-text-dark hover:bg-gray-50'}`}
+            >
+              <BookOpen className="w-4 h-4 text-emerald-600" />
+              Tin tức & Cẩm nang
             </Link>
             <Link 
               to="/pet-profile" 
