@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import toast from 'react-hot-toast';
 import './AuthModal.css';
 
 export default function AuthModal({ isOpen, onClose }) {
@@ -67,12 +66,10 @@ export default function AuthModal({ isOpen, onClose }) {
 
       if (error) throw error;
 
-      // Đóng modal ngay lập tức và hiện toast ở ngoài
-      onClose();
-      toast.success('Đăng nhập thành công! Chào mừng bạn 🐾', {
-        duration: 3000,
-        position: 'top-center',
-      });
+      setMessage({ text: 'Đăng nhập thành công!', type: 'success' });
+      setTimeout(() => {
+        onClose();
+      }, 500);
 
     } catch (error) {
       setMessage({ text: error.message || 'Email hoặc mật khẩu không đúng!', type: 'error' });
