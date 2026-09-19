@@ -31,7 +31,6 @@ const Header = () => {
           <nav className="hidden md:flex space-x-8">
             <Link to="/" className={`text-sm tracking-wide ${isActive('/')}`}>Trang chủ</Link>
             <Link to="/services" className={`text-sm tracking-wide ${isActive('/services')}`}>Dịch vụ</Link>
-            <Link to="/pricing" className={`text-sm tracking-wide ${isActive('/pricing')}`}>Bảng giá</Link>
             <Link to="/promotions" className={`text-sm tracking-wide ${isActive('/promotions')}`}>Khuyến mãi</Link>
             <Link to="/news" className={`text-sm tracking-wide ${isActive('/news')}`}>Tin tức</Link>
             <Link to="/pet-profile" className={`text-sm tracking-wide ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
@@ -94,7 +93,6 @@ const Header = () => {
           <div className="md:hidden border-t border-gray-100 py-3 space-y-1">
             <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/')}`}>Trang chủ</Link>
             <Link to="/services" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/services')}`}>Dịch vụ</Link>
-            <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pricing')}`}>Bảng giá</Link>
             <Link to="/promotions" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/promotions')}`}>Khuyến mãi</Link>
             <Link to="/news" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/news')}`}>Tin tức</Link>
             <Link to="/pet-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
