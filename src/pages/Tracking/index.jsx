@@ -5,7 +5,7 @@ import {
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
   Loader2, ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
-  Zap, Gift
+  Zap, Gift, Send
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
@@ -514,6 +514,85 @@ const CallModal = ({ isOpen, onClose, onConfirm }) => {
   );
 };
 
+// ─── Staff Chat Modal ────────────────────────────────────────────────────────
+const StaffChatModal = ({ isOpen, onClose, onSend }) => {
+  const [text, setText] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!text.trim()) return;
+    onSend(text.trim());
+    setText('');
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary to-secondary px-6 py-5 flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm shadow-inner">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base leading-tight">Chat với nhân viên</h3>
+              <p className="text-white/80 text-xs mt-0.5">Mèo Vàng Nhà Pet Hotel</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6">
+          {/* Top note in italics */}
+          <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-2xl p-4 mb-4">
+            <p className="italic text-emerald-900 text-xs sm:text-sm leading-relaxed">
+              &ldquo;Những yêu cầu về dịch vụ khác với dịch vụ sẵn có sẽ được gửi tự động và thông báo tới nhân viên ngay sau khi gửi. Vui lòng chat ở phần bên dưới&rdquo;
+            </p>
+          </div>
+
+          {/* Textarea container */}
+          <div className="relative">
+            <textarea
+              rows={5}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Nhập nội dung yêu cầu của bạn gửi tới nhân viên chăm sóc..."
+              className="w-full bg-gray-50 border border-gray-200 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 rounded-2xl p-4 pb-14 text-sm text-gray-800 placeholder-gray-400 resize-none transition-all outline-none"
+              autoFocus
+            />
+
+            {/* Green floating "Gửi" button at bottom right corner when user has typed text */}
+            {text.trim().length > 0 && (
+              <button
+                onClick={handleSubmit}
+                className="absolute bottom-3 right-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-500/30 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+              >
+                <span>Gửi</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const TrackingPage = () => {
@@ -523,10 +602,20 @@ const TrackingPage = () => {
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
 
   const [showCallModal, setShowCallModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(false);
 
   const handleCallConfirm = () => {
     setShowCallModal(false);
     window.location.href = `tel:${HOTLINE_NUMBER}`;
+  };
+
+  const handleSendMessage = (msg) => {
+    setSuccessNotice(true);
+    toast.success('Đã gửi tin nhắn thành công', { duration: 3000 });
+    setTimeout(() => {
+      setSuccessNotice(false);
+    }, 3000);
   };
 
   const [isCameraUnlocked, setIsCameraUnlocked] = useState(false);
@@ -628,6 +717,25 @@ const TrackingPage = () => {
         onClose={() => setShowCallModal(false)}
         onConfirm={handleCallConfirm}
       />
+
+      {/* Staff Chat Modal */}
+      <StaffChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
+        onSend={handleSendMessage}
+      />
+
+      {/* ── Top Success Notification Banner (3 seconds) ── */}
+      {successNotice && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
+          <div className="bg-white/95 backdrop-blur-md border-2 border-emerald-500 text-emerald-950 px-6 py-3.5 rounded-2xl shadow-2xl shadow-emerald-900/15 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
+            <span className="font-bold text-sm text-gray-800">Đã gửi tin nhắn thành công</span>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 relative z-10">
         {/* Navigation */}
@@ -800,36 +908,22 @@ const TrackingPage = () => {
                   </div>
                 </div>
 
-                {/* Emergency Hotline Contact */}
-                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-2">Cần hỗ trợ khẩn cấp?</p>
+                {/* Chat with staff */}
+                <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-2.5 font-medium">Cần yêu cầu dịch vụ riêng hoặc hỗ trợ chăm sóc?</p>
                   <button
-                    onClick={() => setShowCallModal(true)}
-                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md shadow-primary/25 cursor-pointer text-sm"
+                    onClick={() => setShowChatModal(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md shadow-primary/25 hover:shadow-lg active:scale-[0.98] cursor-pointer text-sm"
                   >
-                    <Phone className="w-4 h-4" />
-                    Gọi hotline ngay
+                    <MessageCircle className="w-4 h-4" />
+                    Chat với nhân viên
                   </button>
-                  <p className="text-xs text-gray-400 mt-2 font-mono font-bold">{HOTLINE_DISPLAY}</p>
                 </div>
               </div>
             </div>
           </>
         )}
       </div>
-      {/* ── Floating Call Button ── */}
-      {activeBooking && (
-        <button
-          onClick={() => setShowCallModal(true)}
-          title="Gọi hotline: 090 495 75 55"
-          className="fixed bottom-6 right-6 z-40 group w-16 h-16 bg-primary hover:bg-secondary text-white rounded-full shadow-2xl shadow-primary/40 flex items-center justify-center transition-all hover:scale-110 active:scale-95 cursor-pointer"
-        >
-          <span className="absolute inset-0 rounded-full bg-primary animate-ping opacity-25" />
-          <Phone className="w-7 h-7 relative z-10" />
-          <span className="absolute -top-1 -right-1 bg-accent text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none shadow-md">24/7</span>
-          <span className="absolute right-[72px] bg-text-dark text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">Gọi nhân viên</span>
-        </button>
-      )}
     </div>
   );
 };
