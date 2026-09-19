@@ -3,6 +3,7 @@ import { Info, Plus } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { usePetProfile } from '../../contexts/PetContext';
 import PetForm from '../../components/PetForm';
+import PetDashboardNav from '../../components/PetDashboardNav';
 
 const PetProfile = () => {
   const { petList, savePet } = usePetProfile();
@@ -36,10 +37,10 @@ const PetProfile = () => {
       <Toaster position="top-center" /> 
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-text-dark font-title mb-2">Hồ sơ của các bé</h1>
-          <p className="text-gray-500">Quản lý thông tin thú cưng để chúng mình chăm sóc tốt hơn.</p>
-        </div>
+        <PetDashboardNav 
+          title="Hồ sơ của các bé" 
+          subtitle="Quản lý thông tin thú cưng để chúng mình chăm sóc tốt hơn." 
+        />
         
         {isEditing ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">

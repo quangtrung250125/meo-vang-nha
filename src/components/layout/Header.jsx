@@ -27,8 +27,9 @@ const Header = () => {
           <nav className="hidden md:flex space-x-8">
             <Link to="/" className={'text-sm tracking-wide ' + isActive('/')}>Trang chủ</Link>
             <Link to="/services" className={'text-sm tracking-wide ' + isActive('/services')}>Dịch vụ</Link>
-            <Link to="/pet-profile" className={'text-sm tracking-wide ' + isActive('/pet-profile')}>Hồ sơ mèo</Link>
-            <Link to="/booking" className={'text-sm tracking-wide ' + isActive('/booking')}>Đặt phòng</Link>
+            <Link to="/pet-profile" className={`text-sm tracking-wide ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
+            <Link to="/tracking" className={`text-sm tracking-wide ${isActive('/tracking')}`}>Theo dõi lưu trú</Link>
+            <Link to="/booking" className={`text-sm tracking-wide ${isActive('/booking')}`}>Đặt phòng</Link>
           </nav>
 
           <div className="hidden md:flex items-center gap-5 text-gray-500">
