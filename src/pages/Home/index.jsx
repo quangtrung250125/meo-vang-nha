@@ -1,15 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Home as HomeIcon, Heart, Video, ShieldCheck, PawPrint, Flame, Sparkles, ArrowRight, Percent, Gift, UserRound, Cat, MessageSquareText, SearchCheck, DatabaseZap } from 'lucide-react';
+import { 
+  Home as HomeIcon, 
+  Heart, 
+  Video, 
+  ShieldCheck, 
+  PawPrint, 
+  Flame, 
+  Sparkles, 
+  ArrowRight, 
+  Percent, 
+  Gift, 
+  UserRound, 
+  Cat, 
+  MessageSquareText, 
+  SearchCheck, 
+  DatabaseZap,
+  ChevronRight
+} from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { useUI } from '../../contexts/UIContext';
 
 const Home = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
   const { petList, savePet } = usePetProfile();
+  const { openPolicy } = useUI();
   const isWednesday = new Date().getDay() === 3;
 
   useEffect(() => {
@@ -71,71 +90,69 @@ const Home = () => {
         onClose={() => setIsWelcomeOpen(false)}
         onSubmit={handleProfileSubmit}
       />
+
       {/* Wednesday Pate Promo Banner - chỉ hiện vào Thứ 4 */}
-      {isWednesday && <div style={{
-        background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)',
-        padding: '0',
-        overflow: 'hidden',
-        position: 'relative',
-      }}>
+      {isWednesday && (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '12px',
-          padding: '14px 16px',
-          flexWrap: 'wrap',
+          background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)',
+          padding: '0',
+          overflow: 'hidden',
+          position: 'relative',
         }}>
-          {/* Sparkle decorations */}
-          <span style={{ fontSize: '20px', animation: 'pulse 2s infinite' }}>✨</span>
-          <span style={{
-            fontSize: '22px',
-          }}>🐱</span>
-          <div style={{ textAlign: 'center' }}>
-            <span style={{
-              color: 'white',
-              fontWeight: '900',
-              fontSize: 'clamp(13px, 2.5vw, 17px)',
-              letterSpacing: '0.02em',
-              textShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              display: 'inline',
-            }}>
-              🎁&nbsp;<strong>ƯU ĐÃI THỨ 4:</strong>&nbsp;Các bé lưu trú tại Mèo Vắng Nhà vào&nbsp;<strong>Thứ Tư</strong>&nbsp;được tặng&nbsp;<strong>Pate theo sở thích</strong>&nbsp;miễn phí!
-            </span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            padding: '14px 16px',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '20px', animation: 'pulse 2s infinite' }}>✨</span>
+            <span style={{ fontSize: '22px' }}>🐱</span>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{
+                color: 'white',
+                fontWeight: '900',
+                fontSize: 'clamp(13px, 2.5vw, 17px)',
+                letterSpacing: '0.02em',
+                textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                display: 'inline',
+              }}>
+                🎁&nbsp;<strong>ƯU ĐÃI THỨ 4:</strong>&nbsp;Các bé lưu trú tại Mèo Vắng Nhà vào&nbsp;<strong>Thứ Tư</strong>&nbsp;được tặng&nbsp;<strong>Pate theo sở thích</strong>&nbsp;miễn phí!
+              </span>
+            </div>
+            <span style={{ fontSize: '22px' }}>🐾</span>
+            <span style={{ fontSize: '20px', animation: 'pulse 2s infinite 0.5s' }}>✨</span>
+            <Link
+              to="/booking"
+              style={{
+                background: 'white',
+                color: '#f97316',
+                fontWeight: '900',
+                fontSize: '13px',
+                padding: '6px 18px',
+                borderRadius: '999px',
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                border: '2px solid rgba(255,255,255,0.8)',
+                transition: 'transform 0.2s',
+              }}
+            >
+              Đặt phòng ngay →
+            </Link>
           </div>
-          <span style={{ fontSize: '22px' }}>🐾</span>
-          <span style={{ fontSize: '20px', animation: 'pulse 2s infinite 0.5s' }}>✨</span>
-          <a
-            href="/booking"
-            style={{
-              background: 'white',
-              color: '#f97316',
-              fontWeight: '900',
-              fontSize: '13px',
-              padding: '6px 18px',
-              borderRadius: '999px',
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              border: '2px solid rgba(255,255,255,0.8)',
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            Đặt phòng ngay →
-          </a>
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '3px',
+            background: 'rgba(255,255,255,0.4)',
+          }} />
         </div>
-        {/* Animated shimmer strip */}
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '3px',
-          background: 'rgba(255,255,255,0.4)',
-        }} />
-      </div>}
+      )}
+
       {/* Hero Section */}
       <section className="bg-primary-light pt-12 pb-20 relative overflow-hidden rounded-b-[3rem]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -204,6 +221,110 @@ const Home = () => {
               <p className="text-gray-500 text-sm mt-1">{feature.subtitle}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* NEW SECTION: TRẢI NGHIỆM CHUẨN 5 SAO CHO MÈO VÀNG (Exact match to Image 3) */}
+      <section id="services-5star" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="text-center max-w-2xl mx-auto mb-12">
+          <p className="text-amber-600 font-bold tracking-widest uppercase text-xs sm:text-sm mb-2">
+            DỊCH VỤ ĐẲNG CẤP
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text-dark font-title">
+            Trải Nghiệm Chuẩn 5 Sao Cho Mèo Vàng
+          </h2>
+          <p className="text-gray-600 mt-3 text-sm sm:text-base">
+            Chúng tôi nâng niu từng giấc ngủ, miếng ăn và đem lại không gian thoải mái nhất cho các bé.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Card 1: Khách sạn */}
+          <div className="bg-white rounded-3xl p-7 shadow-sm border border-orange-100/70 hover:shadow-xl transition-all duration-300 group flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 bg-[#fef3c7] text-[#d97706] rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-hotel"></i>
+              </div>
+              <h3 className="text-xl font-bold text-text-dark mb-2.5 font-title">Khách Sạn Mèo Cao Cấp</h3>
+              <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                Phòng tiêu chuẩn & phòng VIP điều hòa 24/7, chế độ ăn hạt cao cấp & pate tươi hàng ngày, camera trực tiếp.
+              </p>
+              <ul className="text-xs text-gray-500 space-y-2 mb-6">
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Dọn dẹp vệ sinh 2 lần/ngày</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Giờ chơi tự do tại Lounge Mèo</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <span className="text-amber-900 font-bold text-sm">Chỉ từ 120k/ngày</span>
+              <Link to="/booking" className="text-xs font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1">
+                Đặt phòng <i className="fa-solid fa-angle-right"></i>
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 2: Spa */}
+          <div className="bg-white rounded-3xl p-7 shadow-sm border border-orange-100/70 hover:shadow-xl transition-all duration-300 group flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 bg-[#fef3c7] text-[#d97706] rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-shower"></i>
+              </div>
+              <h3 className="text-xl font-bold text-text-dark mb-2.5 font-title">Spa Grooming & Tắm Thảo Dược</h3>
+              <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                Liệu trình tắm chải, sấy ấm dịu nhẹ, cắt tỉa móng, vệ sinh tai mắt và cắt tỉa lông tạo kiểu chuyên nghiệp.
+              </p>
+              <ul className="text-xs text-gray-500 space-y-2 mb-6">
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Sữa tắm thảo dược trị nấm ve</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Massage thư giãn cơ thể</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <span className="text-amber-900 font-bold text-sm">Chỉ từ 150k/lượt</span>
+              <Link to="/services" className="text-xs font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1">
+                Đặt Spa <i className="fa-solid fa-angle-right"></i>
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 3: Đưa đón */}
+          <div className="bg-white rounded-3xl p-7 shadow-sm border border-orange-100/70 hover:shadow-xl transition-all duration-300 group flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 bg-[#fef3c7] text-[#d97706] rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-car-side"></i>
+              </div>
+              <h3 className="text-xl font-bold text-text-dark mb-2.5 font-title">Đưa Đón Tận Nơi 24/7</h3>
+              <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                Đội ngũ đưa đón thú cưng chuyên nghiệp bằng xe chuyên dụng an toàn, thoáng mát, đúng giờ cam kết.
+              </p>
+              <ul className="text-xs text-gray-500 space-y-2 mb-6">
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Balo / Lồng vận chuyển đạt chuẩn</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="fa-solid fa-check text-amber-500"></i>
+                  <span>Hỗ trợ nhận/trả ngoài giờ khi hẹn trước</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <span className="text-amber-900 font-bold text-sm">Liên hệ báo giá</span>
+              <a href="tel:0987654321" className="text-xs font-bold text-amber-600 hover:text-amber-800 flex items-center gap-1">
+                Gọi xe ngay <i className="fa-solid fa-phone"></i>
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -327,6 +448,76 @@ const Home = () => {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* NEW SECTION: CHƯƠNG TRÌNH KHÁCH HÀNG THÂN THIẾT (Exact match to Image 2) */}
+      <section id="membership" className="bg-[#fef9ee] py-16 my-8 border-y border-amber-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <span className="inline-block px-3 py-1 bg-[#fef08a] text-[#854d0e] text-xs font-bold uppercase tracking-wider rounded-md mb-3">
+                CHƯƠNG TRÌNH KHÁCH HÀNG THÂN THIẾT
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-text-dark mb-4 font-title leading-tight">
+                Tích Điểm Hạng Thẻ - Nhận Ngàn Ưu Đãi
+              </h2>
+              <p className="text-gray-700 text-sm sm:text-base leading-relaxed mb-6">
+                Mỗi chi tiêu tại Mèo Vắng Nhà đều giúp bạn tích lũy điểm thưởng để thăng hạng VIP và quy đổi thành các voucher giảm giá, phần quà tặng Pate/Hạt cao cấp cho mèo yêu!
+              </p>
+              
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center border border-amber-100">
+                  <i className="fa-solid fa-shield-cat text-amber-600 text-2xl mb-1"></i>
+                  <h4 className="font-bold text-xs text-amber-950">ĐỒNG</h4>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Tích 1% chi tiêu</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center border border-amber-200">
+                  <i className="fa-solid fa-crown text-yellow-500 text-2xl mb-1"></i>
+                  <h4 className="font-bold text-xs text-amber-950">VÀNG</h4>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Tích 3% + Ưu đãi 5%</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl shadow-sm text-center border border-amber-300">
+                  <i className="fa-solid fa-gem text-purple-600 text-2xl mb-1"></i>
+                  <h4 className="font-bold text-xs text-amber-950">KIM CƯƠNG</h4>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Tích 5% + Ưu đãi 10%</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => openPolicy('membership')}
+                className="inline-flex items-center gap-2 bg-[#532b13] hover:bg-[#3d1e0c] text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-md cursor-pointer"
+              >
+                <i className="fa-solid fa-circle-info"></i> Xem Quy Định Tích Điểm Chi Tiết
+              </button>
+            </div>
+
+            {/* VIP Card Graphic Right */}
+            <div className="relative flex justify-center">
+              <div className="w-full max-w-md bg-gradient-to-tr from-[#e59b10] to-[#f5b82e] rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <p className="text-xs font-light uppercase tracking-widest text-amber-100">MÈO VẮNG NHÀ VIP CARD</p>
+                    <h3 className="text-xl font-extrabold font-title">HỘI VIÊN THÂN THIẾT</h3>
+                  </div>
+                  <i className="fa-solid fa-paw text-3xl opacity-80"></i>
+                </div>
+                <div className="mb-8 text-xs space-y-1">
+                  <p className="text-amber-100">Chủ nuôi: <span className="font-semibold text-white">Nguyễn Văn A</span></p>
+                  <p className="text-amber-100">Mã bé cưng: <span className="font-mono text-white">MVN-88992</span></p>
+                </div>
+                <div className="flex justify-between items-end border-t border-amber-300/40 pt-4">
+                  <div>
+                    <p className="text-[10px] text-amber-100 uppercase">Điểm tích lũy</p>
+                    <p className="text-2xl font-black">1,250 <span className="text-xs font-normal">Điểm</span></p>
+                  </div>
+                  <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold border border-white/30">
+                    HẠNG VÀNG
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
