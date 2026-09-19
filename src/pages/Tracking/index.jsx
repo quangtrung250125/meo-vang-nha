@@ -478,7 +478,7 @@ const CallModal = ({ isOpen, onClose, onConfirm }) => {
             </div>
           </div>
           <h2 className="text-xl font-extrabold text-white font-title mb-1">Gọi cho nhân viên</h2>
-          <p className="text-white/80 text-sm">Mèo Vàng Nhà Pet Hotel</p>
+          <p className="text-white/80 text-sm">Mèo Vắng Nhà</p>
         </div>
 
         {/* Body */}
@@ -545,7 +545,7 @@ const StaffChatModal = ({ isOpen, onClose, onSend }) => {
             </div>
             <div>
               <h3 className="font-bold text-base leading-tight">Chat với nhân viên</h3>
-              <p className="text-white/80 text-xs mt-0.5">Mèo Vàng Nhà Pet Hotel</p>
+              <p className="text-white/80 text-xs mt-0.5">Mèo Vắng Nhà</p>
             </div>
           </div>
           <button
