@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
-import { PawPrint, X, Eye, EyeOff, CheckCircle2, Loader2 } from 'lucide-react';
+import { PawPrint, X, Eye, EyeOff, CheckCircle2, Loader2, Bell, BellOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCustomerProfile } from '../contexts/CustomerContext';
+import {
+  requestNotificationPermission,
+  sendWelcomeNotifications,
+  saveNotificationPreference,
+  wasNotificationAsked,
+} from '../utils/notifications';
 
 const AuthModal = ({ isOpen, onClose }) => {
   const { authenticateCustomer, registerCustomer } = useCustomerProfile();
@@ -10,6 +16,8 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [registeredName, setRegisteredName] = useState('');
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -32,6 +40,27 @@ const AuthModal = ({ isOpen, onClose }) => {
     setActiveTab(tab);
     setSuccessMessage('');
     setFormData({ fullName: '', phone: '', email: '', password: '', confirmPassword: '' });
+  };
+
+  // ── Xử lý notification prompt ───────────────────────────────
+  const handleAllowNotification = async () => {
+    const result = await requestNotificationPermission();
+    saveNotificationPreference(result === 'granted');
+    if (result === 'granted') {
+      await sendWelcomeNotifications(registeredName);
+      toast.success('🔔 Đã bật thông báo! Bạn sẽ nhận tin tức & ưu đãi từ Mèo Vắng Nhà.');
+    } else {
+      toast('Bạn có thể bật thông báo sau trong cài đặt trình duyệt.', { icon: '🔕' });
+    }
+    setShowNotifPrompt(false);
+    onClose();
+  };
+
+  const handleDeclineNotification = () => {
+    saveNotificationPreference(false);
+    toast('Bạn có thể bật thông báo sau trong cài đặt trình duyệt.', { icon: '🔕' });
+    setShowNotifPrompt(false);
+    onClose();
   };
 
   const handleSubmit = (e) => {
@@ -76,10 +105,16 @@ const AuthModal = ({ isOpen, onClose }) => {
       }
       setSuccessMessage('Tạo tài khoản thành công! Chào mừng bạn đến với Mèo Vắng Nhà.');
       toast.success('Đăng ký tài khoản thành công!');
+      setRegisteredName(formData.fullName.trim());
       setTimeout(() => {
-        onClose();
-        setSuccessMessage('');
-      }, 1800);
+        if (!wasNotificationAsked() && 'Notification' in window && Notification.permission === 'default') {
+          setSuccessMessage('');
+          setShowNotifPrompt(true);
+        } else {
+          onClose();
+          setSuccessMessage('');
+        }
+      }, 1200);
 
     } else {
       if (!formData.phone.trim()) {
@@ -111,6 +146,54 @@ const AuthModal = ({ isOpen, onClose }) => {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-white rounded-3xl w-full max-w-md mx-4 p-8 relative shadow-2xl max-h-[90vh] overflow-y-auto">
+        {/* ── Notification Prompt Step ── */}
+        {showNotifPrompt && (
+          <div className="flex flex-col items-center text-center py-4">
+            <div className="w-20 h-20 rounded-full bg-amber-50 border-4 border-amber-100 flex items-center justify-center mb-5 shadow-md">
+              <Bell className="w-9 h-9 text-amber-500" />
+            </div>
+            <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+              🔔 Thông báo thông minh
+            </span>
+            <h2 className="text-2xl font-extrabold text-text-dark font-title mb-2">
+              Nhận ưu đãi & cập nhật bé mèo?
+            </h2>
+            <p className="text-gray-500 text-sm leading-relaxed mb-6">
+              Cho phép thông báo để nhận ngay:
+            </p>
+            <ul className="w-full text-left space-y-2.5 mb-7">
+              {[
+                { emoji: '🎁', text: 'Ưu đãi độc quyền & flash sale' },
+                { emoji: '🐾', text: 'Cập nhật tình trạng bé mèo khi lưu trú' },
+                { emoji: '🗓️', text: 'Nhắc nhở đặt phòng & check-in/check-out' },
+                { emoji: '💉', text: 'Lịch tiêm phòng & chăm sóc sức khỏe' },
+              ].map((item, i) => (
+                <li key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5">
+                  <span className="text-lg">{item.emoji}</span>
+                  <span className="text-sm font-medium text-gray-700">{item.text}</span>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={handleAllowNotification}
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:opacity-90 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-orange-200 mb-3"
+            >
+              <Bell className="w-4 h-4" />
+              Đồng ý nhận thông báo
+            </button>
+            <button
+              onClick={handleDeclineNotification}
+              className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-500 hover:bg-gray-50 font-semibold py-3 rounded-2xl transition-all text-sm"
+            >
+              <BellOff className="w-4 h-4" />
+              Không, cảm ơn
+            </button>
+            <p className="text-xs text-gray-400 mt-4">Bạn có thể thay đổi lựa chọn này bất kỳ lúc nào trong cài đặt trình duyệt.</p>
+          </div>
+        )}
+
+        {/* ── Form thông thường (ẩn khi đang show notif prompt) ── */}
+        {!showNotifPrompt && (<>
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -282,6 +365,7 @@ const AuthModal = ({ isOpen, onClose }) => {
             </button>
           </form>
         )}
+        </>)}
       </div>
     </div>
   );
