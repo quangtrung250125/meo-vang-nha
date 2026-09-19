@@ -10,6 +10,7 @@ import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
+import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 
 // ─────────────────────────────────────────────
@@ -292,25 +293,11 @@ const PetProfile = () => {
 
   return (
     <div className="w-full min-h-screen bg-bg-cream pb-16">
-      {/* ── Hero Header ── */}
-      <div className="bg-gradient-to-b from-primary-light via-primary-light/50 to-transparent pt-10 pb-16 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-extrabold text-lg shadow-md">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Xin chào,</p>
-              <h1 className="text-2xl font-extrabold text-text-dark font-title">{displayName} 👋</h1>
-            </div>
-          </div>
-          <p className="text-gray-500 text-sm">
-            Quản lý hồ sơ mèo cưng và xem lịch sử lưu trú của bé.
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-12 relative z-10">
+        <PetDashboardNav 
+          title="Hồ sơ của các bé" 
+          subtitle="Quản lý thông tin thú cưng để chúng mình chăm sóc tốt hơn." 
+        />
         {/* ── Tabs ── */}
         <div className="flex bg-white border border-gray-200 rounded-2xl p-1.5 mb-8 shadow-sm w-fit gap-1">
           {[

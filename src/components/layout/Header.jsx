@@ -50,6 +50,7 @@ const Header = () => {
               <Link to="/" className={'text-sm tracking-wide ' + isActive('/')}>Trang chủ</Link>
               <Link to="/services" className={'text-sm tracking-wide ' + isActive('/services')}>Dịch vụ</Link>
               <Link to="/pet-profile" className={'text-sm tracking-wide ' + isActive('/pet-profile')}>Hồ sơ mèo</Link>
+              <Link to="/tracking" className={'text-sm tracking-wide ' + isActive('/tracking')}>Theo dõi lưu trú</Link>
               <Link to="/booking" className={'text-sm tracking-wide ' + isActive('/booking')}>Đặt phòng</Link>
             </nav>
 
