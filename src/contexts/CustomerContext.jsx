@@ -4,10 +4,20 @@ const CustomerContext = createContext();
 
 const STORAGE_KEY = 'meo-vang-nha-customer-profile';
 const CUSTOMERS_KEY = 'meo-vang-nha-customers';
+const SESSION_KEY = 'meo-vang-nha-authenticated-customer';
 
 const normalizePhone = (phone = '') => phone.replace(/\D/g, '');
 
 export const CustomerProvider = ({ children }) => {
+    const [authenticatedCustomer, setAuthenticatedCustomer] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+        } catch (error) {
+            return null;
+        }
+    });
+
     const [customerProfile, setCustomerProfile] = useState(() => {
         if (typeof window === 'undefined') return null;
         const saved = localStorage.getItem(STORAGE_KEY);
@@ -68,12 +78,57 @@ export const CustomerProvider = ({ children }) => {
         setCustomerProfile(normalized);
     };
 
+    const authenticateCustomer = (phone, password) => {
+        const customer = findCustomerByPhone(phone);
+        if (!customer || !customer.password || customer.password !== password) return null;
+
+        setCustomerProfile(customer);
+        setAuthenticatedCustomer(customer);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(customer));
+        return customer;
+    };
+
+    const registerCustomer = (profile) => {
+        const normalizedPhone = normalizePhone(profile.phone);
+        if (!normalizedPhone || !profile.password) return null;
+        if (findCustomerByPhone(normalizedPhone)) return null;
+
+        const customer = {
+            ...profile,
+            phone: normalizedPhone,
+            customerId: `customer-${normalizedPhone}`,
+            labels: profile.labels || ['Khách hàng mới'],
+            pets: Array.isArray(profile.pets) ? profile.pets : [],
+            createdAt: profile.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        const customers = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
+        localStorage.setItem(CUSTOMERS_KEY, JSON.stringify([...customers, customer]));
+        setCustomerProfile(customer);
+        setAuthenticatedCustomer(customer);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(customer));
+        return customer;
+    };
+
+    const logoutCustomer = () => {
+        setAuthenticatedCustomer(null);
+        setCustomerProfile(null);
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(STORAGE_KEY);
+    };
+
     const value = useMemo(() => ({
         customerProfile,
+        authenticatedCustomer,
         saveCustomerProfile,
         findCustomerByPhone,
+        authenticateCustomer,
+        registerCustomer,
+        logoutCustomer,
         hasCustomerProfile: Boolean(customerProfile),
-    }), [customerProfile]);
+        isAuthenticated: Boolean(authenticatedCustomer),
+    }), [customerProfile, authenticatedCustomer]);
 
     return (
         <CustomerContext.Provider value={value}>
