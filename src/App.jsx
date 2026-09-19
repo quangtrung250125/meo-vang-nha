@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import Home from './pages/Home';
 import Services from './pages/Services';
-import Pricing from './pages/Pricing';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
 import MyBooking from './pages/MyBooking';
@@ -23,7 +22,6 @@ function App() {
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Home />} />
                 <Route path="services" element={<Services />} />
-                <Route path="pricing" element={<Pricing />} />
                 <Route path="booking" element={<Booking />} />
                 <Route path="pet-profile" element={<PetProfile />} />
                 <Route path="my-booking" element={<MyBooking />} />
