@@ -5,7 +5,7 @@ import {
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
   Loader2, ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
-  Zap, Gift, Send
+  Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
@@ -14,6 +14,11 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 import { toast } from 'react-hot-toast';
+import {
+  getPermissionStatus,
+  requestNotificationPermission,
+  testPhoneNotification
+} from '../../utils/notifications';
 import cameraFeed from '../../assets/images/camera_feed.png';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -623,6 +628,36 @@ const TrackingPage = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, addon: null, option: null });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState(() => getPermissionStatus());
+  const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
+
+  const handleEnablePhoneNotif = async () => {
+    try {
+      const res = await requestNotificationPermission();
+      setNotifPermission(res);
+      if (res === 'granted') {
+        toast.success('Đã bật thông báo về điện thoại thành công! 🔔');
+        await testPhoneNotification(firstPet?.name || 'Miu');
+      } else if (res === 'denied') {
+        toast.error('Trình duyệt đang chặn thông báo. Vui lòng cho phép trong cài đặt trình duyệt.');
+      }
+    } catch (e) {
+      toast.error('Lỗi khi kích hoạt: ' + e.message);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setIsSendingTestNotif(true);
+    try {
+      await testPhoneNotification(firstPet?.name || 'Miu');
+      toast.success('Đã gửi thông báo thử về điện thoại! Hãy kiểm tra thanh thông báo 🔔');
+      setNotifPermission('granted');
+    } catch (err) {
+      toast.error(err.message || 'Lỗi gửi thông báo');
+    } finally {
+      setIsSendingTestNotif(false);
+    }
+  };
 
   const isLoggedIn = Boolean(customerProfile);
 
@@ -743,6 +778,57 @@ const TrackingPage = () => {
           title="Theo dõi lưu trú"
           subtitle="Cập nhật tình hình bé mèo trong suốt thời gian lưu trú."
         />
+
+        {/* ── Phone Notification Banner ── */}
+        <div className="bg-white border border-emerald-100 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+              notifPermission === 'granted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary-light text-primary'
+            }`}>
+              {notifPermission === 'granted' ? <BellRing className="w-6 h-6 animate-bounce" /> : <Smartphone className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-bold text-text-dark text-sm sm:text-base">
+                  Thông báo theo dõi mèo về điện thoại
+                </h4>
+                {notifPermission === 'granted' ? (
+                  <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Đã kết nối điện thoại
+                  </span>
+                ) : (
+                  <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    Chưa bật
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+                Nhận thông báo ngay khi bé ăn xong, đi vệ sinh, uống thuốc hoặc có ảnh/video mới (chuông & rung trực tiếp trên máy).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+            {notifPermission !== 'granted' ? (
+              <button
+                onClick={handleEnablePhoneNotif}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 active:scale-95 text-sm cursor-pointer"
+              >
+                <Bell className="w-4 h-4" />
+                Bật thông báo về điện thoại
+              </button>
+            ) : (
+              <button
+                onClick={handleTestNotification}
+                disabled={isSendingTestNotif}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-200 px-4 py-2.5 rounded-xl transition-all active:scale-95 text-sm cursor-pointer"
+              >
+                {isSendingTestNotif ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+                Thử phát thông báo về máy
+              </button>
+            )}
+          </div>
+        </div>
 
         {!activeBooking ? (
           /* ── Empty State ── */

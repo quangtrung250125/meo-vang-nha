@@ -105,3 +105,48 @@ export const saveNotificationPreference = (accepted) => {
 /** Kiểm tra đã từng hỏi về notification chưa */
 export const wasNotificationAsked = () =>
   localStorage.getItem('mvn-notification-asked') === 'true';
+
+/** Gửi thông báo cập nhật nhật ký theo dõi mèo về điện thoại của khách */
+export const sendTrackingUpdateNotification = async (petName = 'Bé cưng', actionTitle = 'Cập nhật mới', detail = '') => {
+  if (!isNotificationSupported()) return false;
+  if (Notification.permission !== 'granted') return false;
+
+  await showNotification(
+    `🐾 [Theo dõi] ${petName}: ${actionTitle}`,
+    detail || `Nhân viên vừa cập nhật tình trạng mới nhất của ${petName}. Nhấn để xem ngay!`,
+    {
+      url: '/tracking',
+      tag: `tracking-${Date.now()}`,
+      requireInteraction: true,
+    }
+  );
+  return true;
+};
+
+/** Gửi thông báo mẫu test về điện thoại */
+export const testPhoneNotification = async (petName = 'Miu') => {
+  if (!isNotificationSupported()) {
+    throw new Error('Thiết bị hoặc trình duyệt không hỗ trợ thông báo đẩy.');
+  }
+
+  let permission = Notification.permission;
+  if (permission !== 'granted') {
+    permission = await requestNotificationPermission();
+  }
+
+  if (permission !== 'granted') {
+    throw new Error('Chưa được cấp quyền gửi thông báo trên thiết bị.');
+  }
+
+  await showNotification(
+    `🐱 [Mèo Vắng Nhà] Cập nhật tình hình ${petName}!`,
+    `🍽️ ${petName} vừa ăn hết phần pate cá hồi và đang ngủ trưa rất ngoan. Chạm để xem nhật ký & camera!`,
+    {
+      url: '/tracking',
+      tag: 'test-tracking-notif',
+      requireInteraction: true,
+    }
+  );
+
+  return true;
+};
