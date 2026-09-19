@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -35,6 +35,19 @@ const Header = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === '/' && document.activeElement !== searchInputRef.current) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const isActive = (path) => 
     location.pathname === path 
@@ -129,14 +142,45 @@ const Header = () => {
           {/* ACTION BUTTONS (Search, Notifications, Booking CTA, User) */}
           <div className="flex items-center space-x-2.5 sm:space-x-4">
             
-            {/* SEARCH BUTTON */}
-            <button
-              onClick={openSearch}
-              className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-emerald-50 transition-colors focus:outline-none cursor-pointer"
-              title="Tìm kiếm dịch vụ (Esc)"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+            {/* SEARCH BAR (Desktop) & BUTTON (Mobile) */}
+            <div className="flex items-center">
+              {/* Mobile Search Button */}
+              <button
+                onClick={openSearch}
+                className="md:hidden p-2 rounded-full text-gray-500 hover:text-primary hover:bg-emerald-50 transition-colors focus:outline-none cursor-pointer"
+                title="Tìm kiếm dịch vụ (Esc)"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+
+              {/* Desktop Search Bar */}
+              <div className="hidden md:block relative w-64 lg:w-80">
+                <div className="relative">
+                  <input 
+                    ref={searchInputRef}
+                    type="text" 
+                    placeholder="🔍 Tìm phòng, spa, ưu đãi... (Bấm '/' để tìm)" 
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                    className="w-full bg-amber-50/60 text-sm border border-amber-200 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition duration-200"
+                  />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" />
+                </div>
+
+                {/* Quick Search Results Dropdown */}
+                {isSearchFocused && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-amber-100 p-4 z-50 text-sm">
+                    <p className="text-xs font-semibold text-gray-400 mb-2">🔥 Từ khóa tìm kiếm phổ biến:</p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <button className="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium transition cursor-pointer">Khuyến mãi tích điểm</button>
+                      <button className="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium transition cursor-pointer">Sky-View Condo</button>
+                      <button className="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium transition cursor-pointer">Tắm bọt thảo dược</button>
+                      <button className="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium transition cursor-pointer">Đưa đón tận nhà</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* NOTIFICATION BUTTON & POPOVER */}
             <div className="relative">

@@ -16,7 +16,9 @@ import {
   MessageSquareText, 
   SearchCheck, 
   DatabaseZap,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  CalendarCheck
 } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
@@ -26,6 +28,7 @@ import { useUI } from '../../contexts/UIContext';
 
 const Home = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [currentBannerIdx, setCurrentBannerIdx] = useState(0);
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
   const { petList, savePet } = usePetProfile();
   const { openPolicy } = useUI();
@@ -37,6 +40,13 @@ const Home = () => {
       return () => clearTimeout(timer);
     }
   }, [customerProfile]);
+
+  useEffect(() => {
+    const bannerTimer = setInterval(() => {
+      setCurrentBannerIdx((prev) => (prev + 1) % 3);
+    }, 5000);
+    return () => clearInterval(bannerTimer);
+  }, []);
 
   const customerSummary = useMemo(() => {
     if (!customerProfile) return { owner: 'Khách mới', petCount: 0, labels: ['Khách hàng mới'] };
@@ -153,56 +163,83 @@ const Home = () => {
         </div>
       )}
 
-      {/* Hero Section */}
-      <section className="bg-primary-light pt-12 pb-20 relative overflow-hidden rounded-b-[3rem]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col md:flex-row items-center gap-12">
-            <div className="flex-1 text-center md:text-left">
-              {/* Promo Banner Pill */}
-              <div className="inline-flex items-center gap-2 bg-white/90 px-4 py-1.5 rounded-full border border-orange-200 text-accent font-bold text-xs uppercase tracking-wider mb-6 shadow-sm">
-                <Flame className="w-4 h-4 fill-current animate-pulse text-accent" />
-                <span>Ưu đãi HOT: Giảm 10% tất cả dịch vụ</span>
-              </div>
-
-              {/* Wednesday Pate Promo Pill */}
-              <div className="inline-flex items-center gap-2 bg-amber-100 px-4 py-1.5 rounded-full border border-amber-300 text-amber-800 font-bold text-xs uppercase tracking-wider mb-6 shadow-sm ml-2">
-                <Gift className="w-4 h-4 text-amber-600" />
-                <span>🎁 Thứ 4: Tặng Pate Miễn Phí!</span>
-              </div>
-
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-text-dark leading-tight mb-6 font-title">
-                Mèo được chăm sóc như ở nhà
-              </h1>
-              <p className="text-lg text-gray-600 mb-8 font-medium">
-                Lưu trú • Spa • Tắm cắt • Theo dõi sức khoẻ 24/7 với ưu đãi 10% tháng này.
+      {/* BANNER CAROUSEL */}
+      <section className="max-w-7xl mx-auto px-4 py-6">
+        <div className="relative rounded-3xl overflow-hidden shadow-xl h-72 sm:h-80 md:h-[400px]">
+          
+          {/* Slide 1: Chương trình ưu đãi */}
+          <div className={`absolute inset-0 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white flex items-center px-8 sm:px-16 transition-opacity duration-500 ${currentBannerIdx === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className="max-w-2xl space-y-3 sm:space-y-4">
+              <span className="inline-block bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                🎁 BÃO ƯU ĐÃI TÍCH ĐIỂM
+              </span>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
+                HOÀNG THƯỢNG NGHỈ DƯỠNG – CON SEN TÍCH ĐIỂM SƯỚNG!
+              </h2>
+              <p className="text-xs sm:text-base opacity-90 leading-relaxed">
+                Đại tiệc Tri Ân: Tích điểm X2 cho mọi gói chăm sóc + Đổi ngay Voucher giảm 20% cho lần gửi tiếp theo.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
-                <Link
-                  to="/booking"
-                  className="w-full sm:w-auto text-center bg-accent text-white font-bold px-8 py-3.5 rounded-full hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 active:scale-95"
-                >
-                  Đặt phòng ngay (-10%)
-                </Link>
-                <Link
-                  to="/services"
-                  className="w-full sm:w-auto text-center bg-white border border-gray-200 text-text-dark font-bold px-8 py-3.5 rounded-full hover:bg-gray-50 transition-colors shadow-sm"
-                >
-                  Xem danh mục dịch vụ
-                </Link>
-              </div>
-            </div>
-            <div className="flex-1 w-full relative">
-              <div className="aspect-[4/3] bg-white rounded-3xl overflow-hidden shadow-2xl relative">
-                <img src="/images/hero_banner.png" alt="Mèo được chăm sóc như ở nhà" className="w-full h-full object-cover" />
-
-                {/* Overlay discount badge */}
-                <div className="absolute top-4 right-4 bg-accent text-white px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 font-black text-sm">
-                  <Percent className="w-5 h-5" />
-                  <span>GIẢM 10% HÔM NAY</span>
-                </div>
+              <div className="pt-2">
+                <button onClick={() => openPolicy('membership')} className="bg-white text-amber-700 font-bold px-6 py-3 rounded-2xl hover:bg-amber-50 transition shadow-md hover:shadow-lg flex items-center cursor-pointer w-max">
+                  Đăng Ký Thành Viên VIP <ArrowRight className="ml-2 w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
+
+          {/* Slide 2: Cập nhật Phòng mới */}
+          <div className={`absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white flex items-center px-8 sm:px-16 transition-opacity duration-500 ${currentBannerIdx === 1 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className="max-w-2xl space-y-3 sm:space-y-4">
+              <span className="inline-block bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                ✨ CẬP NHẬT PHÒNG MỚI 2026
+              </span>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
+                RA MẮT PHÒNG SKY-VIEW CONDO ĐÔI
+              </h2>
+              <p className="text-xs sm:text-base opacity-90 leading-relaxed">
+                Thiết kế panorama đón nắng tự nhiên, trang bị cây mài móng đa tầng & hệ thống lọc không khí ion âm liên tục 24/7.
+              </p>
+              <div className="pt-2">
+                <Link to="/booking" className="inline-block bg-white text-teal-700 font-bold px-6 py-3 rounded-2xl hover:bg-emerald-50 transition shadow-md cursor-pointer flex items-center w-max">
+                  Khám Phá Chi Tiết <ChevronRight className="ml-1 w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Slide 3: Dịch vụ mới */}
+          <div className={`absolute inset-0 bg-gradient-to-r from-rose-500 via-purple-600 to-indigo-600 text-white flex items-center px-8 sm:px-16 transition-opacity duration-500 ${currentBannerIdx === 2 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div className="max-w-2xl space-y-3 sm:space-y-4">
+              <span className="inline-block bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                🛁 DỊCH VỤ MỚI RA MẮT
+              </span>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
+                SPA HOÀNG GIA & ĐƯA ĐÓN TẬN CỬA
+              </h2>
+              <p className="text-xs sm:text-base opacity-90 leading-relaxed">
+                Tắm sấy khử mùi bọt mịn thảo dược + Dịch vụ xe đưa đón tận nhà bằng lồng vận chuyển chuyên dụng êm ái.
+              </p>
+              <div className="pt-2">
+                <Link to="/services" className="inline-block bg-white text-purple-700 font-bold px-6 py-3 rounded-2xl hover:bg-purple-50 transition shadow-md cursor-pointer flex items-center w-max">
+                  Đặt Lịch Spa Ngay <CalendarCheck className="ml-1 w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Carousel Controls */}
+          <button 
+            onClick={() => setCurrentBannerIdx(prev => (prev - 1 + 3) % 3)}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm transition cursor-pointer"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button 
+            onClick={() => setCurrentBannerIdx(prev => (prev + 1) % 3)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 rounded-full flex items-center justify-center text-white backdrop-blur-sm transition cursor-pointer"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
       </section>
 
