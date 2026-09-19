@@ -23,6 +23,8 @@ const Footer = () => {
               <li><Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link></li>
               <li><Link to="/services" className="hover:text-primary transition-colors">Dịch vụ</Link></li>
               <li><Link to="/pricing" className="hover:text-primary transition-colors">Bảng giá</Link></li>
+              <li><Link to="/promotions" className="hover:text-primary transition-colors">Khuyến mãi</Link></li>
+              <li><Link to="/news" className="hover:text-primary transition-colors">Tin tức</Link></li>
               <li><Link to="/booking" className="hover:text-primary transition-colors">Đặt phòng</Link></li>
             </ul>
           </div>

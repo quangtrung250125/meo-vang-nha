@@ -8,6 +8,9 @@ import PetProfile from './pages/PetProfile';
 import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
+import Pricing from './pages/Pricing';
+import Promotions from './pages/Promotions';
+import News from './pages/News';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider } from './contexts/CustomerContext';
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
@@ -26,6 +29,9 @@ function App() {
                 <Route path="/" element={<MainLayout />}>
                   <Route index element={<Home />} />
                   <Route path="services" element={<Services />} />
+                  <Route path="pricing" element={<Pricing />} />
+                  <Route path="promotions" element={<Promotions />} />
+                  <Route path="news" element={<News />} />
                   <Route path="booking" element={<Booking />} />
                   <Route path="pet-profile" element={<PetProfile />} />
                   <Route path="my-booking" element={<MyBooking />} />

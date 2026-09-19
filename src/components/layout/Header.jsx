@@ -7,6 +7,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 const Header = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { authenticatedCustomer, isAuthenticated, logoutCustomer } = useCustomerProfile();
   const location = useLocation();
   const isActive = (path) => location.pathname === path ? 'text-primary font-bold' : 'text-gray-600 hover:text-primary font-medium';
@@ -31,6 +32,8 @@ const Header = () => {
             <Link to="/" className={`text-sm tracking-wide ${isActive('/')}`}>Trang chủ</Link>
             <Link to="/services" className={`text-sm tracking-wide ${isActive('/services')}`}>Dịch vụ</Link>
             <Link to="/pricing" className={`text-sm tracking-wide ${isActive('/pricing')}`}>Bảng giá</Link>
+            <Link to="/promotions" className={`text-sm tracking-wide ${isActive('/promotions')}`}>Khuyến mãi</Link>
+            <Link to="/news" className={`text-sm tracking-wide ${isActive('/news')}`}>Tin tức</Link>
             <Link to="/pet-profile" className={`text-sm tracking-wide ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
             <Link to="/booking" className={`text-sm tracking-wide ${isActive('/booking')}`}>Đặt phòng</Link>
           </nav>
@@ -78,11 +81,26 @@ const Header = () => {
                 <span>Đăng ký</span>
               </button>
             )}
-            <button className="text-text-dark hover:text-primary p-2">
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="text-text-dark hover:text-primary p-2 cursor-pointer"
+              aria-label="Toggle menu"
+            >
               <Menu className="h-6 w-6" />
             </button>
           </div>
         </div>
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-100 py-3 space-y-1">
+            <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/')}`}>Trang chủ</Link>
+            <Link to="/services" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/services')}`}>Dịch vụ</Link>
+            <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pricing')}`}>Bảng giá</Link>
+            <Link to="/promotions" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/promotions')}`}>Khuyến mãi</Link>
+            <Link to="/news" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/news')}`}>Tin tức</Link>
+            <Link to="/pet-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
+            <Link to="/booking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/booking')}`}>Đặt phòng</Link>
+          </div>
+        )}
       </div>
     </header>
       {isLogoutConfirmOpen && (
