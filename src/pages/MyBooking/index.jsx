@@ -130,7 +130,7 @@ const MyBooking = () => {
                   {booking.dynamicStatus === 'Đang lưu trú' && (
                     <div className="flex flex-col items-center sm:items-end gap-3 shrink-0 mt-4 sm:mt-0 border-t sm:border-t-0 border-gray-100 pt-4 sm:pt-0 w-full sm:w-auto">
                       <button 
-                        onClick={() => navigate('/tracking', { state: { bookingData: booking } })}
+                        onClick={() => navigate('/tracking')}
                         className="w-full sm:w-auto text-center px-6 py-2.5 rounded-xl text-sm font-bold text-accent border-2 border-accent/20 hover:border-accent hover:bg-accent hover:text-white transition-colors bg-accent/5"
                       >
                         Xem chi tiết / Camera
