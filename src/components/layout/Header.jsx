@@ -29,13 +29,15 @@ const Header = () => {
     notifications, 
     unreadCount, 
     markAllNotificationsRead, 
-    openPolicy 
+    openPolicy,
+    openAuth
   } = useUI();
 
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifPopover, setShowNotifPopover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showPromoBar, setShowPromoBar] = useState(true);
   const searchInputRef = useRef(null);
 
   useEffect(() => {
@@ -59,51 +61,32 @@ const Header = () => {
   return (
     <>
       {/* PROMO TOP BAR */}
-      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white text-xs md:text-sm py-2 px-4 font-bold relative overflow-hidden group">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-2 text-center sm:text-left mx-auto sm:mx-0">
-            <Gift className="w-4 h-4 text-white animate-bounce shrink-0" />
-            <span className="tracking-wide">
-              🎁 ƯU ĐÃI ĐỘC QUYỀN: HOÀNG THƯỢNG NGHỈ DƯỠNG – CON SEN TÍCH ĐIỂM SƯỚNG!
-            </span>
-          </div>
-          <div className="hidden sm:flex items-center gap-5 text-xs">
-            <a href="tel:0987654321" className="hover:text-amber-200 transition-colors flex items-center gap-1.5 font-bold">
-              <Phone className="w-3.5 h-3.5" /> 0987 654 321
-            </a>
-            <span className="text-amber-300/60">|</span>
-            <div className="flex items-center gap-3 text-sm">
-              <a 
-                href="https://www.facebook.com/meovangnha.hotel/?_rdc=2&_rdr#" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="hover:text-amber-200 transition-transform hover:scale-110"
-                title="Facebook Mèo Vắng Nhà"
-              >
-                <i className="fa-brands fa-facebook"></i>
-              </a>
-              <a 
-                href="https://www.tiktok.com/@meovangnha" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="hover:text-amber-200 transition-transform hover:scale-110"
-                title="TikTok Mèo Vắng Nhà"
-              >
-                <i className="fa-brands fa-tiktok"></i>
-              </a>
-              <a 
-                href="https://instagram.com" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="hover:text-amber-200 transition-transform hover:scale-110"
-                title="Instagram Mèo Vắng Nhà"
-              >
-                <i className="fa-brands fa-instagram"></i>
-              </a>
+      {showPromoBar && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-white text-xs md:text-sm py-2 px-4 font-bold relative overflow-hidden group">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div className="flex items-center gap-2 overflow-hidden text-center sm:text-left mx-auto sm:mx-0 w-full sm:w-auto">
+              <span className="bg-white text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider animate-pulse shadow-sm shrink-0">Tin Nổi Bật</span>
+              <span className="truncate max-w-full font-medium">🔥 CHƯƠNG TRÌNH ĐANG CHẠY: Ưu đãi giảm 20% gói Spa Thảo Dược & Tặng Voucher 100k cho thành viên mới!</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-5 text-xs">
+                <a href="tel:0987654321" className="hover:text-amber-200 transition-colors flex items-center gap-1.5 font-bold">
+                  <Phone className="w-3.5 h-3.5" /> 0987 654 321
+                </a>
+                <span className="text-amber-300/60">|</span>
+                <div className="flex items-center gap-3 text-sm">
+                  <a href="https://www.facebook.com/meovangnha.hotel/?_rdc=2&_rdr#" target="_blank" rel="noreferrer" className="hover:text-amber-200 transition-transform hover:scale-110"><i className="fa-brands fa-facebook"></i></a>
+                  <a href="https://www.tiktok.com/@meovangnha" target="_blank" rel="noreferrer" className="hover:text-amber-200 transition-transform hover:scale-110"><i className="fa-brands fa-tiktok"></i></a>
+                  <a href="https://instagram.com" target="_blank" rel="noreferrer" className="hover:text-amber-200 transition-transform hover:scale-110"><i className="fa-brands fa-instagram"></i></a>
+                </div>
+              </div>
+              <button onClick={() => setShowPromoBar(false)} className="text-white/80 hover:text-white ml-2 text-xs shrink-0 cursor-pointer p-1">
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* MAIN STICKY HEADER */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm transition-all duration-300" id="mainHeader">
@@ -273,7 +256,6 @@ const Header = () => {
               <CalendarCheck className="w-4 h-4" /> Đặt Phòng Ngay
             </Link>
 
-            {/* USER PROFILE */}
             {customerProfile ? (
               <div className="relative">
                 <button
@@ -310,13 +292,14 @@ const Header = () => {
                 )}
               </div>
             ) : (
-              <Link
-                to="/pet-profile"
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white hover:bg-secondary text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer shadow-sm shadow-emerald-200"
+              <button
+                onClick={openAuth}
+                className="bg-[#00B16A] hover:bg-[#009458] text-white px-4 sm:px-5 py-2.5 rounded-full font-semibold shadow-sm hover:shadow transition-all flex items-center gap-2 text-sm shrink-0 cursor-pointer"
               >
-                <User className="w-4 h-4" />
-                <span>Hồ Sơ Mèo</span>
-              </Link>
+                <User className="w-4 h-4 text-base" />
+                <span className="hidden sm:inline">Tài khoản / Đăng ký</span>
+                <span className="sm:hidden">Tài khoản</span>
+              </button>
             )}
 
             {/* MOBILE MENU TOGGLE */}

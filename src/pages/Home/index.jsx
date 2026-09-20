@@ -25,6 +25,7 @@ import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useUI } from '../../contexts/UIContext';
+import { HtmlBannerCarousel } from '../../components/HtmlFeatures';
 
 const Home = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
@@ -33,6 +34,33 @@ const Home = () => {
   const { petList, savePet } = usePetProfile();
   const { openPolicy } = useUI();
   const isWednesday = new Date().getDay() === 3;
+
+  const hotPromoCards = [
+    {
+      title: 'Spa Thảo Dược',
+      description: 'Tắm sấy khử mùi, massage thư giãn và vệ sinh tai mắt với dưỡng chất từ thiên nhiên.',
+      icon: Sparkles,
+      color: 'from-amber-500/20 to-yellow-400/10',
+      action: 'Xem gói spa',
+      href: '/services',
+    },
+    {
+      title: 'Khách sạn AI Camera',
+      description: 'Phòng lưu trú sạch sẽ, ấm áp và camera theo dõi 24/7 cho chủ nuôi yên tâm.',
+      icon: Video,
+      color: 'from-emerald-500/20 to-teal-400/10',
+      action: 'Đặt phòng',
+      href: '/booking',
+    },
+    {
+      title: 'Đưa đón tận nơi',
+      description: 'Xe chuyên dụng, nhận trả ngoài giờ và chăm sóc mèo cẩn thận trong từng chặng đường.',
+      icon: CalendarCheck,
+      color: 'from-rose-500/20 to-orange-400/10',
+      action: 'Liên hệ ngay',
+      href: '/services',
+    },
+  ];
 
   useEffect(() => {
     if (!customerProfile) {
@@ -163,8 +191,64 @@ const Home = () => {
         </div>
       )}
 
-      {/* BANNER CAROUSEL */}
+      {/* HOT PROMO HIGHLIGHT */}
       <section className="max-w-7xl mx-auto px-4 py-6">
+        <div className="relative overflow-hidden rounded-[30px] bg-slate-950 shadow-2xl">
+          <img
+            src="https://images.unsplash.com/photo-1511044568932-338cba0ad803?auto=format&fit=crop&w=1400&q=80"
+            alt="Mèo Vắng Nhà banner"
+            className="absolute inset-0 h-full w-full object-cover opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-900/80 to-transparent" />
+
+          <div className="relative z-10 flex flex-col gap-8 px-6 py-8 sm:px-10 md:px-12 lg:flex-row lg:items-end lg:justify-between lg:py-12">
+            <div className="max-w-2xl text-white">
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-100 backdrop-blur-sm">
+                Tin nổi bật
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl">
+                Ưu đãi chăm sóc mèo thả ga và giữ hương vị yêu thương
+              </h2>
+              <p className="mt-3 max-w-xl text-sm text-slate-200 sm:text-base">
+                Giảm 20% gói Spa Thảo Dược, tặng voucher 100k cho thành viên mới và ưu tiên đặt lịch cho các bé muốn nghỉ dưỡng đúng chuẩn 5 sao.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  onClick={() => openPolicy('membership')}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-amber-700 shadow-md transition hover:bg-amber-50"
+                >
+                  Đăng ký thành viên VIP <ArrowRight className="h-4 w-4" />
+                </button>
+                <Link
+                  to="/booking"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/20"
+                >
+                  Đặt phòng ngay <CalendarCheck className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid w-full max-w-xl gap-3 sm:grid-cols-3">
+              {hotPromoCards.map(({ title, description, icon: Icon, color, action, href }) => (
+                <div key={title} className={`rounded-2xl border border-white/10 bg-gradient-to-br ${color} p-4 backdrop-blur-sm`}>
+                  <div className="mb-3 inline-flex rounded-xl bg-white/10 p-2 text-white">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white">{title}</h3>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-200">{description}</p>
+                  <Link to={href} className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-amber-200 hover:text-white">
+                    {action} <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* BANNER CAROUSEL */}
+      <HtmlBannerCarousel />
+      {false && <section className="max-w-7xl mx-auto px-4 py-6">
         <div className="relative rounded-3xl overflow-hidden shadow-xl h-72 sm:h-80 md:h-[400px]">
           
           {/* Slide 1: Chương trình ưu đãi */}
@@ -241,7 +325,7 @@ const Home = () => {
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-      </section>
+      </section>}
 
       {/* Features Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

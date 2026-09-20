@@ -1,16 +1,38 @@
-# React + Vite
+ # Mèo Vắng Nhà
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+ Website React/Vite cho dịch vụ khách sạn, spa và đưa đón mèo. Ứng dụng dùng React Router, Tailwind CSS, Lucide icons và lưu hồ sơ/booking ở phía trình duyệt.
 
-Currently, two official plugins are available:
+ ## Chạy tại máy
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+ Yêu cầu Node.js 20 trở lên.
 
-## React Compiler
+ ```bash
+ npm install
+ npm run lint
+ npm run build
+ npm run dev
+ ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+ Mở URL Vite hiển thị trong terminal, thường là `http://localhost:5173`.
 
-## Expanding the Oxlint configuration
+ ## Đẩy lên GitHub
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+ ```bash
+ git init
+ git add .
+ git commit -m "Build Meo Vang Nha pet hotel website"
+ git branch -M main
+ git remote add origin https://github.com/<tai-khoan>/<ten-repository>.git
+ git push -u origin main
+ ```
+
+ Không commit `.env` hoặc thông tin bí mật. Nếu dùng Supabase, tạo biến môi trường trên nền tảng deploy thay vì ghi trực tiếp vào GitHub.
+
+ ## Deploy Vercel
+
+ 1. Vào Vercel, chọn **Add New Project** và import repository GitHub.
+ 2. Giữ framework **Vite**; Vercel sẽ dùng `npm run build` và thư mục output `dist`.
+ 3. Thêm các biến môi trường Supabase giống tên trong `src/supabaseClient.js` nếu dự án cần kết nối Supabase.
+ 4. Nhấn **Deploy**. `vercel.json` đã cấu hình rewrite về `index.html` để các route React như `/booking` không bị lỗi 404 khi refresh.
+
+ Mỗi lần push lên `main`, Vercel sẽ tự build và cập nhật website. Kiểm tra local bằng `npm run lint` và `npm run build` trước khi push.
