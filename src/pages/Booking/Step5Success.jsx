@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle, Download, Home, Gift } from 'lucide-react';
+import { CheckCircle, Download, Home, Gift, BedDouble } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
 
 
 const Step5Success = ({ data }) => {
   const [bookingId, setBookingId] = useState('');
   const { addBooking } = useBookingHistory();
+  const { addNewBooking } = useRoomState();
   const hasAdded = useRef(false);
 
   // Kiểm tra Thứ 5
@@ -19,13 +21,13 @@ const Step5Success = ({ data }) => {
   useEffect(() => {
     if (hasAdded.current) return;
     hasAdded.current = true;
-    
+
     // Generate random booking ID: MVN-XXXXX
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
 
-    // Save to context
+    // Save to booking history context
     addBooking({
       id: newId,
       checkIn: data.checkIn,
@@ -36,7 +38,19 @@ const Step5Success = ({ data }) => {
       petProfiles: data.petProfiles,
       createdAt: new Date().toISOString()
     });
-  }, [addBooking, data]);
+
+    // ── Đồng bộ sang Admin Tình trạng phòng ──
+    // Xác định phòng từ bookingData (data.selectedRoom.id là 'VIP-03' dạng thực tế)
+    const roomId = data.selectedRoom?.id;
+    if (roomId) {
+      const bookingStatus = determineBookingStatus(data.checkIn);
+      addNewBooking(roomId, {
+        code: newId,
+        cats: data.catCount || data.petProfiles?.length || 1,
+        status: bookingStatus,
+      });
+    }
+  }, [addBooking, addNewBooking, data]);
 
   if (!bookingId) return null;
 
@@ -45,7 +59,7 @@ const Step5Success = ({ data }) => {
       <div className="flex justify-center mb-6">
         <CheckCircle className="w-24 h-24 text-primary animate-bounce" />
       </div>
-      
+
       <h2 className="text-3xl font-bold text-text-dark font-title">Đặt Lịch Thành Công!</h2>
       <p className="text-gray-600 max-w-md mx-auto">
         Cảm ơn bạn đã tin tưởng Mèo Vắng Nhà. Yêu cầu đặt phòng của các bé <strong>{data.petProfiles?.map(p => p.name).join(', ')}</strong> đã được ghi nhận.
@@ -74,27 +88,34 @@ const Step5Success = ({ data }) => {
       <div className="bg-bg-cream inline-block p-8 rounded-3xl border border-gray-100 shadow-sm mx-auto mt-8">
         <p className="text-sm text-gray-500 mb-2 font-semibold">MÃ ĐẶT PHÒNG CỦA BẠN</p>
         <p className="text-2xl font-bold text-text-dark mb-6 tracking-wider">{bookingId}</p>
-        
+
         <div className="bg-white p-4 rounded-xl inline-block shadow-sm mb-6 border border-gray-100">
-          <QRCodeSVG 
-            value={`https://meovangnha.vn/booking/${bookingId}`} 
+          <QRCodeSVG
+            value={`https://meovangnha.vn/booking/${bookingId}`}
             size={180}
             level="H"
             fgColor="#1E293B" // text-dark
           />
         </div>
-        
+
         <p className="text-sm text-gray-500 italic max-w-xs mx-auto">
           Vui lòng lưu lại mã QR này hoặc đưa cho nhân viên khi đến làm thủ tục check-in.
         </p>
       </div>
 
-      <div className="flex justify-center gap-4 pt-8">
+      <div className="flex flex-wrap justify-center gap-4 pt-8">
+        <Link
+          to="/admin/room-status"
+          className="flex items-center gap-2 bg-amber-50 border-2 border-amber-300 text-amber-800 font-bold px-6 py-3 rounded-xl hover:bg-amber-100 transition-colors shadow-sm"
+        >
+          <BedDouble className="w-5 h-5 text-amber-600" />
+          Xem tình trạng phòng (Admin)
+        </Link>
         <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-50 transition-colors">
           <Download className="w-5 h-5" />
           Lưu ảnh QR
         </button>
-        <Link 
+        <Link
           to="/"
           className="flex items-center gap-2 bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity"
         >
