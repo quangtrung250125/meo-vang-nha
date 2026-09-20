@@ -179,6 +179,7 @@ const Footer = () => {
         <div className="pt-6 text-center text-xs text-amber-300/60">
           <p>© 2026 Mèo Vắng Nhà Pet Hotel & Care. Bản quyền thuộc về Mèo Vắng Nhà. Tối ưu hóa trên mọi thiết bị.</p>
         </div>
+      </div>
       </footer>
     </>
   );
