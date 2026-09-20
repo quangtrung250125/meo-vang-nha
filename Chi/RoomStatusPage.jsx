@@ -13,6 +13,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
+import BookingDetailModal from './BookingDetailModal';
 
 /**
  * RoomStatusPage - Trang "Tình trạng phòng" dành riêng cho Admin
@@ -209,7 +210,7 @@ const bookingStatusBadge = (status) => {
 // ─────────────────────────────────────────────
 // RoomCard Component
 // ─────────────────────────────────────────────
-const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set() }) => {
+const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick }) => {
   const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
   const totalCats = bks.reduce((s, b) => s + b.cats, 0);
   const remaining = room.capacity - totalCats;
@@ -348,14 +349,17 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
             <div className="flex flex-col gap-1 mt-0.5">
               {bks.map((bk) => {
                 const isNew = newBookingIds.has(bk.code);
+                const isClickable = status === 'available' || status === 'full';
                 return (
                   <div
                     key={bk.code}
+                    onClick={() => isClickable && onBookingClick && onBookingClick(bk, room.id)}
                     className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
                       isNew
                         ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300 ring-offset-1 animate-pulse'
                         : st.bkRow
-                    }`}
+                    } ${isClickable ? 'cursor-pointer hover:ring-2 hover:ring-white/60 hover:shadow-md active:scale-[0.97]' : ''}`}
+                    title={isClickable ? `Xem chi tiết ${bk.code}` : ''}
                   >
                     <div className="flex items-center gap-1">
                       {isNew && <Zap className="h-3 w-3 text-yellow-500 shrink-0" />}
@@ -397,8 +401,26 @@ const RoomStatusPage = () => {
   const [filterType, setFilterType] = useState('Tất cả');
   const [filterStatus, setFilterStatus] = useState('Tất cả');
   const dateBarRef = useRef(null);
+
+  // State cho BookingDetailModal
+  const [activeBooking, setActiveBooking] = useState(null); // { booking, roomId }
+
   // Lấy bookings và maintenance thời gian thực (kèm lưu vĩnh viễn) từ shared context
-  const { bookings, newBookingIds, maintenanceRooms, toggleMaintenance } = useRoomState();
+  const { bookings, newBookingIds, maintenanceRooms, toggleMaintenance, checkInBooking, checkOutBooking, removeBooking, updateBooking } = useRoomState();
+
+  const handleBookingClick = useCallback((booking, roomId) => {
+    setActiveBooking({ booking, roomId });
+  }, []);
+
+  // Khi bookings thay đổi (check-in/update), refresh active booking nếu đang mở
+  useEffect(() => {
+    if (!activeBooking) return;
+    const { roomId, booking } = activeBooking;
+    const updated = (bookings[roomId] || []).find(b => b.code === booking.code);
+    if (updated) {
+      setActiveBooking({ booking: updated, roomId });
+    }
+  }, [bookings]);
 
   const isAdminRoute = window.location.pathname.startsWith('/admin');
   const basePrefix = isAdminRoute ? '/admin' : '';
@@ -478,7 +500,8 @@ const RoomStatusPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <div className="min-h-screen bg-gray-50">
       {/* ── Page Header ── */}
       <div className="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -659,6 +682,7 @@ const RoomStatusPage = () => {
                       isMaintenance={!!maintenanceRooms[room.id]}
                       onToggleMaintenance={handleToggleMaintenance}
                       newBookingIds={newBookingIds}
+                      onBookingClick={handleBookingClick}
                     />
                   ))}
                 </div>
@@ -674,8 +698,8 @@ const RoomStatusPage = () => {
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Chú thích màu sắc:</span>
           {[
             { color: 'bg-green-500',  label: 'Trống — 0 mèo' },
-            { color: 'bg-yellow-400', label: 'Còn chỗ — Có khách, chưa đầy' },
-            { color: 'bg-red-500',    label: 'Đầy — Hết chỗ' },
+            { color: 'bg-yellow-400', label: 'Còn chỗ — Có khách, chưa đầy (nhấp mã đơn để xem)' },
+            { color: 'bg-red-500',    label: 'Đầy — Hết chỗ (nhấp mã đơn để xem)' },
             { color: 'bg-gray-300',   label: 'Bảo trì — Tạm khóa' },
           ].map((l) => (
             <div key={l.label} className="flex items-center gap-1.5">
@@ -685,8 +709,21 @@ const RoomStatusPage = () => {
           ))}
         </div>
       </div>
-    </div>
-  );
+      </div>
+
+    {/* ── BookingDetailModal ── */}
+    {activeBooking && (
+      <BookingDetailModal
+        booking={activeBooking.booking}
+        roomId={activeBooking.roomId}
+        onClose={() => setActiveBooking(null)}
+        onCheckIn={checkInBooking}
+        onCheckOut={checkOutBooking}
+        onDelete={removeBooking}
+        onUpdate={updateBooking}
+      />
+    )}
+  </>);
 };
 
 export default RoomStatusPage;

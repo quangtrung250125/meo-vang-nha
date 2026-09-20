@@ -1,6 +1,11 @@
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 
 // ─────────────────────────────────────────────
+// Helper: generate a unique booking detail key for localStorage
+// ─────────────────────────────────────────────
+const BOOKING_DETAILS_KEY = 'mvn_booking_details';
+
+// ─────────────────────────────────────────────
 // Cấu hình phòng (source of truth dùng chung)
 // ─────────────────────────────────────────────
 export const ROOM_CONFIG = [
@@ -136,6 +141,11 @@ export const RoomStateProvider = ({ children }) => {
               });
             }, 6000);
           }
+        } else if (
+          (msg?.type === 'BOOKING_UPDATED' || msg?.type === 'BOOKING_REMOVED') &&
+          msg.allBookings
+        ) {
+          setBookings(msg.allBookings);
         } else if (msg?.type === 'MAINTENANCE_TOGGLED' && msg.maintenanceRooms) {
           setMaintenanceRooms(msg.maintenanceRooms);
         }
@@ -190,7 +200,7 @@ export const RoomStateProvider = ({ children }) => {
   /**
    * Thêm booking mới vào phòng → đồng bộ tức thì sang Admin tab Tình trạng phòng (kể cả khác tab)
    * @param {string} roomId    - ID phòng, VD: 'VIP-03'
-   * @param {object} booking   - { code, cats, status }
+   * @param {object} booking   - { code, cats, status, ...detailFields }
    */
   const addNewBooking = useCallback((roomId, booking) => {
     setBookings((prev) => {
@@ -228,6 +238,80 @@ export const RoomStateProvider = ({ children }) => {
         return next;
       });
     }, 6000);
+  }, []);
+
+  /**
+   * Cập nhật thông tin booking (chỉnh sửa)
+   * @param {string} roomId   - ID phòng
+   * @param {string} code     - Mã booking
+   * @param {object} updates  - Các trường cần cập nhật
+   */
+  const updateBooking = useCallback((roomId, code, updates) => {
+    setBookings((prev) => {
+      const current = prev[roomId] || [];
+      const updated = {
+        ...prev,
+        [roomId]: current.map((b) => b.code === code ? { ...b, ...updates } : b),
+      };
+      try {
+        localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to update booking in localStorage', e);
+      }
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code, updates, allBookings: updated });
+      }
+      return updated;
+    });
+  }, []);
+
+  /**
+   * Check-in: chuyển trạng thái booking → 'đang ở'
+   */
+  const checkInBooking = useCallback((roomId, code) => {
+    updateBooking(roomId, code, { status: 'đang ở' });
+  }, [updateBooking]);
+
+  /**
+   * Check-out: xóa booking khỏi phòng (sau khi thanh toán)
+   */
+  const checkOutBooking = useCallback((roomId, code) => {
+    setBookings((prev) => {
+      const updated = {
+        ...prev,
+        [roomId]: (prev[roomId] || []).filter((b) => b.code !== code),
+      };
+      try {
+        localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to checkout booking', e);
+      }
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });
+      }
+      return updated;
+    });
+  }, []);
+
+  /**
+   * Xóa đơn đặt phòng khỏi hệ thống
+   */
+  const removeBooking = useCallback((roomId, code) => {
+    setBookings((prev) => {
+      const updated = {
+        ...prev,
+        [roomId]: (prev[roomId] || []).filter((b) => b.code !== code),
+      };
+      try {
+        localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to remove booking', e);
+      }
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });
+      }
+      return updated;
+    });
   }, []);
 
   /**
@@ -277,6 +361,10 @@ export const RoomStateProvider = ({ children }) => {
       value={{
         bookings,
         addNewBooking,
+        updateBooking,
+        checkInBooking,
+        checkOutBooking,
+        removeBooking,
         getRoomAvailability,
         newBookingIds,
         maintenanceRooms,
