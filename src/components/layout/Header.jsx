@@ -74,7 +74,6 @@ const Header = () => {
             <nav className="hidden md:flex space-x-7 items-center">
               <Link to="/" className={`text-sm tracking-wide ${isActive('/')}`}>Trang chủ</Link>
               <Link to="/services" className={`text-sm tracking-wide ${isActive('/services')}`}>Dịch vụ</Link>
-              <Link to="/pricing" className={`text-sm tracking-wide ${isActive('/pricing')}`}>Bảng giá</Link>
               <Link to="/promotions" className={`text-sm tracking-wide flex items-center gap-1 ${isActive('/promotions')}`}>
                 <span>Khuyến mãi</span>
                 <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase animate-pulse">HOT</span>
@@ -336,7 +335,6 @@ const Header = () => {
             <div className="md:hidden border-t border-gray-100 py-3 space-y-1">
               <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/')}`}>Trang chủ</Link>
               <Link to="/services" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/services')}`}>Dịch vụ</Link>
-              <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pricing')}`}>Bảng giá</Link>
               <Link to="/promotions" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/promotions')}`}>Khuyến mãi 🔥</Link>
               <Link to="/news" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/news')}`}>Cẩm nang & Tin tức</Link>
               <Link to="/pet-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pet-profile')}`}>Hồ sơ thú cưng</Link>

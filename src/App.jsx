@@ -1,11 +1,10 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
 import Services from './pages/Services';
-import Pricing from './pages/Pricing';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
 import CustomerProfile from './pages/CustomerProfile';
@@ -28,7 +27,7 @@ function AppRoutes() {
   const sharedRoutes = (
     <>
       <Route path="services" element={<Services />} />
-      <Route path="pricing" element={<Pricing />} />
+      <Route path="pricing" element={<Navigate to="/services" replace />} />
       <Route path="promotions" element={<Promotions />} />
       <Route path="news" element={<News />} />
       <Route path="booking" element={<Booking />} />
