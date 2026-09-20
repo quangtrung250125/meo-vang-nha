@@ -5,8 +5,10 @@ import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
 import Services from './pages/Services';
+import Pricing from './pages/Pricing';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
+import CustomerProfile from './pages/CustomerProfile';
 import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
@@ -22,42 +24,33 @@ import { Toaster } from 'react-hot-toast';
 function AppRoutes() {
   const { isAdmin } = useCustomerProfile();
 
-  // Danh sách các route trang con dùng chung 100% giữa Khách hàng và Admin
+  // Shared routes between normal customer view and admin view
   const sharedRoutes = (
     <>
       <Route path="services" element={<Services />} />
+      <Route path="pricing" element={<Pricing />} />
       <Route path="promotions" element={<Promotions />} />
       <Route path="news" element={<News />} />
       <Route path="booking" element={<Booking />} />
       <Route path="pet-profile" element={<PetProfile />} />
+      <Route path="customer-profile" element={<CustomerProfile />} />
+      <Route path="profile" element={<CustomerProfile />} />
       <Route path="my-booking" element={<MyBooking />} />
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
-      {/* Trang Tình trạng phòng - chỉ hiển thị trong AdminLayout */}
       <Route path="room-status" element={<RoomStatusPage />} />
     </>
   );
 
   return (
     <Routes>
-      {/* 
-        1. Tuyến đường trực tiếp /admin:
-           Cho phép trải nghiệm trực tiếp giao diện Admin bất cứ lúc nào qua link /admin
-      */}
+      {/* Direct Admin Route /admin */}
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         {sharedRoutes}
       </Route>
 
-      {/* 
-        2. Tuyến đường chính /:
-           - Khi tài khoản có số điện thoại 0962606249 đăng nhập (isAdmin = true):
-             Giao diện web tự động đổi thành AdminLayout (thư mục Chi) với thanh menu dọc bên trái.
-           - Khi ở tài khoản khác hoặc chưa đăng nhập:
-             Hiển thị giao diện khách hàng thông thường (MainLayout) với menu ngang.
-           - Tất cả các trang con (Home, Services, Promotions, News, Booking...) dùng chung component,
-             đồng bộ 100% nội dung.
-      */}
+      {/* Main Layout / */}
       <Route path="/" element={isAdmin ? <AdminLayout /> : <MainLayout />}>
         <Route index element={isAdmin ? <AdminDashboard /> : <Home />} />
         {sharedRoutes}

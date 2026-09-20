@@ -4,11 +4,11 @@ import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import FloatingContactButtons from '../../Chi/FloatingContactButtons';
 import CustomerWelcomeModal from '../components/CustomerWelcomeModal';
-import { useCustomerProfile } from '../contexts/CustomerContext';
-import { usePetProfile } from '../contexts/PetContext';
 import SearchModal from '../components/SearchModal';
 import PolicyModal from '../components/PolicyModal';
 import AuthModal from '../components/AuthModal';
+import { useCustomerProfile } from '../contexts/CustomerContext';
+import { usePetProfile } from '../contexts/PetContext';
 import { useUI } from '../contexts/UIContext';
 
 const MainLayout = () => {
@@ -18,11 +18,15 @@ const MainLayout = () => {
   const { isAuthOpen, closeAuth } = useUI();
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsWelcomeOpen(true), 3000);
-    return () => window.clearTimeout(timer);
+    const hasSeen = localStorage.getItem('mvn_has_seen_welcome');
+    if (!hasSeen) {
+      const timer = window.setTimeout(() => setIsWelcomeOpen(true), 2500);
+      return () => window.clearTimeout(timer);
+    }
   }, []);
 
   const handleProfileSubmit = async (profileData) => {
+    localStorage.setItem('mvn_has_seen_welcome', 'true');
     const pet = {
       id: `crm-pet-${Date.now()}`,
       name: profileData.petName,
@@ -58,7 +62,10 @@ const MainLayout = () => {
     <div className="flex flex-col min-h-screen bg-bg-light">
       <CustomerWelcomeModal
         isOpen={isWelcomeOpen}
-        onClose={() => setIsWelcomeOpen(false)}
+        onClose={() => {
+          localStorage.setItem('mvn_has_seen_welcome', 'true');
+          setIsWelcomeOpen(false);
+        }}
         onSubmit={handleProfileSubmit}
       />
       <Header />
