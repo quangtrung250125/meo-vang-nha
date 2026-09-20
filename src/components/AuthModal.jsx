@@ -363,6 +363,21 @@ const AuthModal = ({ isOpen, onClose }) => {
                 activeTab === 'register' ? 'Đăng Ký Tài Khoản' : 'Đăng Nhập'
               )}
             </button>
+
+            {activeTab === 'login' && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, phone: '0962606249', password: 'admin' });
+                  }}
+                  className="w-full py-2 px-3 bg-orange-50 hover:bg-orange-100/70 border border-dashed border-orange-200 rounded-xl text-xs font-semibold text-primary flex items-center justify-center gap-1.5 transition-all"
+                  title="Nhấn để tự động điền SĐT 0962606249"
+                >
+                  <span>⚡ Điền nhanh tài khoản Admin: <strong>0962606249</strong></span>
+                </button>
+              </div>
+            )}
           </form>
         )}
         </>)}
