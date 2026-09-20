@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Gift } from 'lucide-react';
+import { Plus, Gift, Search, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useRoomState } from '../../contexts/RoomStateContext';
 
 
 /* ------------------------------------------------
@@ -125,12 +126,43 @@ const CatCountPicker = ({ value, onChange }) => {
 };
 
 /* ------------------------------------------------
+   Config hạng phòng — badge & màu
+------------------------------------------------ */
+const TYPE_META = {
+  VIP: {
+    label: 'Hạng VIP',
+    badgeBg: 'bg-orange-100 border-orange-300 text-orange-700',
+    selectBg: 'border-orange-400 bg-orange-50',
+    dot: 'bg-orange-400',
+    capacityLabel: 'Tối đa 2 mèo/phòng',
+  },
+  VVIP: {
+    label: 'Hạng VVIP',
+    badgeBg: 'bg-purple-100 border-purple-300 text-purple-700',
+    selectBg: 'border-purple-400 bg-purple-50',
+    dot: 'bg-purple-400',
+    capacityLabel: 'Tối đa 4 mèo/phòng',
+  },
+  DELUXE: {
+    label: 'Hạng DELUXE',
+    badgeBg: 'bg-sky-100 border-sky-300 text-sky-700',
+    selectBg: 'border-sky-400 bg-sky-50',
+    dot: 'bg-sky-400',
+    capacityLabel: 'Tối đa 6 mèo/phòng',
+  },
+};
+
+/* ------------------------------------------------
    Main Step 1 Component
 ------------------------------------------------ */
 const Step1Dates = ({ data, updateData, onNext }) => {
   const [error, setError] = useState('');
-  const [availableRooms, setAvailableRooms] = useState(null);
+  const [availableGroups, setAvailableGroups] = useState(null); // nhóm theo hạng
   const [noRooms, setNoRooms] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+
+  // Kết nối với shared RoomStateContext
+  const { getRoomAvailability } = useRoomState();
 
   // Kiểm tra nếu ngày check-in là Thứ 5 (getDay() === 4)
   const isThursdayCheckIn = () => {
@@ -146,20 +178,21 @@ const Step1Dates = ({ data, updateData, onNext }) => {
       return;
     }
     setError('');
+    setIsChecking(true);
 
-    const isAvailable = Math.random() > 0.2;
-    if (isAvailable) {
-      setNoRooms(false);
-      setAvailableRooms([
-        { id: 'R1', name: 'Phòng Tiêu Chuẩn 1', capacity: '2/4', status: 'Còn trống' },
-        { id: 'R2', name: 'Phòng Cao Cấp 2', capacity: '1/2', status: 'Còn trống' },
-        { id: 'R3', name: 'Phòng VIP 1', capacity: '0/2', status: 'Còn trống' },
-      ]);
-    } else {
-      setNoRooms(true);
-      setAvailableRooms(null);
-      updateData({ selectedRoom: null });
-    }
+    // Mô phỏng delay network 600ms để UX mượt mà hơn
+    setTimeout(() => {
+      const groups = getRoomAvailability(data.catCount || 1);
+      setIsChecking(false);
+      if (!groups || groups.length === 0) {
+        setNoRooms(true);
+        setAvailableGroups(null);
+        updateData({ selectedRoom: null });
+      } else {
+        setNoRooms(false);
+        setAvailableGroups(groups);
+      }
+    }, 600);
   };
 
   const handleNextClick = () => {
@@ -168,6 +201,12 @@ const Step1Dates = ({ data, updateData, onNext }) => {
       return;
     }
     onNext();
+  };
+
+  const resetRoomCheck = () => {
+    setAvailableGroups(null);
+    setNoRooms(false);
+    updateData({ selectedRoom: null });
   };
 
   return (
@@ -184,8 +223,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
             value={data.checkIn}
             onChange={(e) => {
               updateData({ checkIn: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
+              resetRoomCheck();
             }}
           />
         </div>
@@ -198,8 +236,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
             min={data.checkIn}
             onChange={(e) => {
               updateData({ checkOut: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
+              resetRoomCheck();
             }}
           />
         </div>
@@ -226,25 +263,35 @@ const Step1Dates = ({ data, updateData, onNext }) => {
         value={data.catCount}
         onChange={(num) => {
           updateData({ catCount: num, selectedRoom: null });
-          setAvailableRooms(null);
-          setNoRooms(false);
+          resetRoomCheck();
         }}
       />
 
       {/* Check Room Action */}
-      {!availableRooms && !noRooms && (
+      {!availableGroups && !noRooms && (
         <button
           onClick={handleCheckRoom}
-          className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 mt-4"
+          disabled={isChecking}
+          className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 mt-4 flex items-center justify-center gap-2 disabled:opacity-70"
         >
-          Kiểm tra phòng trống
+          {isChecking ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Đang kiểm tra...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4" />
+              Kiểm tra phòng trống
+            </>
+          )}
         </button>
       )}
 
       {/* No Rooms */}
       {noRooms && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <p className="text-red-600 font-medium mb-4">Rất tiếc, cửa hàng không còn phòng trong thời gian này.</p>
+          <p className="text-red-600 font-medium mb-4">Rất tiếc, cửa hàng không còn phòng phù hợp trong thời gian này.</p>
           <button
             onClick={() => {
               updateData({ checkIn: '', checkOut: '' });
@@ -257,28 +304,62 @@ const Step1Dates = ({ data, updateData, onNext }) => {
         </div>
       )}
 
-      {/* Available Rooms */}
-      {availableRooms && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-          <h3 className="font-bold text-text-dark">Phòng có sẵn:</h3>
-          <div className="grid gap-3">
-            {availableRooms.map((room) => (
-              <div
-                key={room.id}
-                onClick={() => updateData({ selectedRoom: room })}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  data.selectedRoom?.id === room.id
-                    ? 'border-primary bg-primary-light'
-                    : 'border-gray-100 bg-bg-cream hover:border-primary/50'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-text-dark">{room.name}</span>
-                  <span className="text-sm text-gray-500">Sức chứa: {room.capacity}</span>
+      {/* ── Available Rooms grouped by type ── */}
+      {availableGroups && (
+        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-text-dark flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              Phòng có sẵn:
+            </h3>
+            <button
+              onClick={resetRoomCheck}
+              className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+            >
+              Kiểm tra lại
+            </button>
+          </div>
+
+          {availableGroups.map(({ type, rooms }) => {
+            const meta = TYPE_META[type] || TYPE_META.VIP;
+            return (
+              <div key={type} className="space-y-2">
+                {/* Tiêu đề hạng */}
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold ${meta.badgeBg}`}>
+                  <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                  {meta.label}
+                  <span className="opacity-60">— {meta.capacityLabel}</span>
+                </div>
+
+                {/* Danh sách phòng trong hạng: độ rộng vừa đủ chứa tên phòng & số chỗ còn trống */}
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  {rooms.map((room) => {
+                    const isSelected = data.selectedRoom?.id === room.id;
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => updateData({ selectedRoom: room })}
+                        className={`
+                          inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 cursor-pointer transition-all duration-200 text-sm
+                          ${isSelected
+                            ? `${meta.selectBg} shadow-sm ring-2 ring-primary/20`
+                            : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-orange-50/20 text-gray-700'}
+                        `}
+                      >
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
+                        <span className="font-bold text-text-dark">{room.id}</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                          Còn {room.remaining}/{room.capacity}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
 

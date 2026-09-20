@@ -19,6 +19,7 @@ import { CustomerProvider, useCustomerProfile } from './contexts/CustomerContext
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
 import { CareLogProvider } from './contexts/CareLogContext';
 import { UIProvider } from './contexts/UIContext';
+import { RoomStateProvider } from './contexts/RoomStateContext';
 import { Toaster } from 'react-hot-toast';
 
 function AppRoutes() {
@@ -66,10 +67,12 @@ function App() {
         <PetProvider>
           <BookingHistoryProvider>
             <CareLogProvider>
-              <Toaster position="top-center" reverseOrder={false} />
-              <BrowserRouter>
-                <AppRoutes />
-              </BrowserRouter>
+              <RoomStateProvider>
+                <Toaster position="top-center" reverseOrder={false} />
+                <BrowserRouter>
+                  <AppRoutes />
+                </BrowserRouter>
+              </RoomStateProvider>
             </CareLogProvider>
           </BookingHistoryProvider>
         </PetProvider>

@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   BedDouble,
   PlusCircle,
+  Zap,
 } from 'lucide-react';
+import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
 
 /**
  * RoomStatusPage - Trang "Tình trạng phòng" dành riêng cho Admin
@@ -30,52 +32,7 @@ import {
  *     Bảo trì  → Xám      (bg-gray-200)
  */
 
-// ─────────────────────────────────────────────
-// Dữ liệu demo booking
-// ─────────────────────────────────────────────
-const SAMPLE_BOOKINGS = {
-  'VIP-01': [{ code: 'BK-001', cats: 1, status: 'đang ở' }],
-  'VIP-02': [{ code: 'BK-002', cats: 2, status: 'check-in' }],
-  'VIP-03': [],
-  'VIP-04': [{ code: 'BK-003', cats: 1, status: 'check-out' }],
-  'VIP-05': [],
-  'VIP-06': [],
-  'VVIP-01': [
-    { code: 'BK-004', cats: 2, status: 'đang ở' },
-    { code: 'BK-005', cats: 2, status: 'check-in' },
-  ],
-  'VVIP-02': [{ code: 'BK-006', cats: 3, status: 'đang ở' }],
-  'VVIP-03': [],
-  'DELUXE-01': [
-    { code: 'BK-007', cats: 3, status: 'đang ở' },
-    { code: 'BK-008', cats: 3, status: 'check-in' },
-  ],
-  'DELUXE-02': [{ code: 'BK-009', cats: 2, status: 'đang ở' }],
-};
-
-// ─────────────────────────────────────────────
-// Cấu hình phòng
-// ─────────────────────────────────────────────
-const ROOM_CONFIG = [
-  // VIP: tối đa 2 mèo/phòng, 6 phòng (VIP-01 đến VIP-06)
-  ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
-    id,
-    type: 'VIP',
-    capacity: 2,
-  })),
-  // VVIP: tối đa 4 mèo/phòng, 3 phòng (VVIP-01 đến VVIP-03)
-  ...['VVIP-01', 'VVIP-02', 'VVIP-03'].map((id) => ({
-    id,
-    type: 'VVIP',
-    capacity: 4,
-  })),
-  // DELUXE: tối đa 6 mèo/phòng, 2 phòng (DELUXE-01 đến DELUXE-02)
-  ...['DELUXE-01', 'DELUXE-02'].map((id) => ({
-    id,
-    type: 'DELUXE',
-    capacity: 6,
-  })),
-];
+// ROOM_CONFIG và getRoomStatus được import từ RoomStateContext
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -108,15 +65,7 @@ function addDays(date, n) {
   return d;
 }
 
-function getRoomStatus(roomId, bookings, isMaintenance) {
-  if (isMaintenance) return 'maintenance';
-  const room = ROOM_CONFIG.find((r) => r.id === roomId);
-  const bks = bookings[roomId] || [];
-  const total = bks.reduce((s, b) => s + b.cats, 0);
-  if (total === 0) return 'empty';
-  if (total < room.capacity) return 'available';
-  return 'full';
-}
+// getRoomStatus được import từ RoomStateContext
 
 function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
@@ -260,8 +209,8 @@ const bookingStatusBadge = (status) => {
 // ─────────────────────────────────────────────
 // RoomCard Component
 // ─────────────────────────────────────────────
-const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance }) => {
-  const bks = bookings[room.id] || [];
+const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set() }) => {
+  const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
   const totalCats = bks.reduce((s, b) => s + b.cats, 0);
   const remaining = room.capacity - totalCats;
   const status = getRoomStatus(room.id, bookings, isMaintenance);
@@ -397,22 +346,32 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance }) => {
           {/* Danh sách booking kèm trạng thái (đang ở)/(check-in)/(check-out) + số mèo */}
           {bks.length > 0 && (
             <div className="flex flex-col gap-1 mt-0.5">
-              {bks.map((bk) => (
-                <div
-                  key={bk.code}
-                  className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border ${st.bkRow}`}
-                >
-                  <span className={st.bkCode}>{bk.code}</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={st.bkCat}>🐱 {bk.cats}</span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded-full font-semibold text-[10px] ${bookingStatusBadge(bk.status)}`}
-                    >
-                      ({bk.status})
-                    </span>
+              {bks.map((bk) => {
+                const isNew = newBookingIds.has(bk.code);
+                return (
+                  <div
+                    key={bk.code}
+                    className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
+                      isNew
+                        ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300 ring-offset-1 animate-pulse'
+                        : st.bkRow
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {isNew && <Zap className="h-3 w-3 text-yellow-500 shrink-0" />}
+                      <span className={isNew ? 'text-yellow-900 font-bold' : st.bkCode}>{bk.code}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={isNew ? 'text-yellow-800' : st.bkCat}>🐱 {bk.cats}</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full font-semibold text-[10px] ${bookingStatusBadge(bk.status)}`}
+                      >
+                        ({bk.status})
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -437,15 +396,16 @@ const RoomStatusPage = () => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [filterType, setFilterType] = useState('Tất cả');
   const [filterStatus, setFilterStatus] = useState('Tất cả');
-  const [maintenanceRooms, setMaintenanceRooms] = useState({});
   const dateBarRef = useRef(null);
+  // Lấy bookings và maintenance thời gian thực (kèm lưu vĩnh viễn) từ shared context
+  const { bookings, newBookingIds, maintenanceRooms, toggleMaintenance } = useRoomState();
 
   const isAdminRoute = window.location.pathname.startsWith('/admin');
   const basePrefix = isAdminRoute ? '/admin' : '';
 
   const handleToggleMaintenance = useCallback((roomId) => {
-    setMaintenanceRooms((prev) => ({ ...prev, [roomId]: !prev[roomId] }));
-  }, []);
+    toggleMaintenance(roomId);
+  }, [toggleMaintenance]);
 
   /**
    * Nút ◄ ▶: đổi ngày VÀ bật DatePicker popup
@@ -465,7 +425,7 @@ const RoomStatusPage = () => {
   // Lọc phòng theo hạng & trạng thái
   const filteredRooms = ROOM_CONFIG.filter((room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, SAMPLE_BOOKINGS, isMaintenance);
+    const status = getRoomStatus(room.id, bookings, isMaintenance);
 
     const statusMap = {
       Trống: 'empty',
@@ -491,7 +451,7 @@ const RoomStatusPage = () => {
   // Thống kê nhanh
   const stats = ROOM_CONFIG.reduce((acc, room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, SAMPLE_BOOKINGS, isMaintenance);
+    const status = getRoomStatus(room.id, bookings, isMaintenance);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
@@ -695,9 +655,10 @@ const RoomStatusPage = () => {
                     <RoomCard
                       key={room.id}
                       room={room}
-                      bookings={SAMPLE_BOOKINGS}
+                      bookings={bookings}
                       isMaintenance={!!maintenanceRooms[room.id]}
                       onToggleMaintenance={handleToggleMaintenance}
+                      newBookingIds={newBookingIds}
                     />
                   ))}
                 </div>
