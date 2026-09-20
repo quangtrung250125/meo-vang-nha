@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
-import { AdminLayout } from '../Chi';
+import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
 import Services from './pages/Services';
 import Booking from './pages/Booking';
@@ -32,6 +32,8 @@ function AppRoutes() {
       <Route path="my-booking" element={<MyBooking />} />
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
+      {/* Trang Tình trạng phòng - chỉ hiển thị trong AdminLayout */}
+      <Route path="room-status" element={<RoomStatusPage />} />
     </>
   );
 

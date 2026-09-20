@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Bell, User, Menu, LogOut, Repeat2, X, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, Bell, User, Menu, LogOut, Repeat2, X, ShieldCheck, PlusCircle } from 'lucide-react';
 import { useCustomerProfile } from '../src/contexts/CustomerContext';
 import { toast } from 'react-hot-toast';
 
@@ -13,6 +13,10 @@ import { toast } from 'react-hot-toast';
 const AdminHeader = ({ onToggleSidebar }) => {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const { authenticatedCustomer, logoutCustomer } = useCustomerProfile();
+  const navigate = useNavigate();
+
+  const isAdminRoute = window.location.pathname.startsWith('/admin');
+  const basePrefix = isAdminRoute ? '/admin' : '';
 
   const handleLogout = () => {
     logoutCustomer();
@@ -53,13 +57,23 @@ const AdminHeader = ({ onToggleSidebar }) => {
             </div>
           </div>
 
-          {/* Cụm bên phải: Search, Bell, Tài khoản Admin & Đăng xuất */}
+          {/* Cụm bên phải: Search, Bell, Nút Đặt phòng, Tài khoản Admin & Đăng xuất */}
           <div className="flex items-center gap-3 sm:gap-4 text-gray-500">
             <button className="hover:text-primary transition-colors p-2 rounded-xl hover:bg-gray-50" title="Tìm kiếm">
               <Search className="h-5 w-5" />
             </button>
             <button className="hover:text-primary transition-colors p-2 rounded-xl hover:bg-gray-50" title="Thông báo">
               <Bell className="h-5 w-5" />
+            </button>
+
+            {/* Nút Đặt phòng → điều hướng mượt mà đến trang Đặt phòng */}
+            <button
+              id="btn-admin-header-booking"
+              onClick={() => navigate(`${basePrefix}/booking`)}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-md shadow-orange-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Đặt phòng
             </button>
 
             <div className="flex items-center gap-3">
