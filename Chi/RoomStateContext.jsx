@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 
 // ─────────────────────────────────────────────
 // Cấu hình phòng (source of truth dùng chung)
@@ -25,7 +25,7 @@ export const ROOM_CONFIG = [
 ];
 
 // ─────────────────────────────────────────────
-// Dữ liệu booking khởi tạo (demo)
+// Dữ liệu booking khởi tạo (sạch, không có mã BK)
 // ─────────────────────────────────────────────
 const INITIAL_BOOKINGS = {
   'VIP-01': [],
@@ -70,6 +70,13 @@ export function determineBookingStatus(checkIn) {
 }
 
 // ─────────────────────────────────────────────
+// Kênh BroadcastChannel đồng bộ tức thì giữa các tab
+// ─────────────────────────────────────────────
+const syncChannel = typeof window !== 'undefined' && window.BroadcastChannel
+  ? new BroadcastChannel('mvn_room_channel')
+  : null;
+
+// ─────────────────────────────────────────────
 // Context
 // ─────────────────────────────────────────────
 const RoomStateContext = createContext(null);
@@ -107,8 +114,35 @@ export const RoomStateProvider = ({ children }) => {
   // Trạng thái bảo trì phòng (lưu vĩnh viễn tới khi bấm "Hết bảo trì")
   const [maintenanceRooms, setMaintenanceRooms] = useState(getInitialMaintenance);
 
-  // Lắng nghe cập nhật đa tab (cross-tab real-time sync)
+  // Lắng nghe cập nhật đa tab (BroadcastChannel + storage event)
   useEffect(() => {
+    // 1. BroadcastChannel: đồng bộ tức thì không độ trễ giữa các tab
+    if (syncChannel) {
+      syncChannel.onmessage = (event) => {
+        const msg = event.data;
+        if (msg?.type === 'BOOKING_ADDED' && msg.allBookings) {
+          setBookings(msg.allBookings);
+          if (msg.booking?.code) {
+            setNewBookingIds((prev) => {
+              const next = new Set(prev);
+              next.add(msg.booking.code);
+              return next;
+            });
+            setTimeout(() => {
+              setNewBookingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(msg.booking.code);
+                return next;
+              });
+            }, 6000);
+          }
+        } else if (msg?.type === 'MAINTENANCE_TOGGLED' && msg.maintenanceRooms) {
+          setMaintenanceRooms(msg.maintenanceRooms);
+        }
+      };
+    }
+
+    // 2. Storage event fallback
     const handleStorageChange = (e) => {
       if (e.key === 'mvn_room_bookings' && e.newValue) {
         try {
@@ -124,11 +158,13 @@ export const RoomStateProvider = ({ children }) => {
       }
     };
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   /**
-   * Bật/Tắt bảo trì cho 1 phòng - lưu trạng thái vào localStorage
+   * Bật/Tắt bảo trì cho 1 phòng - lưu trạng thái vào localStorage & phát sóng đa tab
    */
   const toggleMaintenance = useCallback((roomId) => {
     setMaintenanceRooms((prev) => {
@@ -141,12 +177,18 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {
         console.error('Failed to save maintenance state', e);
       }
+      if (syncChannel) {
+        syncChannel.postMessage({
+          type: 'MAINTENANCE_TOGGLED',
+          maintenanceRooms: updated,
+        });
+      }
       return updated;
     });
   }, []);
 
   /**
-   * Thêm booking mới vào phòng → đồng bộ tức thì sang Admin tab Tình trạng phòng
+   * Thêm booking mới vào phòng → đồng bộ tức thì sang Admin tab Tình trạng phòng (kể cả khác tab)
    * @param {string} roomId    - ID phòng, VD: 'VIP-03'
    * @param {object} booking   - { code, cats, status }
    */
@@ -161,6 +203,14 @@ export const RoomStateProvider = ({ children }) => {
         localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
       } catch (e) {
         console.error('Failed to save bookings to localStorage', e);
+      }
+      if (syncChannel) {
+        syncChannel.postMessage({
+          type: 'BOOKING_ADDED',
+          roomId,
+          booking,
+          allBookings: updated,
+        });
       }
       return updated;
     });
