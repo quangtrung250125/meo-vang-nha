@@ -38,7 +38,6 @@ const Footer = () => {
               <ul className="space-y-2 text-amber-200/80 text-sm">
                 <li><Link to="/" className="hover:text-amber-400 transition-colors">Trang chủ</Link></li>
                 <li><Link to="/services" className="hover:text-amber-400 transition-colors">Dịch vụ</Link></li>
-                <li><Link to="/pricing" className="hover:text-amber-400 transition-colors">Bảng giá</Link></li>
                 <li><Link to="/promotions" className="hover:text-amber-400 transition-colors">Khuyến mãi 🔥</Link></li>
                 <li><Link to="/news" className="hover:text-amber-400 transition-colors">Tin tức & Cẩm nang</Link></li>
                 <li><Link to="/booking" className="hover:text-amber-400 transition-colors">Đặt phòng</Link></li>
