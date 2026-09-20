@@ -58,13 +58,13 @@ const Header = () => {
 
   return (
     <>
-      {/* TOP NOTIFICATION BAR (Exact match to Image 4) */}
-      <div className="bg-[#cf750c] text-white text-xs md:text-sm py-2 px-4 font-medium">
+      {/* PROMO TOP BAR */}
+      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white text-xs md:text-sm py-2 px-4 font-bold relative overflow-hidden group">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-2 text-center sm:text-left">
-            <Clock className="w-4 h-4 text-amber-200 shrink-0" />
-            <span>
-              Giờ mở cửa: <strong className="underline decoration-amber-300">08:30 - 19:30</strong> (Nhận/trả ngoài giờ: <i className="text-amber-100">Cần liên hệ trước</i>)
+          <div className="flex items-center gap-2 text-center sm:text-left mx-auto sm:mx-0">
+            <Gift className="w-4 h-4 text-white animate-bounce shrink-0" />
+            <span className="tracking-wide">
+              🎁 ƯU ĐÃI ĐỘC QUYỀN: HOÀNG THƯỢNG NGHỈ DƯỠNG – CON SEN TÍCH ĐIỂM SƯỚNG!
             </span>
           </div>
           <div className="hidden sm:flex items-center gap-5 text-xs">

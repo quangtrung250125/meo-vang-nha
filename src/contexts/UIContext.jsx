@@ -40,6 +40,10 @@ export const UIProvider = ({ children }) => {
   });
   const [notifications, setNotifications] = useState(initialNotifications);
 
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const openAuth = () => setIsAuthOpen(true);
+  const closeAuth = () => setIsAuthOpen(false);
+
   const openSearch = () => setIsSearchOpen(true);
   const closeSearch = () => setIsSearchOpen(false);
 
@@ -68,6 +72,9 @@ export const UIProvider = ({ children }) => {
         isSearchOpen,
         openSearch,
         closeSearch,
+        isAuthOpen,
+        openAuth,
+        closeAuth,
         policyModal,
         openPolicy,
         closePolicy,

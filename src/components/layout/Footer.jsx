@@ -7,7 +7,21 @@ const Footer = () => {
   const { openPolicy } = useUI();
 
   return (
-    <footer id="footer" className="bg-[#2d1a0e] text-amber-100/90 pt-14 pb-8 mt-auto border-t-2 border-amber-600/40">
+    <>
+      <div className="bg-[#cf750c] text-white text-sm py-3 px-4 font-medium border-t border-amber-500">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <Clock className="w-5 h-5 text-amber-200 shrink-0" />
+            <span>
+              Giờ mở cửa: <strong className="underline decoration-amber-300 text-base">08:30 - 19:30</strong> <span className="hidden sm:inline">(Nhận/trả ngoài giờ: <i className="text-amber-100">Cần liên hệ trước</i>)</span>
+            </span>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-amber-100 italic text-sm font-normal">
+            Hân hạnh phục vụ các bé và gia đình!
+          </div>
+        </div>
+      </div>
+      <footer id="footer" className="bg-[#2d1a0e] text-amber-100/90 pt-12 pb-8 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-amber-900/60">
           
@@ -165,8 +179,8 @@ const Footer = () => {
         <div className="pt-6 text-center text-xs text-amber-300/60">
           <p>© 2026 Mèo Vắng Nhà Pet Hotel & Care. Bản quyền thuộc về Mèo Vắng Nhà. Tối ưu hóa trên mọi thiết bị.</p>
         </div>
-      </div>
-    </footer>
+      </footer>
+    </>
   );
 };
 
