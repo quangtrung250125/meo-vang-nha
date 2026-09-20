@@ -11,8 +11,11 @@ import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { useCareLog } from '../../contexts/CareLogContext';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
+import CareLogTimeline from '../../components/CareLogTimeline';
+import ServiceManagement, { ADDONS } from '../../components/ServiceManagement';
 import { toast } from 'react-hot-toast';
 import {
   getPermissionStatus,
@@ -48,29 +51,8 @@ const getDaysRemaining = (checkOut) => {
 };
 
 // ─── Mock Care Log Data ──────────────────────────────────────────────────────
-
-const CARE_LOGS = [
-  {
-    date: 'Hôm nay, 19/09',
-    logs: [
-      { time: '08:00', type: 'eating', icon: Utensils, label: 'Cho ăn sáng', detail: 'Ăn hết 3/4 khẩu phần pate cá hồi', status: 'normal', tag: 'Bình thường' },
-      { time: '09:30', type: 'hygiene', icon: Droplets, label: 'Dọn vệ sinh', detail: 'Phân khô, nước tiểu bình thường', status: 'normal', tag: 'Bình thường' },
-      { time: '12:00', type: 'eating', icon: Utensils, label: 'Cho ăn trưa', detail: 'Chỉ ăn một ít, bỏ mứa phần còn lại', status: 'watch', tag: 'Cần theo dõi' },
-      { time: '15:00', type: 'mood', icon: Smile, label: 'Quan sát tâm trạng', detail: 'Bé nằm một chỗ, có vẻ nhớ nhà, kêu nhỏ', status: 'watch', tag: 'Cần theo dõi' },
-      { time: '18:00', type: 'eating', icon: Utensils, label: 'Cho ăn tối', detail: 'Ăn ngon, ăn hết sạch bữa tối', status: 'normal', tag: 'Bình thường' },
-      { time: '19:30', type: 'health', icon: HeartPulse, label: 'Kiểm tra sức khỏe', detail: 'Nhịp thở đều, thân nhiệt bình thường', status: 'normal', tag: 'Bình thường' },
-    ]
-  },
-  {
-    date: 'Hôm qua, 18/09',
-    logs: [
-      { time: '08:00', type: 'eating', icon: Utensils, label: 'Cho ăn sáng', detail: 'Ăn hết sạch, ngoan lắm!', status: 'normal', tag: 'Bình thường' },
-      { time: '10:00', type: 'hygiene', icon: Droplets, label: 'Dọn vệ sinh', detail: 'Mọi thứ bình thường', status: 'normal', tag: 'Bình thường' },
-      { time: '14:00', type: 'mood', icon: Smile, label: 'Quan sát tâm trạng', detail: 'Bé chơi vui với đồ chơi lông vũ', status: 'normal', tag: 'Bình thường' },
-      { time: '18:00', type: 'eating', icon: Utensils, label: 'Cho ăn tối', detail: 'Ăn tốt, ăn hết 2 bữa chính', status: 'normal', tag: 'Bình thường' },
-    ]
-  }
-];
+// Khách hàng bây giờ dùng logs thực tế từ CareLogContext
+const FALLBACK_LOGS = [];
 
 // ─── Stepper Steps ───────────────────────────────────────────────────────────
 
@@ -83,38 +65,7 @@ const STEPS = [
 ];
 
 // ─── Add-on Modals ───────────────────────────────────────────────────────────
-
-const ADDONS = {
-  room: {
-    title: 'Đổi / Nâng cấp phòng',
-    icon: Home,
-    description: 'Nâng cấp không gian lưu trú cho bé thêm thoải mái và sang xịn hơn.',
-    options: [
-      { value: 'vvip', label: 'Nâng lên phòng VVIP (+10.000đ/ngày)', price: '+10.000đ/ngày' },
-      { value: 'deluxe', label: 'Nâng lên phòng Deluxe (+20.000đ/ngày)', price: '+20.000đ/ngày' },
-    ],
-  },
-  food: {
-    title: 'Cho ăn thêm',
-    icon: Utensils,
-    description: 'Thêm bữa phụ hoặc nâng cấp khẩu phần ăn cho bé thêm dinh dưỡng.',
-    options: [
-      { value: 'extra_meal', label: 'Thêm 1 bữa phụ (+15.000đ/ngày)', price: '+15.000đ/ngày' },
-      { value: 'upgrade_portion', label: 'Nâng khẩu phần ăn (+20.000đ/ngày)', price: '+20.000đ/ngày' },
-      { value: 'premium_food', label: 'Nâng lên thức ăn premium (+35.000đ/ngày)', price: '+35.000đ/ngày' },
-    ],
-  },
-  play: {
-    title: 'Cho chơi thêm',
-    icon: Sparkles,
-    isNew: true,
-    description: 'Dịch vụ đặc biệt giúp bé vui vẻ, giải trí và giảm stress trong thời gian lưu trú.',
-    options: [
-      { value: 'play_session', label: 'Buổi chơi riêng 30 phút (liên hệ để biết giá)', price: 'Tư vấn' },
-      { value: 'toy_rental', label: 'Thuê thêm đồ chơi cao cấp (liên hệ để biết giá)', price: 'Tư vấn' },
-    ],
-  },
-};
+// ADDONS is imported from ServiceManagement
 
 // ─── Confirmation Modal ──────────────────────────────────────────────────────
 
@@ -294,162 +245,7 @@ const Stepper = ({ currentStep = 3 }) => (
   </div>
 );
 
-// ─── Care Log ─────────────────────────────────────────────────────────────────
-
-const CareLog = () => (
-  <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-    <h3 className="font-bold text-text-dark mb-5 flex items-center gap-2">
-      <CalendarDays className="w-4 h-4 text-primary" />
-      Nhật ký chăm sóc
-    </h3>
-    <div className="space-y-6">
-      {CARE_LOGS.map((day, dayIdx) => (
-        <div key={dayIdx}>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{day.date}</p>
-          <div className="border-l-2 border-gray-100 pl-4 space-y-4">
-            {day.logs.map((log, logIdx) => {
-              const Icon = log.icon;
-              const isWatch = log.status === 'watch';
-              return (
-                <div key={logIdx} className="relative flex items-start gap-3">
-                  <div className="absolute -left-[21px] w-4 h-4 rounded-full bg-white ring-2 ring-gray-100 flex items-center justify-center mt-0.5">
-                    <div className={`w-2 h-2 rounded-full ${isWatch ? 'bg-amber-400' : 'bg-primary'}`} />
-                  </div>
-                  <div className="shrink-0 pt-0.5">
-                    <span className="text-xs font-bold text-gray-400 font-mono">{log.time}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                        log.type === 'eating' ? 'bg-orange-50' :
-                        log.type === 'hygiene' ? 'bg-blue-50' :
-                        log.type === 'mood' ? 'bg-purple-50' : 'bg-red-50'
-                      }`}>
-                        <Icon className={`w-3.5 h-3.5 ${
-                          log.type === 'eating' ? 'text-orange-400' :
-                          log.type === 'hygiene' ? 'text-blue-400' :
-                          log.type === 'mood' ? 'text-purple-400' : 'text-red-400'
-                        }`} />
-                      </div>
-                      <span className="text-sm font-semibold text-text-dark">{log.label}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        isWatch
-                          ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                          : 'bg-primary-light text-primary'
-                      }`}>
-                        {log.tag}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{log.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-// ─── Package Block ────────────────────────────────────────────────────────────
-
-const PackageBlock = ({ booking }) => {
-  const pkg = booking?.selectedPackage;
-  const room = booking?.selectedRoom;
-  const perks = [
-    { icon: Utensils, text: '3 bữa ăn/ngày (sáng, trưa, tối)' },
-    { icon: Droplets, text: 'Dọn vệ sinh 2 lần/ngày' },
-    { icon: Camera, text: 'Camera included' },
-    { icon: Home, text: 'Đưa đón miễn phí trong bán kính 5km' },
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-      <h3 className="font-bold text-text-dark mb-4 flex items-center gap-2">
-        <Package className="w-4 h-4 text-primary" />
-        Gói đang sử dụng
-      </h3>
-      <div className="flex items-center gap-4 mb-5 p-4 bg-gradient-to-r from-primary/5 to-[#a7f3d0]/20 rounded-xl border border-primary/10">
-        <div className="w-14 h-14 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-2xl">🐱</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-text-dark text-base">{pkg?.name || 'Gói Tiêu Chuẩn'}</p>
-          <p className="text-primary font-bold text-sm">{pkg?.price || '150.000đ'}/ngày</p>
-          {room && <p className="text-xs text-gray-500 mt-0.5">Phòng: {room.name}</p>}
-        </div>
-      </div>
-      <div className="space-y-2.5">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Quyền lợi đi kèm</p>
-        {perks.map((perk, i) => {
-          const Icon = perk.icon;
-          return (
-            <div key={i} className="flex items-center gap-2.5">
-              <div className="w-6 h-6 bg-primary-light rounded-lg flex items-center justify-center shrink-0">
-                <Icon className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <span className="text-sm text-gray-700">{perk.text}</span>
-              <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ─── Add-on Card ─────────────────────────────────────────────────────────────
-
-const AddonCard = ({ addonKey, onRequest }) => {
-  const addon = ADDONS[addonKey];
-  const [selected, setSelected] = useState('');
-  const Icon = addon.icon;
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-bold text-text-dark text-sm">{addon.title}</h4>
-            {addon.isNew && (
-              <span className="text-[10px] font-black bg-accent text-white px-2 py-0.5 rounded-full tracking-wide">ĐỀ XUẤT MỚI</span>
-            )}
-          </div>
-        </div>
-      </div>
-      <p className="text-xs text-gray-500 mb-4 leading-relaxed">{addon.description}</p>
-      <div className="relative mb-3">
-        <select
-          value={selected}
-          onChange={e => setSelected(e.target.value)}
-          className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer pr-8"
-        >
-          <option value="">— Chọn tuỳ chọn —</option>
-          {addon.options.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
-      </div>
-      <button
-        onClick={() => selected && onRequest(addonKey, selected)}
-        disabled={!selected}
-        className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-          selected
-            ? 'bg-primary text-white hover:bg-secondary shadow-md shadow-primary/20 cursor-pointer'
-            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-        }`}
-      >
-        <Plus className="w-4 h-4" />
-        Yêu cầu dịch vụ
-      </button>
-    </div>
-  );
-};
+// ─── Care Log & Package Block are now imported ──────────────────────────────
 
 // ─── Call Confirmation Modal ────────────────────────────────────────────────
 const HOTLINE_NUMBER = '0904957555';
@@ -603,7 +399,7 @@ const StaffChatModal = ({ isOpen, onClose, onSend }) => {
 const TrackingPage = () => {
   const navigate = useNavigate();
   const { petList } = usePetProfile();
-  const { globalBookingList } = useBookingHistory();
+  const { globalBookingList, updateBooking } = useBookingHistory();
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
 
   const [showCallModal, setShowCallModal] = useState(false);
@@ -694,6 +490,22 @@ const TrackingPage = () => {
 
   const handleAddonConfirm = () => {
     const addon = ADDONS[confirmModal.addon];
+    
+    // Save to context
+    if (activeBooking) {
+      const newAddon = {
+        id: Date.now().toString(),
+        type: confirmModal.addon,
+        option: confirmModal.option,
+        status: 'pending',
+        timestamp: new Date().toISOString()
+      };
+      
+      updateBooking(activeBooking.id, {
+        addons: [...(activeBooking.addons || []), newAddon]
+      });
+    }
+
     setConfirmModal({ open: false, addon: null, option: null });
     if (confirmModal.addon === 'play' || ADDONS[confirmModal.addon]?.options?.find(o => o.value === confirmModal.option)?.price === 'Tư vấn') {
       toast.success('Yêu cầu đã gửi! Nhân viên sẽ liên hệ sớm nhé 😊');
@@ -919,7 +731,7 @@ const TrackingPage = () => {
                 <Stepper currentStep={3} />
 
                 {/* Care Log */}
-                <CareLog />
+                <CareLogTimeline bookingId={activeBooking.id} petId={firstPet?.id} />
               </div>
 
               {/* ── RIGHT: Sidebar ── */}
@@ -977,22 +789,12 @@ const TrackingPage = () => {
                   )}
                 </div>
 
-                {/* Package Block */}
-                <PackageBlock booking={activeBooking} />
-
-                {/* Add-on Services */}
-                <div>
-                  <h3 className="font-bold text-text-dark mb-4 flex items-center gap-2 px-1">
-                    <Gift className="w-4 h-4 text-accent" />
-                    Dịch vụ thêm
-                    <span className="text-xs text-gray-400 font-normal">(cộng vào hoá đơn cuối)</span>
-                  </h3>
-                  <div className="space-y-4">
-                    {Object.keys(ADDONS).map(key => (
-                      <AddonCard key={key} addonKey={key} onRequest={handleAddonRequest} />
-                    ))}
-                  </div>
-                </div>
+                {/* Package & Addon Management */}
+                <ServiceManagement 
+                  booking={activeBooking} 
+                  isAdmin={false} 
+                  onRequestAddon={handleAddonRequest} 
+                />
 
                 {/* Chat with staff */}
                 <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">

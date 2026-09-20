@@ -35,6 +35,7 @@ const Header = () => {
             <Link to="/news" className={`text-sm tracking-wide ${isActive('/news')}`}>Tin tức</Link>
             <Link to="/pet-profile" className={`text-sm tracking-wide ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
             <Link to="/booking" className={`text-sm tracking-wide ${isActive('/booking')}`}>Đặt phòng</Link>
+            <Link to="/tracking" className={`text-sm tracking-wide ${isActive('/tracking')}`}>Theo dõi</Link>
           </nav>
           <div className="hidden md:flex items-center gap-4 text-gray-500">
             <button className="hover:text-primary transition-colors p-1" title="Tìm kiếm"><Search className="h-5 w-5" /></button>
@@ -97,6 +98,7 @@ const Header = () => {
             <Link to="/news" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/news')}`}>Tin tức</Link>
             <Link to="/pet-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pet-profile')}`}>Hồ sơ mèo</Link>
             <Link to="/booking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/booking')}`}>Đặt phòng</Link>
+            <Link to="/tracking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/tracking')}`}>Theo dõi</Link>
           </div>
         )}
       </div>

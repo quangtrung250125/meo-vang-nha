@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
+import AdminDashboard from './pages/AdminDashboard';
 import Services from './pages/Services';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
@@ -14,6 +15,7 @@ import News from './pages/News';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider, useCustomerProfile } from './contexts/CustomerContext';
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
+import { CareLogProvider } from './contexts/CareLogContext';
 import { UIProvider } from './contexts/UIContext';
 import { Toaster } from 'react-hot-toast';
 
@@ -23,7 +25,6 @@ function AppRoutes() {
   // Danh sách các route trang con dùng chung 100% giữa Khách hàng và Admin
   const sharedRoutes = (
     <>
-      <Route index element={<Home />} />
       <Route path="services" element={<Services />} />
       <Route path="promotions" element={<Promotions />} />
       <Route path="news" element={<News />} />
@@ -44,6 +45,7 @@ function AppRoutes() {
            Cho phép trải nghiệm trực tiếp giao diện Admin bất cứ lúc nào qua link /admin
       */}
       <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<AdminDashboard />} />
         {sharedRoutes}
       </Route>
 
@@ -57,6 +59,7 @@ function AppRoutes() {
              đồng bộ 100% nội dung.
       */}
       <Route path="/" element={isAdmin ? <AdminLayout /> : <MainLayout />}>
+        <Route index element={isAdmin ? <AdminDashboard /> : <Home />} />
         {sharedRoutes}
       </Route>
     </Routes>
@@ -69,10 +72,12 @@ function App() {
       <UIProvider>
         <PetProvider>
           <BookingHistoryProvider>
-            <Toaster position="top-center" reverseOrder={false} />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
+            <CareLogProvider>
+              <Toaster position="top-center" reverseOrder={false} />
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </CareLogProvider>
           </BookingHistoryProvider>
         </PetProvider>
       </UIProvider>

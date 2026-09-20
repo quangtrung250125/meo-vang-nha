@@ -24,8 +24,18 @@ export const BookingHistoryProvider = ({ children }) => {
     });
   };
 
+  const updateBooking = (bookingId, updatedData) => {
+    setGlobalBookingList(prev => {
+      const newList = prev.map(booking => 
+        booking.id === bookingId ? { ...booking, ...updatedData } : booking
+      );
+      localStorage.setItem('bookingHistory', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
   return (
-    <BookingHistoryContext.Provider value={{ globalBookingList, addBooking }}>
+    <BookingHistoryContext.Provider value={{ globalBookingList, addBooking, updateBooking }}>
       {children}
     </BookingHistoryContext.Provider>
   );
