@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { X, PawPrint, Sparkles, UserRound, Cat, Phone, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
+import { X, PawPrint, Sparkles, UserRound, Cat, Phone, CheckCircle2, AlertCircle, LockKeyhole } from 'lucide-react';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 
 const SOURCES = ['Google', 'Facebook/Zalo', 'TikTok', 'Giới thiệu', 'Khác'];
@@ -27,11 +27,12 @@ const initialForm = {
 const normalizePhone = (value = '') => value.replace(/\D/g, '');
 
 const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
-    const { findCustomerByPhone } = useCustomerProfile();
+    const { findCustomerByPhone, authenticateCustomer } = useCustomerProfile();
     const [formData, setFormData] = useState(initialForm);
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [existingCustomer, setExistingCustomer] = useState(null);
+    const [passwordError, setPasswordError] = useState('');
 
     const crmLabels = useMemo(() => ['Khách hàng mới'], []);
 
@@ -41,6 +42,7 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
             setExistingCustomer(null);
             setFormData(initialForm);
             setIsSubmitting(false);
+            setPasswordError('');
         }
     }, [isOpen]);
 
@@ -55,14 +57,33 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
         if (!cleanedPhone) return;
 
         const match = findCustomerByPhone(cleanedPhone);
-        if (match) {
-            setExistingCustomer(match);
-            setStep(2);
+        setExistingCustomer(match);
+        setFormData(prev => ({ ...prev, phone: cleanedPhone, password: '', confirmPassword: '' }));
+        setStep(2);
+    };
+
+    const handlePasswordStep = (event) => {
+        event.preventDefault();
+        setPasswordError('');
+
+        if (existingCustomer) {
+            if (!authenticateCustomer(formData.phone, formData.password)) {
+                setPasswordError('Mật khẩu không đúng. Vui lòng thử lại.');
+                return;
+            }
+            setStep(3);
             return;
         }
 
-        setFormData(prev => ({ ...prev, phone: cleanedPhone }));
-        setStep(2);
+        if (formData.password.length < 6) {
+            setPasswordError('Mật khẩu phải có tối thiểu 6 ký tự.');
+            return;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setPasswordError('Mật khẩu xác nhận không trùng khớp.');
+            return;
+        }
+        setStep(3);
     };
 
     const handleSubmit = async (event) => {
@@ -74,6 +95,7 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
         await onSubmit({
             ...formData,
             phone: normalizePhone(formData.phone),
+            password: formData.password,
             labels: crmLabels,
             createdAt: new Date().toISOString(),
         });
@@ -130,6 +152,62 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
                 </button>
             </div>
         </div>
+    );
+
+    const renderPasswordStep = () => (
+        <form onSubmit={handlePasswordStep} className="space-y-6 p-6 md:p-8">
+            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/80 p-5">
+                <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700">
+                        <LockKeyhole className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-emerald-800">
+                            {existingCustomer ? 'Đăng nhập tài khoản của bạn' : 'Cài đặt mật khẩu mới'}
+                        </p>
+                        <p className="text-sm text-emerald-700 mt-1">
+                            {existingCustomer
+                                ? 'Số điện thoại đã tồn tại. Nhập mật khẩu để tiếp tục.'
+                                : 'Số điện thoại chưa có dữ liệu. Tạo mật khẩu để bảo vệ hồ sơ của bạn.'}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-5">
+                <p className="text-sm font-semibold text-gray-600">Số điện thoại: <span className="text-text-dark">{formData.phone}</span></p>
+                <label className="block text-sm font-semibold text-text-dark">
+                    {existingCustomer ? 'Mật khẩu' : 'Mật khẩu mới'} <span className="text-red-500">*</span>
+                    <input
+                        type="password"
+                        value={formData.password}
+                        onChange={(event) => handleChange('password', event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-gray-700 focus:border-primary focus:outline-none"
+                        placeholder="Tối thiểu 6 ký tự"
+                    />
+                </label>
+                {!existingCustomer && (
+                    <label className="block text-sm font-semibold text-text-dark">
+                        Xác nhận mật khẩu mới <span className="text-red-500">*</span>
+                        <input
+                            type="password"
+                            value={formData.confirmPassword}
+                            onChange={(event) => handleChange('confirmPassword', event.target.value)}
+                            className="mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-gray-700 focus:border-primary focus:outline-none"
+                            placeholder="Nhập lại mật khẩu mới"
+                        />
+                    </label>
+                )}
+                {passwordError && <p className="text-sm font-semibold text-red-600">{passwordError}</p>}
+            </div>
+
+            <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setStep(1)} className="rounded-2xl border border-gray-200 bg-white px-6 py-3 font-bold text-gray-600 hover:bg-gray-50 transition-colors">Quay lại</button>
+                <button type="submit" className="rounded-2xl bg-accent px-6 py-3 font-bold text-white shadow-lg shadow-accent/30 hover:bg-accent-hover transition-colors">
+                    {existingCustomer ? 'Đăng nhập' : 'Tiếp tục tạo hồ sơ'}
+                </button>
+            </div>
+        </form>
     );
 
     const renderExistingCustomerStep = () => (
@@ -454,8 +532,9 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
                 </div>
 
                 {step === 1 && renderPhoneStep()}
-                {step === 2 && existingCustomer && renderExistingCustomerStep()}
-                {step === 2 && !existingCustomer && renderNewCustomerStep()}
+                {step === 2 && renderPasswordStep()}
+                {step === 3 && existingCustomer && renderExistingCustomerStep()}
+                {step === 3 && !existingCustomer && renderNewCustomerStep()}
             </div>
         </div>
     );

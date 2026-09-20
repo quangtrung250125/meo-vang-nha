@@ -11,7 +11,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
-import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
+import AuthModal from '../../components/AuthModal';
 
 // ─────────────────────────────────────────────
 // Tạo nhật ký lưu trú mock theo ngày
@@ -191,7 +191,7 @@ const BookingCard = ({ booking, petList }) => {
 // ─────────────────────────────────────────────
 const PetProfile = () => {
   const { petList, savePet } = usePetProfile();
-  const { customerProfile, saveCustomerProfile } = useCustomerProfile();
+  const { customerProfile, saveCustomerProfile, isAuthenticated } = useCustomerProfile();
   const { globalBookingList } = useBookingHistory();
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -200,7 +200,7 @@ const PetProfile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  const isLoggedIn = Boolean(customerProfile);
+  const isLoggedIn = isAuthenticated;
 
   const handleSavePet = (petData) => {
     setIsSaving(true);
@@ -212,10 +212,8 @@ const PetProfile = () => {
     }, 800);
   };
 
-  const handleAuthSubmit = async (formData) => {
-    saveCustomerProfile(formData);
+  const handleAuthSubmit = async () => {
     setIsAuthOpen(false);
-    toast.success(`Chào mừng ${formData.fullName || 'bạn'} đến Mèo Vắng Nhà! 🐾`);
   };
 
   // ── LOGIN WALL ──────────────────────────────
@@ -270,15 +268,14 @@ const PetProfile = () => {
             </button>
 
             <p className="text-xs text-gray-400 mt-4">
-              Chỉ cần số điện thoại — không cần mật khẩu phức tạp
+              Chỉ cần số điện thoại và mật khẩu đã đăng ký
             </p>
           </div>
         </div>
 
-        <CustomerWelcomeModal
+        <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
-          onSubmit={handleAuthSubmit}
         />
       </>
     );

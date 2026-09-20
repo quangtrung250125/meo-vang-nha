@@ -5,15 +5,23 @@ import {
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
   Loader2, ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
-  Zap, Gift
+  Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { useCareLog } from '../../contexts/CareLogContext';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
+import CareLogTimeline from '../../components/CareLogTimeline';
+import ServiceManagement, { ADDONS } from '../../components/ServiceManagement';
 import { toast } from 'react-hot-toast';
+import {
+  getPermissionStatus,
+  requestNotificationPermission,
+  testPhoneNotification
+} from '../../utils/notifications';
 import cameraFeed from '../../assets/images/camera_feed.png';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -43,29 +51,8 @@ const getDaysRemaining = (checkOut) => {
 };
 
 // ─── Mock Care Log Data ──────────────────────────────────────────────────────
-
-const CARE_LOGS = [
-  {
-    date: 'Hôm nay, 19/09',
-    logs: [
-      { time: '08:00', type: 'eating', icon: Utensils, label: 'Cho ăn sáng', detail: 'Ăn hết 3/4 khẩu phần pate cá hồi', status: 'normal', tag: 'Bình thường' },
-      { time: '09:30', type: 'hygiene', icon: Droplets, label: 'Dọn vệ sinh', detail: 'Phân khô, nước tiểu bình thường', status: 'normal', tag: 'Bình thường' },
-      { time: '12:00', type: 'eating', icon: Utensils, label: 'Cho ăn trưa', detail: 'Chỉ ăn một ít, bỏ mứa phần còn lại', status: 'watch', tag: 'Cần theo dõi' },
-      { time: '15:00', type: 'mood', icon: Smile, label: 'Quan sát tâm trạng', detail: 'Bé nằm một chỗ, có vẻ nhớ nhà, kêu nhỏ', status: 'watch', tag: 'Cần theo dõi' },
-      { time: '18:00', type: 'eating', icon: Utensils, label: 'Cho ăn tối', detail: 'Ăn ngon, ăn hết sạch bữa tối', status: 'normal', tag: 'Bình thường' },
-      { time: '19:30', type: 'health', icon: HeartPulse, label: 'Kiểm tra sức khỏe', detail: 'Nhịp thở đều, thân nhiệt bình thường', status: 'normal', tag: 'Bình thường' },
-    ]
-  },
-  {
-    date: 'Hôm qua, 18/09',
-    logs: [
-      { time: '08:00', type: 'eating', icon: Utensils, label: 'Cho ăn sáng', detail: 'Ăn hết sạch, ngoan lắm!', status: 'normal', tag: 'Bình thường' },
-      { time: '10:00', type: 'hygiene', icon: Droplets, label: 'Dọn vệ sinh', detail: 'Mọi thứ bình thường', status: 'normal', tag: 'Bình thường' },
-      { time: '14:00', type: 'mood', icon: Smile, label: 'Quan sát tâm trạng', detail: 'Bé chơi vui với đồ chơi lông vũ', status: 'normal', tag: 'Bình thường' },
-      { time: '18:00', type: 'eating', icon: Utensils, label: 'Cho ăn tối', detail: 'Ăn tốt, ăn hết 2 bữa chính', status: 'normal', tag: 'Bình thường' },
-    ]
-  }
-];
+// Khách hàng bây giờ dùng logs thực tế từ CareLogContext
+const FALLBACK_LOGS = [];
 
 // ─── Stepper Steps ───────────────────────────────────────────────────────────
 
@@ -78,38 +65,7 @@ const STEPS = [
 ];
 
 // ─── Add-on Modals ───────────────────────────────────────────────────────────
-
-const ADDONS = {
-  room: {
-    title: 'Đổi / Nâng cấp phòng',
-    icon: Home,
-    description: 'Nâng cấp không gian lưu trú cho bé thêm thoải mái và sang xịn hơn.',
-    options: [
-      { value: 'vvip', label: 'Nâng lên phòng VVIP (+10.000đ/ngày)', price: '+10.000đ/ngày' },
-      { value: 'deluxe', label: 'Nâng lên phòng Deluxe (+20.000đ/ngày)', price: '+20.000đ/ngày' },
-    ],
-  },
-  food: {
-    title: 'Cho ăn thêm',
-    icon: Utensils,
-    description: 'Thêm bữa phụ hoặc nâng cấp khẩu phần ăn cho bé thêm dinh dưỡng.',
-    options: [
-      { value: 'extra_meal', label: 'Thêm 1 bữa phụ (+15.000đ/ngày)', price: '+15.000đ/ngày' },
-      { value: 'upgrade_portion', label: 'Nâng khẩu phần ăn (+20.000đ/ngày)', price: '+20.000đ/ngày' },
-      { value: 'premium_food', label: 'Nâng lên thức ăn premium (+35.000đ/ngày)', price: '+35.000đ/ngày' },
-    ],
-  },
-  play: {
-    title: 'Cho chơi thêm',
-    icon: Sparkles,
-    isNew: true,
-    description: 'Dịch vụ đặc biệt giúp bé vui vẻ, giải trí và giảm stress trong thời gian lưu trú.',
-    options: [
-      { value: 'play_session', label: 'Buổi chơi riêng 30 phút (liên hệ để biết giá)', price: 'Tư vấn' },
-      { value: 'toy_rental', label: 'Thuê thêm đồ chơi cao cấp (liên hệ để biết giá)', price: 'Tư vấn' },
-    ],
-  },
-};
+// ADDONS is imported from ServiceManagement
 
 // ─── Confirmation Modal ──────────────────────────────────────────────────────
 
@@ -289,159 +245,151 @@ const Stepper = ({ currentStep = 3 }) => (
   </div>
 );
 
-// ─── Care Log ─────────────────────────────────────────────────────────────────
+// ─── Care Log & Package Block are now imported ──────────────────────────────
 
-const CareLog = () => (
-  <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-    <h3 className="font-bold text-text-dark mb-5 flex items-center gap-2">
-      <CalendarDays className="w-4 h-4 text-primary" />
-      Nhật ký chăm sóc
-    </h3>
-    <div className="space-y-6">
-      {CARE_LOGS.map((day, dayIdx) => (
-        <div key={dayIdx}>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{day.date}</p>
-          <div className="border-l-2 border-gray-100 pl-4 space-y-4">
-            {day.logs.map((log, logIdx) => {
-              const Icon = log.icon;
-              const isWatch = log.status === 'watch';
-              return (
-                <div key={logIdx} className="relative flex items-start gap-3">
-                  <div className="absolute -left-[21px] w-4 h-4 rounded-full bg-white ring-2 ring-gray-100 flex items-center justify-center mt-0.5">
-                    <div className={`w-2 h-2 rounded-full ${isWatch ? 'bg-amber-400' : 'bg-primary'}`} />
-                  </div>
-                  <div className="shrink-0 pt-0.5">
-                    <span className="text-xs font-bold text-gray-400 font-mono">{log.time}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                        log.type === 'eating' ? 'bg-orange-50' :
-                        log.type === 'hygiene' ? 'bg-blue-50' :
-                        log.type === 'mood' ? 'bg-purple-50' : 'bg-red-50'
-                      }`}>
-                        <Icon className={`w-3.5 h-3.5 ${
-                          log.type === 'eating' ? 'text-orange-400' :
-                          log.type === 'hygiene' ? 'text-blue-400' :
-                          log.type === 'mood' ? 'text-purple-400' : 'text-red-400'
-                        }`} />
-                      </div>
-                      <span className="text-sm font-semibold text-text-dark">{log.label}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        isWatch
-                          ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                          : 'bg-primary-light text-primary'
-                      }`}>
-                        {log.tag}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{log.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+// ─── Call Confirmation Modal ────────────────────────────────────────────────
+const HOTLINE_NUMBER = '0904957555';
+const HOTLINE_DISPLAY = '090 495 75 55';
 
-// ─── Package Block ────────────────────────────────────────────────────────────
-
-const PackageBlock = ({ booking }) => {
-  const pkg = booking?.selectedPackage;
-  const room = booking?.selectedRoom;
-  const perks = [
-    { icon: Utensils, text: '3 bữa ăn/ngày (sáng, trưa, tối)' },
-    { icon: Droplets, text: 'Dọn vệ sinh 2 lần/ngày' },
-    { icon: Camera, text: 'Camera included' },
-    { icon: Home, text: 'Đưa đón miễn phí trong bán kính 5km' },
-  ];
+const CallModal = ({ isOpen, onClose, onConfirm }) => {
+  if (!isOpen) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-      <h3 className="font-bold text-text-dark mb-4 flex items-center gap-2">
-        <Package className="w-4 h-4 text-primary" />
-        Gói đang sử dụng
-      </h3>
-      <div className="flex items-center gap-4 mb-5 p-4 bg-gradient-to-r from-primary/5 to-[#a7f3d0]/20 rounded-xl border border-primary/10">
-        <div className="w-14 h-14 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-2xl">🐱</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-text-dark text-base">{pkg?.name || 'Gói Tiêu Chuẩn'}</p>
-          <p className="text-primary font-bold text-sm">{pkg?.price || '150.000đ'}/ngày</p>
-          {room && <p className="text-xs text-gray-500 mt-0.5">Phòng: {room.name}</p>}
-        </div>
-      </div>
-      <div className="space-y-2.5">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Quyền lợi đi kèm</p>
-        {perks.map((perk, i) => {
-          const Icon = perk.icon;
-          return (
-            <div key={i} className="flex items-center gap-2.5">
-              <div className="w-6 h-6 bg-primary-light rounded-lg flex items-center justify-center shrink-0">
-                <Icon className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <span className="text-sm text-gray-700">{perk.text}</span>
-              <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-br from-primary to-secondary px-6 pt-8 pb-10 text-center relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
+          {/* Pulsing phone icon */}
+          <div className="relative w-20 h-20 mx-auto mb-4">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
+            <div className="relative w-20 h-20 bg-white/25 rounded-full flex items-center justify-center ring-4 ring-white/30">
+              <Phone className="w-9 h-9 text-white" />
             </div>
-          );
-        })}
+          </div>
+          <h2 className="text-xl font-extrabold text-white font-title mb-1">Gọi cho nhân viên</h2>
+          <p className="text-white/80 text-sm">Mèo Vắng Nhà</p>
+        </div>
+
+        {/* Body */}
+        <div className="-mt-6 bg-white rounded-t-3xl px-6 pt-6 pb-6">
+          <p className="text-gray-500 text-center text-sm leading-relaxed mb-4">
+            Bạn sẽ được kết nối trực tiếp với nhân viên chăm sóc để được hỗ trợ nhanh nhất.
+          </p>
+
+          {/* Hotline display */}
+          <div className="bg-primary-light/50 border border-primary/20 rounded-2xl py-4 px-5 mb-6 text-center">
+            <p className="text-xs text-gray-500 font-medium mb-1">Hotline hỗ trợ 24/7</p>
+            <p className="text-3xl font-black text-primary tracking-wide">{HOTLINE_DISPLAY}</p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onConfirm}
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-primary/30 active:scale-[0.98] cursor-pointer text-base"
+            >
+              <Phone className="w-5 h-5" />
+              Gọi ngay
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-3.5 rounded-2xl transition-colors cursor-pointer text-sm"
+            >
+              Để sau
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-// ─── Add-on Card ─────────────────────────────────────────────────────────────
+// ─── Staff Chat Modal ────────────────────────────────────────────────────────
+const StaffChatModal = ({ isOpen, onClose, onSend }) => {
+  const [text, setText] = useState('');
 
-const AddonCard = ({ addonKey, onRequest }) => {
-  const addon = ADDONS[addonKey];
-  const [selected, setSelected] = useState('');
-  const Icon = addon.icon;
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!text.trim()) return;
+    onSend(text.trim());
+    setText('');
+    onClose();
+  };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-primary" />
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary to-secondary px-6 py-5 flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm shadow-inner">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base leading-tight">Chat với nhân viên</h3>
+              <p className="text-white/80 text-xs mt-0.5">Mèo Vắng Nhà</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-bold text-text-dark text-sm">{addon.title}</h4>
-            {addon.isNew && (
-              <span className="text-[10px] font-black bg-accent text-white px-2 py-0.5 rounded-full tracking-wide">ĐỀ XUẤT MỚI</span>
+
+        {/* Body */}
+        <div className="p-6">
+          {/* Top note in italics */}
+          <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-2xl p-4 mb-4">
+            <p className="italic text-emerald-900 text-xs sm:text-sm leading-relaxed">
+              &ldquo;Những yêu cầu về dịch vụ khác với dịch vụ sẵn có sẽ được gửi tự động và thông báo tới nhân viên ngay sau khi gửi. Vui lòng chat ở phần bên dưới&rdquo;
+            </p>
+          </div>
+
+          {/* Textarea container */}
+          <div className="relative">
+            <textarea
+              rows={5}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Nhập nội dung yêu cầu của bạn gửi tới nhân viên chăm sóc..."
+              className="w-full bg-gray-50 border border-gray-200 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 rounded-2xl p-4 pb-14 text-sm text-gray-800 placeholder-gray-400 resize-none transition-all outline-none"
+              autoFocus
+            />
+
+            {/* Green floating "Gửi" button at bottom right corner when user has typed text */}
+            {text.trim().length > 0 && (
+              <button
+                onClick={handleSubmit}
+                className="absolute bottom-3 right-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-500/30 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+              >
+                <span>Gửi</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
         </div>
       </div>
-      <p className="text-xs text-gray-500 mb-4 leading-relaxed">{addon.description}</p>
-      <div className="relative mb-3">
-        <select
-          value={selected}
-          onChange={e => setSelected(e.target.value)}
-          className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer pr-8"
-        >
-          <option value="">— Chọn tuỳ chọn —</option>
-          {addon.options.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
-      </div>
-      <button
-        onClick={() => selected && onRequest(addonKey, selected)}
-        disabled={!selected}
-        className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-          selected
-            ? 'bg-primary text-white hover:bg-secondary shadow-md shadow-primary/20 cursor-pointer'
-            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-        }`}
-      >
-        <Plus className="w-4 h-4" />
-        Yêu cầu dịch vụ
-      </button>
     </div>
   );
 };
@@ -451,14 +399,61 @@ const AddonCard = ({ addonKey, onRequest }) => {
 const TrackingPage = () => {
   const navigate = useNavigate();
   const { petList } = usePetProfile();
-  const { globalBookingList } = useBookingHistory();
+  const { globalBookingList, updateBooking } = useBookingHistory();
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
+
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(false);
+
+  const handleCallConfirm = () => {
+    setShowCallModal(false);
+    window.location.href = `tel:${HOTLINE_NUMBER}`;
+  };
+
+  const handleSendMessage = (msg) => {
+    setSuccessNotice(true);
+    toast.success('Đã gửi tin nhắn thành công', { duration: 3000 });
+    setTimeout(() => {
+      setSuccessNotice(false);
+    }, 3000);
+  };
 
   const [isCameraUnlocked, setIsCameraUnlocked] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, addon: null, option: null });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState(() => getPermissionStatus());
+  const [isSendingTestNotif, setIsSendingTestNotif] = useState(false);
+
+  const handleEnablePhoneNotif = async () => {
+    try {
+      const res = await requestNotificationPermission();
+      setNotifPermission(res);
+      if (res === 'granted') {
+        toast.success('Đã bật thông báo về điện thoại thành công! 🔔');
+        await testPhoneNotification(firstPet?.name || 'Miu');
+      } else if (res === 'denied') {
+        toast.error('Trình duyệt đang chặn thông báo. Vui lòng cho phép trong cài đặt trình duyệt.');
+      }
+    } catch (e) {
+      toast.error('Lỗi khi kích hoạt: ' + e.message);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setIsSendingTestNotif(true);
+    try {
+      await testPhoneNotification(firstPet?.name || 'Miu');
+      toast.success('Đã gửi thông báo thử về điện thoại! Hãy kiểm tra thanh thông báo 🔔');
+      setNotifPermission('granted');
+    } catch (err) {
+      toast.error(err.message || 'Lỗi gửi thông báo');
+    } finally {
+      setIsSendingTestNotif(false);
+    }
+  };
 
   const isLoggedIn = Boolean(customerProfile);
 
@@ -495,6 +490,22 @@ const TrackingPage = () => {
 
   const handleAddonConfirm = () => {
     const addon = ADDONS[confirmModal.addon];
+    
+    // Save to context
+    if (activeBooking) {
+      const newAddon = {
+        id: Date.now().toString(),
+        type: confirmModal.addon,
+        option: confirmModal.option,
+        status: 'pending',
+        timestamp: new Date().toISOString()
+      };
+      
+      updateBooking(activeBooking.id, {
+        addons: [...(activeBooking.addons || []), newAddon]
+      });
+    }
+
     setConfirmModal({ open: false, addon: null, option: null });
     if (confirmModal.addon === 'play' || ADDONS[confirmModal.addon]?.options?.find(o => o.value === confirmModal.option)?.price === 'Tư vấn') {
       toast.success('Yêu cầu đã gửi! Nhân viên sẽ liên hệ sớm nhé 😊');
@@ -547,6 +558,31 @@ const TrackingPage = () => {
           onClose={() => setConfirmModal({ open: false, addon: null, option: null })}
         />
       )}
+      {/* Call Confirmation Modal */}
+      <CallModal
+        isOpen={showCallModal}
+        onClose={() => setShowCallModal(false)}
+        onConfirm={handleCallConfirm}
+      />
+
+      {/* Staff Chat Modal */}
+      <StaffChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
+        onSend={handleSendMessage}
+      />
+
+      {/* ── Top Success Notification Banner (3 seconds) ── */}
+      {successNotice && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
+          <div className="bg-white/95 backdrop-blur-md border-2 border-emerald-500 text-emerald-950 px-6 py-3.5 rounded-2xl shadow-2xl shadow-emerald-900/15 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            </div>
+            <span className="font-bold text-sm text-gray-800">Đã gửi tin nhắn thành công</span>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 relative z-10">
         {/* Navigation */}
@@ -554,6 +590,57 @@ const TrackingPage = () => {
           title="Theo dõi lưu trú"
           subtitle="Cập nhật tình hình bé mèo trong suốt thời gian lưu trú."
         />
+
+        {/* ── Phone Notification Banner ── */}
+        <div className="bg-white border border-emerald-100 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+              notifPermission === 'granted' ? 'bg-emerald-50 text-emerald-600' : 'bg-primary-light text-primary'
+            }`}>
+              {notifPermission === 'granted' ? <BellRing className="w-6 h-6 animate-bounce" /> : <Smartphone className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-bold text-text-dark text-sm sm:text-base">
+                  Thông báo theo dõi mèo về điện thoại
+                </h4>
+                {notifPermission === 'granted' ? (
+                  <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Đã kết nối điện thoại
+                  </span>
+                ) : (
+                  <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    Chưa bật
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+                Nhận thông báo ngay khi bé ăn xong, đi vệ sinh, uống thuốc hoặc có ảnh/video mới (chuông & rung trực tiếp trên máy).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+            {notifPermission !== 'granted' ? (
+              <button
+                onClick={handleEnablePhoneNotif}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 active:scale-95 text-sm cursor-pointer"
+              >
+                <Bell className="w-4 h-4" />
+                Bật thông báo về điện thoại
+              </button>
+            ) : (
+              <button
+                onClick={handleTestNotification}
+                disabled={isSendingTestNotif}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-200 px-4 py-2.5 rounded-xl transition-all active:scale-95 text-sm cursor-pointer"
+              >
+                {isSendingTestNotif ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+                Thử phát thông báo về máy
+              </button>
+            )}
+          </div>
+        </div>
 
         {!activeBooking ? (
           /* ── Empty State ── */
@@ -627,10 +714,10 @@ const TrackingPage = () => {
                   Bé ăn ít hơn bình thường vào bữa trưa và có vẻ stress nhẹ. Chúng mình đang theo dõi sát và sẽ liên hệ ngay nếu có gì bất thường.
                 </p>
                 <button
-                  onClick={() => toast('Đang chuyển đến Zalo nhân viên...')}
-                  className="mt-2 text-xs font-bold text-amber-600 hover:text-amber-800 underline flex items-center gap-1"
+                  onClick={() => setShowCallModal(true)}
+                  className="mt-3 flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all shadow-md shadow-amber-400/30 active:scale-[0.97] cursor-pointer"
                 >
-                  <Phone className="w-3 h-3" />
+                  <Phone className="w-4 h-4" />
                   Liên hệ nhân viên ngay
                 </button>
               </div>
@@ -644,7 +731,7 @@ const TrackingPage = () => {
                 <Stepper currentStep={3} />
 
                 {/* Care Log */}
-                <CareLog />
+                <CareLogTimeline bookingId={activeBooking.id} petId={firstPet?.id} />
               </div>
 
               {/* ── RIGHT: Sidebar ── */}
@@ -702,31 +789,24 @@ const TrackingPage = () => {
                   )}
                 </div>
 
-                {/* Package Block */}
-                <PackageBlock booking={activeBooking} />
+                {/* Package & Addon Management */}
+                <ServiceManagement 
+                  booking={activeBooking} 
+                  isAdmin={false} 
+                  onRequestAddon={handleAddonRequest} 
+                />
 
-                {/* Add-on Services */}
-                <div>
-                  <h3 className="font-bold text-text-dark mb-4 flex items-center gap-2 px-1">
-                    <Gift className="w-4 h-4 text-accent" />
-                    Dịch vụ thêm
-                    <span className="text-xs text-gray-400 font-normal">(cộng vào hoá đơn cuối)</span>
-                  </h3>
-                  <div className="space-y-4">
-                    {Object.keys(ADDONS).map(key => (
-                      <AddonCard key={key} addonKey={key} onRequest={handleAddonRequest} />
-                    ))}
-                  </div>
+                {/* Chat with staff */}
+                <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">
+                  <p className="text-xs text-gray-600 mb-2.5 font-medium">Cần yêu cầu dịch vụ riêng hoặc hỗ trợ chăm sóc?</p>
+                  <button
+                    onClick={() => setShowChatModal(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md shadow-primary/25 hover:shadow-lg active:scale-[0.98] cursor-pointer text-sm"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Chat với nhân viên
+                  </button>
                 </div>
-
-                {/* Contact button */}
-                <button
-                  onClick={() => toast('Đang mở Zalo chat với nhân viên...')}
-                  className="w-full flex items-center justify-center gap-2 border-2 border-primary text-primary font-bold py-4 rounded-2xl hover:bg-primary hover:text-white transition-all cursor-pointer"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  Nhắn tin cho nhân viên
-                </button>
               </div>
             </div>
           </>
