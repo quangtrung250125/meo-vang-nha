@@ -60,10 +60,12 @@ export function getRoomStatus(roomId, bookings, isMaintenance) {
 // ─────────────────────────────────────────────
 export function determineBookingStatus(checkIn) {
   if (!checkIn) return 'check-in';
-  const today = new Date();
-  const checkInDate = new Date(checkIn + 'T00:00:00');
-  const diffDays = Math.floor((checkInDate - today) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return 'đang ở';
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Nếu ngày check-in bằng hôm nay hoặc trước đó -> đang ở, nếu ngày mai trở đi -> check-in
+  if (checkIn <= todayStr) {
+    return 'đang ở';
+  }
   return 'check-in';
 }
 
@@ -81,12 +83,49 @@ const getInitialMaintenance = () => {
   }
 };
 
+const getInitialBookings = () => {
+  try {
+    const saved = localStorage.getItem('mvn_room_bookings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const cleaned = { ...INITIAL_BOOKINGS };
+      Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
+        cleaned[roomId] = (parsed[roomId] || []).filter((b) => !b.code?.includes('BK'));
+      });
+      return cleaned;
+    }
+  } catch (e) {
+    console.error('Failed to load bookings from storage', e);
+  }
+  return INITIAL_BOOKINGS;
+};
+
 export const RoomStateProvider = ({ children }) => {
-  const [bookings, setBookings] = useState(INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState(getInitialBookings);
   // Lưu id các booking vừa được thêm mới để highlight
   const [newBookingIds, setNewBookingIds] = useState(new Set());
   // Trạng thái bảo trì phòng (lưu vĩnh viễn tới khi bấm "Hết bảo trì")
   const [maintenanceRooms, setMaintenanceRooms] = useState(getInitialMaintenance);
+
+  // Lắng nghe cập nhật đa tab (cross-tab real-time sync)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'mvn_room_bookings' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setBookings(parsed);
+        } catch (err) {}
+      }
+      if (e.key === 'mvn_maintenance_rooms' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setMaintenanceRooms(parsed);
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   /**
    * Bật/Tắt bảo trì cho 1 phòng - lưu trạng thái vào localStorage
@@ -107,19 +146,26 @@ export const RoomStateProvider = ({ children }) => {
   }, []);
 
   /**
-   * Thêm booking mới vào phòng → đồng bộ Admin tab Tình trạng phòng
+   * Thêm booking mới vào phòng → đồng bộ tức thì sang Admin tab Tình trạng phòng
    * @param {string} roomId    - ID phòng, VD: 'VIP-03'
    * @param {object} booking   - { code, cats, status }
    */
   const addNewBooking = useCallback((roomId, booking) => {
     setBookings((prev) => {
       const current = prev[roomId] || [];
-      return {
+      const updated = {
         ...prev,
         [roomId]: [...current, booking],
       };
+      try {
+        localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save bookings to localStorage', e);
+      }
+      return updated;
     });
-    // Đánh dấu booking mới để highlight flash trong 4 giây
+
+    // Đánh dấu booking mới để highlight nhấp nháy trong 6 giây trên bảng Admin
     setNewBookingIds((prev) => {
       const next = new Set(prev);
       next.add(booking.code);
@@ -131,7 +177,7 @@ export const RoomStateProvider = ({ children }) => {
         next.delete(booking.code);
         return next;
       });
-    }, 4000);
+    }, 6000);
   }, []);
 
   /**

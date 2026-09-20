@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle, Download, Home, Gift } from 'lucide-react';
+import { CheckCircle, Download, Home, Gift, BedDouble } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
@@ -103,7 +103,14 @@ const Step5Success = ({ data }) => {
         </p>
       </div>
 
-      <div className="flex justify-center gap-4 pt-8">
+      <div className="flex flex-wrap justify-center gap-4 pt-8">
+        <Link
+          to="/admin/room-status"
+          className="flex items-center gap-2 bg-amber-50 border-2 border-amber-300 text-amber-800 font-bold px-6 py-3 rounded-xl hover:bg-amber-100 transition-colors shadow-sm"
+        >
+          <BedDouble className="w-5 h-5 text-amber-600" />
+          Xem tình trạng phòng (Admin)
+        </Link>
         <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-50 transition-colors">
           <Download className="w-5 h-5" />
           Lưu ảnh QR
