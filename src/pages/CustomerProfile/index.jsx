@@ -4,13 +4,16 @@ import {
   User, Award, Calendar, Receipt, Edit3, Save, CheckCircle, 
   ShieldCheck, Heart, Sparkles, PawPrint, Eye, ArrowRight, 
   Clock, MapPin, Phone, Mail, Gift, ChevronRight, Download, 
-  RefreshCw, Star, Info, AlertCircle, Camera, Check, CreditCard
+  RefreshCw, Star, Info, AlertCircle, Camera, Check, CreditCard,
+  UserCheck
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import InvoiceModal from '../../components/InvoiceModal';
+
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
 // Mock point transactions
 const INITIAL_POINT_HISTORY = [
@@ -31,9 +34,9 @@ const SAMPLE_TRANSACTIONS = [
     roomName: 'Phòng VIP Hoàng Gia',
     stayPeriod: '15/09/2026 - 19/09/2026',
     petNames: 'Bé Miu Miu & Bánh Bao',
-    customerName: 'Nguyễn Đức An',
-    customerPhone: '0912 345 678',
-    customerEmail: 'ducan070@gmail.com',
+    customerName: 'ducan',
+    customerPhone: '0376131531',
+    customerEmail: 'ducan12345atm@gmail.com',
     customerTier: 'Thành viên Vàng',
     amount: 1060000,
     subTotal: 1400000,
@@ -57,9 +60,9 @@ const SAMPLE_TRANSACTIONS = [
     roomName: 'Dịch vụ Spa tại khách sạn',
     stayPeriod: '02/09/2026',
     petNames: 'Bé Miu Miu',
-    customerName: 'Nguyễn Đức An',
-    customerPhone: '0912 345 678',
-    customerEmail: 'ducan070@gmail.com',
+    customerName: 'ducan',
+    customerPhone: '0376131531',
+    customerEmail: 'ducan12345atm@gmail.com',
     customerTier: 'Thành viên Vàng',
     amount: 315000,
     subTotal: 350000,
@@ -81,9 +84,9 @@ const SAMPLE_TRANSACTIONS = [
     roomName: 'Phòng Deluxe Sen Đá',
     stayPeriod: '22/07/2026 - 25/07/2026',
     petNames: 'Bé Bánh Bao',
-    customerName: 'Nguyễn Đức An',
-    customerPhone: '0912 345 678',
-    customerEmail: 'ducan070@gmail.com',
+    customerName: 'ducan',
+    customerPhone: '0376131531',
+    customerEmail: 'ducan12345atm@gmail.com',
     customerTier: 'Thành viên Vàng',
     amount: 540000,
     subTotal: 600000,
@@ -136,9 +139,22 @@ const DEFAULT_BOARDING_HISTORY = [
 
 const CustomerProfile = () => {
   const navigate = useNavigate();
-  const { user, customerProfile, updateProfile } = useAuth();
-  const { globalBookingList } = useBookingHistory();
-  const { petList } = usePetProfile();
+  const { customerProfile, authenticatedCustomer, saveCustomerProfile } = useCustomerProfile();
+  const { globalBookingList = [] } = useBookingHistory() || {};
+  const { petList = [] } = usePetProfile() || {};
+
+  const activeCustomer = authenticatedCustomer || customerProfile || {
+    fullName: 'ducan',
+    phone: '0376131531',
+    email: 'ducan12345atm@gmail.com',
+    tier: 'gold',
+    points: 850,
+    address: 'Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội',
+    birthday: '1995-08-15',
+    memberSince: '15/01/2025',
+    activeCatsCount: 2,
+    avatar: DEFAULT_AVATAR
+  };
 
   const [activeTab, setActiveTab] = useState('info'); // 'info' | 'tier' | 'history' | 'transactions'
   const [isEditing, setIsEditing] = useState(false);
@@ -146,13 +162,13 @@ const CustomerProfile = () => {
 
   // Form state
   const [formData, setFormData] = useState({
-    fullName: customerProfile?.fullName || 'Nguyễn Đức An',
-    phone: customerProfile?.phone || '0912 345 678',
-    email: customerProfile?.email || user?.email || 'ducan070@gmail.com',
-    address: customerProfile?.address || 'Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội',
-    birthday: customerProfile?.birthday || '1995-08-15',
-    notes: customerProfile?.notes || 'Bé mèo Miu nhà mình hơi nhút nhát, cần chuồng yên tĩnh và phòng ấm áp.',
-    avatar: customerProfile?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    fullName: activeCustomer.fullName || 'ducan',
+    phone: activeCustomer.phone || '0376131531',
+    email: activeCustomer.email || 'ducan12345atm@gmail.com',
+    address: activeCustomer.address || 'Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội',
+    birthday: activeCustomer.birthday || '1995-08-15',
+    notes: activeCustomer.notes || 'Bé mèo Miu nhà mình hơi nhút nhát, cần chuồng yên tĩnh và phòng ấm áp.',
+    avatar: activeCustomer.avatar || DEFAULT_AVATAR,
   });
 
   // Selected invoice for modal
@@ -165,10 +181,15 @@ const CustomerProfile = () => {
   };
 
   const handleSaveProfile = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setIsSaving(true);
     try {
-      await updateProfile(formData);
+      if (saveCustomerProfile) {
+        saveCustomerProfile({
+          ...activeCustomer,
+          ...formData
+        });
+      }
       setIsEditing(false);
       toast.success('Đã cập nhật thông tin hồ sơ thành công!', {
         icon: '🎉',
@@ -182,133 +203,137 @@ const CustomerProfile = () => {
   };
 
   const openInvoice = (transaction) => {
-    // Merge full customer info into the invoice
     const completeInvoice = {
       ...transaction,
       customerName: formData.fullName || transaction.customerName,
       customerPhone: formData.phone || transaction.customerPhone,
       customerEmail: formData.email || transaction.customerEmail,
-      customerTier: customerProfile?.tier ? `Thành viên ${customerProfile.tier}` : 'Thành viên Vàng',
+      customerTier: activeCustomer.tier ? `Thành viên ${activeCustomer.tier}` : 'Thành viên Vàng',
     };
     setSelectedInvoice(completeInvoice);
     setIsInvoiceOpen(true);
   };
 
-  // Combine dynamic context bookings with default list
   const combinedBoardingList = [
     ...(globalBookingList.map(b => ({
       id: b.id || 'MVN-NEW',
-      petNames: (b.petProfiles || []).map(p => p.name).join(', ') || 'Bé mèo',
-      roomName: b.selectedRoom?.name ? `Phòng ${b.selectedRoom.name}` : 'Phòng Tiêu Chuẩn',
-      packageDesc: b.selectedPackage?.name || 'Gói Chăm Sóc',
-      checkIn: b.checkIn,
-      checkOut: b.checkOut,
+      petNames: b.petName || 'Bé Miu Miu',
+      roomName: b.roomType || 'Phòng Deluxe',
+      packageDesc: b.serviceType || 'Lưu trú Khách Sạn',
+      checkIn: b.checkInDate || '2026-09-20',
+      checkOut: b.checkOutDate || '2026-09-24',
       status: 'Đang lưu trú',
-      image: b.petProfiles?.[0]?.imagePreview || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80',
+      image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
       invoiceId: 'MVN-2026-8891'
     }))),
     ...DEFAULT_BOARDING_HISTORY
   ];
 
-  const formatVND = (num) => Number(num || 0).toLocaleString('vi-VN') + 'đ';
+  const formatVND = (num) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num || 0);
 
   return (
-    <div className="w-full min-h-screen bg-bg-cream pb-16">
+    <div className="min-h-screen bg-[#f8fafc] pb-20">
       <Toaster position="top-center" />
 
-      {/* Hero Header Section */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-700 to-emerald-900 text-white relative overflow-hidden">
-        {/* Decorative background pawprints */}
-        <div className="absolute inset-0 opacity-5 pointer-events-none flex justify-between items-center px-12">
-          <PawPrint className="w-96 h-96 -rotate-12" />
-          <PawPrint className="w-96 h-96 rotate-12" />
-        </div>
+      {/* 1. TOP HERO BANNER (DARK EMERALD GREEN WITH BADGES) */}
+      <div className="bg-[#004d40] bg-gradient-to-r from-[#003d33] via-[#004d40] to-[#005d4d] text-white py-10 px-4 sm:px-6 lg:px-8 shadow-md relative overflow-hidden">
+        {/* Subtle decorative circles */}
+        <div className="absolute -right-16 -top-16 w-80 h-80 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute right-1/4 -bottom-24 w-96 h-96 rounded-full bg-white/5 pointer-events-none" />
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
-          <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
-            
-            {/* Left: Avatar & Customer Primary Info */}
-            <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
-              <div className="relative group">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-4 border-white/20 shadow-xl bg-white/10 flex items-center justify-center">
-                  {formData.avatar ? (
-                    <img src={formData.avatar} alt={formData.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-12 h-12 text-white/80" />
-                  )}
-                </div>
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="absolute -bottom-2 -right-2 p-2 bg-accent hover:bg-accent-hover text-white rounded-xl shadow-lg transition-transform hover:scale-110 cursor-pointer"
-                  title="Chỉnh sửa ảnh"
-                >
-                  <Camera className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold font-title">{formData.fullName}</h1>
-                  <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 text-xs font-extrabold px-3 py-1 rounded-full shadow-sm">
-                    👑 Hạng {customerProfile?.tier || 'Vàng'}
-                  </span>
-                </div>
-                <p className="text-emerald-100 text-sm flex items-center justify-center sm:justify-start gap-2 mb-3">
-                  <Mail className="w-3.5 h-3.5 opacity-80" /> {formData.email} • 
-                  <Phone className="w-3.5 h-3.5 opacity-80" /> {formData.phone}
-                </p>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-emerald-200">
-                  <span className="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-xl border border-white/10">
-                    🐾 Đang gửi: <b className="text-white">2 bé mèo</b>
-                  </span>
-                  <span className="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-xl border border-white/10">
-                    ⭐ Điểm tích lũy: <b className="text-amber-300 font-bold">{customerProfile?.points || 850} điểm</b>
-                  </span>
-                  <span className="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-xl border border-white/10">
-                    📅 Thành viên từ: <b className="text-white">{customerProfile?.joinDate || '01/2025'}</b>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Quick Action Buttons */}
-            <div className="flex items-center gap-3 shrink-0">
-              <Link
-                to="/booking"
-                className="px-5 py-2.5 bg-accent hover:bg-accent-hover text-white font-bold rounded-2xl shadow-lg shadow-orange-950/20 transition-all flex items-center gap-2 text-sm cursor-pointer"
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
+            {/* User Avatar with Orange Camera Badge */}
+            <div className="relative group shrink-0">
+              <img
+                src={formData.avatar || DEFAULT_AVATAR}
+                alt={formData.fullName}
+                className="w-24 h-24 rounded-full object-cover ring-4 ring-white/20 shadow-2xl"
+              />
+              <button
+                onClick={() => {
+                  const newUrl = prompt('Nhập URL ảnh đại diện mới:', formData.avatar);
+                  if (newUrl) setFormData(prev => ({ ...prev, avatar: newUrl }));
+                }}
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#f97316] hover:bg-[#ea580c] text-white flex items-center justify-center shadow-lg transition-transform active:scale-90 ring-2 ring-white cursor-pointer"
+                title="Đổi ảnh đại diện"
               >
-                <PawPrint className="w-4 h-4" />
-                <span>Đặt phòng ngay</span>
-              </Link>
+                <Camera className="w-4 h-4" />
+              </button>
             </div>
 
+            {/* Profile Info */}
+            <div>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 mb-1.5">
+                <h1 className="text-2xl sm:text-3xl font-black font-title text-white">
+                  {formData.fullName || 'ducan'}
+                </h1>
+                <span className="px-3 py-0.5 bg-[#eab308] text-[#713f12] font-black text-xs rounded-md shadow-xs flex items-center gap-1">
+                  <span>👑</span>
+                  <span>Hạng Vàng</span>
+                </span>
+              </div>
+
+              <p className="text-sm text-emerald-100/90 font-medium flex flex-wrap items-center justify-center sm:justify-start gap-3 mb-3">
+                <span>✉️ {formData.email || 'ducan12345atm@gmail.com'}</span>
+                <span>•</span>
+                <span>📞 {formData.phone || '0376131531'}</span>
+              </p>
+
+              {/* 3 Badges */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
+                  <PawPrint className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Đang gửi: <strong className="text-white font-black">{activeCustomer.activeCatsCount || 2} bé mèo</strong></span>
+                </span>
+
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
+                  <Star className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  <span>Điểm tích lũy: <strong className="text-amber-300 font-black">{activeCustomer.points || 850} điểm</strong></span>
+                </span>
+
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
+                  <Calendar className="w-3.5 h-3.5 text-blue-300" />
+                  <span>Thành viên từ: <strong className="text-white font-bold">{activeCustomer.memberSince || '15/01/2025'}</strong></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Action Button */}
+          <div className="shrink-0">
+            <Link
+              to="/booking"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#f97316] hover:bg-[#ea580c] text-white font-extrabold text-sm transition-all shadow-lg shadow-orange-950/20 active:scale-95 cursor-pointer"
+            >
+              <PawPrint className="w-4 h-4" />
+              <span>Đặt phòng ngay</span>
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Main Container */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
-        
-        {/* Navigation Tabs Bar */}
-        <div className="bg-white rounded-2xl p-2 shadow-md border border-gray-100 flex flex-wrap gap-2 mb-8">
+      {/* 2. TAB NAVIGATION BAR */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-gray-200/70 flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveTab('info')}
-            className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'info'
-                ? 'bg-primary text-white shadow-md shadow-emerald-200'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                ? 'bg-[#00B16A] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
             }`}
           >
-            <User className="w-4 h-4" />
+            <UserCheck className="w-4 h-4" />
             <span>Thông tin cá nhân</span>
           </button>
 
           <button
             onClick={() => setActiveTab('tier')}
-            className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'tier'
-                ? 'bg-primary text-white shadow-md shadow-emerald-200'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                ? 'bg-[#00B16A] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
             }`}
           >
             <Award className="w-4 h-4" />
@@ -317,10 +342,10 @@ const CustomerProfile = () => {
 
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'history'
-                ? 'bg-primary text-white shadow-md shadow-emerald-200'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                ? 'bg-[#00B16A] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
             }`}
           >
             <Calendar className="w-4 h-4" />
@@ -329,613 +354,352 @@ const CustomerProfile = () => {
 
           <button
             onClick={() => setActiveTab('transactions')}
-            className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'transactions'
-                ? 'bg-primary text-white shadow-md shadow-emerald-200'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
+                ? 'bg-[#00B16A] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
             }`}
           >
             <Receipt className="w-4 h-4" />
             <span>Lịch sử giao dịch & Hóa đơn</span>
           </button>
         </div>
+      </div>
 
-        {/* TAB 1: THÔNG TIN CÁ NHÂN */}
+      {/* 3. MAIN TAB CONTENT */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        {/* TAB 1: THÔNG TIN CÁ NHÂN (MATCHING SCREENSHOT) */}
         {activeTab === 'info' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
-            {/* Left Column: Quick Profile Summary Card */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm text-center">
-                <div className="w-24 h-24 mx-auto rounded-3xl overflow-hidden shadow-inner mb-4 border-2 border-emerald-100">
-                  <img src={formData.avatar} alt={formData.fullName} className="w-full h-full object-cover" />
-                </div>
-                <h3 className="text-xl font-bold text-text-dark">{formData.fullName}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{formData.email}</p>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-200">
+            {/* Left Column Profile Summary Card */}
+            <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col items-center text-center">
+              <div className="w-24 h-24 rounded-full overflow-hidden mb-4 ring-4 ring-emerald-50 shadow-md">
+                <img
+                  src={formData.avatar || DEFAULT_AVATAR}
+                  alt={formData.fullName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
 
-                <div className="mt-6 pt-6 border-t border-gray-100 space-y-3 text-left text-xs">
-                  <div className="flex justify-between items-center text-gray-600">
-                    <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-primary" /> Số điện thoại</span>
-                    <span className="font-bold text-text-dark">{formData.phone}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-gray-600">
-                    <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> Hạng thành viên</span>
-                    <span className="font-bold text-amber-600">Hạng Vàng VIP</span>
-                  </div>
-                  <div className="flex justify-between items-center text-gray-600">
-                    <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-primary" /> Điểm thưởng</span>
-                    <span className="font-bold text-primary">{customerProfile?.points || 850} điểm</span>
-                  </div>
+              <h2 className="text-xl font-extrabold text-gray-900">{formData.fullName || 'ducan'}</h2>
+              <p className="text-xs text-gray-400 mb-6">{formData.email || 'ducan12345atm@gmail.com'}</p>
+
+              {/* Info summary rows */}
+              <div className="w-full space-y-3.5 text-left text-sm pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2 text-xs">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" /> Số điện thoại
+                  </span>
+                  <span className="font-bold text-gray-800 text-xs">{formData.phone || '0376131531'}</span>
                 </div>
 
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2 text-xs">
+                    <Crown className="w-3.5 h-3.5 text-amber-500" /> Hạng thành viên
+                  </span>
+                  <span className="font-bold text-amber-700 text-xs">Hạng Vàng VIP</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2 text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Điểm thưởng
+                  </span>
+                  <span className="font-black text-emerald-600 text-xs">{activeCustomer.points || 850} điểm</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsEditing(!isEditing)}
+                className="w-full mt-6 py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#00B16A] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>{isEditing ? 'Đang chỉnh sửa...' : 'Chỉnh sửa thông tin'}</span>
+              </button>
+            </div>
+
+            {/* Right Column Details Form Card */}
+            <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-100">
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900 font-title">Hồ sơ khách hàng</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Cập nhật thông tin để khách sạn liên hệ và đón bé thuận tiện nhất.
+                  </p>
+                </div>
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="w-full mt-6 py-2.5 px-4 bg-emerald-50 text-primary hover:bg-primary hover:text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00B16A] hover:bg-[#009458] text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-60"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  <span>{isEditing ? 'Đóng chỉnh sửa' : 'Chỉnh sửa thông tin'}</span>
+                  <span>{isSaving ? 'Đang lưu...' : 'Cập nhật'}</span>
                 </button>
               </div>
 
-              {/* Pets Quick Card */}
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-text-dark text-sm flex items-center gap-2">
-                    <PawPrint className="w-4 h-4 text-primary" />
-                    <span>Bé cưng của bạn ({petList.length || 2})</span>
-                  </h4>
-                  <Link to="/pet-profile" className="text-xs font-bold text-primary hover:underline">
-                    Quản lý
-                  </Link>
-                </div>
-
-                <div className="space-y-3">
-                  {(petList.length > 0 ? petList : [
-                    { id: '1', name: 'Miu Miu', breed: 'Mèo Anh Lông Ngắn', age: '2', gender: 'Cái', avatar: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=100&auto=format&fit=crop&q=80' },
-                    { id: '2', name: 'Bánh Bao', breed: 'Mèo Ba Tư Trắng', age: '1.5', gender: 'Đực', avatar: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=100&auto=format&fit=crop&q=80' }
-                  ]).map((pet, idx) => (
-                    <div key={pet.id || idx} className="flex items-center gap-3 p-3 bg-gray-50/70 rounded-2xl border border-gray-100">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-white shrink-0 border border-gray-200">
-                        <img 
-                          src={pet.imagePreview || pet.avatar || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=100&auto=format&fit=crop&q=80'} 
-                          alt={pet.name} 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-text-dark text-xs truncate">{pet.name}</p>
-                        <p className="text-[11px] text-gray-400">{pet.breed || 'Mèo ta'} • {pet.age} tuổi</p>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                        {pet.gender || 'Đã tiêm'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Information & Edit Form */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between pb-6 mb-6 border-b border-gray-100">
+              <form onSubmit={handleSaveProfile} className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
-                    <h3 className="text-xl font-bold text-text-dark font-title">Hồ sơ khách hàng</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Cập nhật thông tin để khách sạn liên hệ và đón bé thuận tiện nhất.
-                    </p>
-                  </div>
-                  {!isEditing && (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-secondary transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-200 cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Cập nhật</span>
-                    </button>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveProfile} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    
-                    {/* Full Name */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                        Họ và tên
-                      </label>
-                      <input
-                        type="text"
-                        name="fullName"
-                        value={formData.fullName}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors"
-                      />
-                    </div>
-
-                    {/* Phone Number */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                        Số điện thoại
-                      </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors"
-                      />
-                    </div>
-
-                    {/* Email */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors"
-                      />
-                    </div>
-
-                    {/* Birthday */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                        Ngày sinh
-                      </label>
-                      <input
-                        type="date"
-                        name="birthday"
-                        value={formData.birthday}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors"
-                      />
-                    </div>
-
-                  </div>
-
-                  {/* Address */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Địa chỉ nhà riêng / Đón trả mèo
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Họ và Tên
                     </label>
                     <input
                       type="text"
-                      name="address"
-                      value={formData.address}
+                      name="fullName"
+                      value={formData.fullName}
                       onChange={handleInputChange}
-                      disabled={!isEditing}
-                      placeholder="VD: Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors"
+                      className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
                     />
                   </div>
 
-                  {/* Avatar URL / Image */}
-                  {isEditing && (
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                        Link ảnh đại diện (Avatar URL)
-                      </label>
-                      <input
-                        type="url"
-                        name="avatar"
-                        value={formData.avatar}
-                        onChange={handleInputChange}
-                        placeholder="https://..."
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary transition-colors"
-                      />
-                    </div>
-                  )}
-
-                  {/* Special Notes */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Ghi chú / Yêu cầu đặc biệt cho Pet Hotel
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Số điện thoại
                     </label>
-                    <textarea
-                      name="notes"
-                      rows={3}
-                      value={formData.notes}
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
                       onChange={handleInputChange}
-                      disabled={!isEditing}
-                      placeholder="Thói quen ăn uống, dị ứng, tính cách đặc thù của các bé..."
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-text-dark focus:outline-none focus:border-primary disabled:bg-gray-50 disabled:text-gray-600 transition-colors resize-none"
+                      className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
                     />
                   </div>
 
-                  {/* Actions when editing */}
-                  {isEditing && (
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(false)}
-                        className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        Hủy
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSaving}
-                        className="px-6 py-2.5 rounded-xl bg-primary hover:bg-secondary text-white text-xs font-bold shadow-md shadow-emerald-200 transition-all flex items-center gap-2 cursor-pointer"
-                      >
-                        {isSaving ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang lưu...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-3.5 h-3.5" />
-                            <span>Lưu thay đổi</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </form>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Ngày sinh
+                    </label>
+                    <input
+                      type="text"
+                      name="birthday"
+                      value={formData.birthday}
+                      onChange={handleInputChange}
+                      placeholder="15/08/1995"
+                      className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
+                    />
+                  </div>
+                </div>
 
-              </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    Địa chỉ nhà riêng / Đón trả mèo
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder="Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội"
+                    className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    Ghi chú / Yêu cầu đặc biệt cho Pet Hotel
+                  </label>
+                  <textarea
+                    rows="3"
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                    placeholder="Ví dụ: Bé Miu thích ăn pate gà, nhát người lạ..."
+                    className="w-full bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 focus:bg-white focus:outline-none focus:border-[#00B16A] transition"
+                  />
+                </div>
+              </form>
             </div>
           </div>
         )}
 
-        {/* TAB 2: ĐIỂM & HẠNG THÀNH VIÊN VIP */}
+        {/* TAB 2: ĐIỂM & HẠNG VIP */}
         {activeTab === 'tier' && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            {/* VIP Card Display */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              
-              {/* Gold VIP Member Card Visual */}
-              <div className="md:col-span-1">
-                <div className="bg-gradient-to-br from-amber-500 via-yellow-600 to-amber-700 text-white p-6 rounded-3xl shadow-xl shadow-amber-900/20 relative overflow-hidden flex flex-col justify-between min-h-[220px] border border-amber-300/30">
-                  <div className="absolute top-0 right-0 -mr-6 -mt-6 w-32 h-32 rounded-full bg-white/10 blur-xl"></div>
-                  
-                  <div className="flex justify-between items-start relative z-10">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold tracking-widest text-amber-200">MÈO VÀNG NHÀ VIP</p>
-                      <h4 className="text-xl font-extrabold font-title flex items-center gap-1.5 mt-0.5">
-                        <span>Hạng Vàng</span>
-                        <span>👑</span>
-                      </h4>
-                    </div>
-                    <PawPrint className="w-8 h-8 text-amber-200/80" />
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* VIP Card Graphic */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div className="bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-400 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-100">MÈO VẮNG NHÀ VIP CARD</p>
+                    <h3 className="text-2xl font-black font-title">HỘI VIÊN THÂN THIẾT</h3>
                   </div>
-
-                  <div className="relative z-10 my-4">
-                    <p className="text-xs text-amber-100 font-mono tracking-wider">#VIP-8899-2026</p>
-                    <p className="text-lg font-extrabold mt-1">{formData.fullName}</p>
+                  <PawPrint className="text-4xl opacity-80" />
+                </div>
+                <div className="mb-8 text-sm space-y-1">
+                  <p className="text-amber-100">Chủ nuôi: <span className="font-bold text-white text-base">{formData.fullName}</span></p>
+                  <p className="text-amber-100">Số điện thoại: <span className="font-mono text-white">{formData.phone}</span></p>
+                  <p className="text-amber-100">Mã hội viên: <span className="font-mono text-white">MVN-88992</span></p>
+                </div>
+                <div className="flex justify-between items-end border-t border-amber-300/40 pt-4">
+                  <div>
+                    <p className="text-xs text-amber-100 uppercase">Điểm tích lũy</p>
+                    <p className="text-3xl font-black">{activeCustomer.points || 850} <span className="text-sm font-normal">Điểm</span></p>
                   </div>
-
-                  <div className="flex justify-between items-end text-xs text-amber-100 relative z-10 pt-2 border-t border-amber-400/30">
-                    <div>
-                      <span className="text-[10px] text-amber-200/80 block">Điểm khả dụng</span>
-                      <b className="text-base text-white font-extrabold">{customerProfile?.points || 850} điểm</b>
-                    </div>
-                    <span className="font-semibold text-[11px] bg-black/20 px-2.5 py-1 rounded-lg">Có giá trị trọn đời</span>
-                  </div>
+                  <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-xl text-xs font-black border border-white/30 tracking-wider">
+                    👑 HẠNG VÀNG
+                  </span>
                 </div>
               </div>
 
-              {/* Tier Progress & Next Level */}
-              <div className="md:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <h3 className="text-lg font-bold text-text-dark font-title">Tiến trình nâng hạng Kim Cương</h3>
-                    <span className="text-xs font-bold text-primary bg-emerald-50 px-3 py-1 rounded-full">
-                      850 / 1.000 điểm (85%)
+              {/* VIP Benefits */}
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                <h3 className="text-lg font-black text-gray-900">Đặc quyền Hạng Vàng của bạn</h3>
+                <ul className="space-y-2.5 text-sm text-gray-600">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Giảm <strong>10%</strong> mọi hóa đơn dịch vụ lưu trú và spa.</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Tặng kèm <strong>Pate cao cấp miễn phí</strong> vào Thứ 4 & Thứ 5 hàng tuần.</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Ưu tiên giữ phòng trong các dịp Lễ Tết cao điểm.</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Miễn phí xem <strong>Camera trực tiếp 24/7</strong> và nhật ký chăm sóc qua App.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Points History */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-black text-gray-900 mb-4">Lịch sử tích điểm & đổi quà</h3>
+              <div className="divide-y divide-gray-100">
+                {INITIAL_POINT_HISTORY.map(item => (
+                  <div key={item.id} className="py-3 flex items-center justify-between text-sm">
+                    <div>
+                      <p className="font-bold text-gray-800">{item.desc}</p>
+                      <p className="text-xs text-gray-400">{item.date} • {item.code}</p>
+                    </div>
+                    <span className={`font-black ${item.type === 'earn' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {item.points} điểm
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mb-6">
-                    Chỉ cần tích lũy thêm <b className="text-amber-600">150 điểm</b> (tương đương 1 kỳ lưu trú 3 ngày) để mở khóa đặc quyền Hạng Kim Cương!
-                  </p>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-100 h-3.5 rounded-full overflow-hidden p-0.5 mb-6 border border-gray-200">
-                    <div 
-                      className="bg-gradient-to-r from-amber-400 to-yellow-500 h-full rounded-full transition-all duration-1000 shadow-inner"
-                      style={{ width: '85%' }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Next Tier Teaser */}
-                <div className="bg-amber-50/70 border border-amber-100 p-4 rounded-2xl flex items-center gap-4 text-xs">
-                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center font-bold text-base shrink-0">
-                    💎
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-amber-900">Đặc quyền sắp mở: Hạng Kim Cương</h5>
-                    <p className="text-amber-700 text-[11px] mt-0.5">
-                      Giảm trực tiếp 15% tất cả hóa đơn, đưa đón miễn phí bán kính 10km, tặng quà sinh nhật cao cấp cho mèo.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* 4 Tiers Privilege Comparison */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-bold text-text-dark font-title mb-6 flex items-center gap-2">
-                <Star className="w-5 h-5 text-amber-500" />
-                <span>Bảng quyền lợi thành viên Mèo Vàng Nhà</span>
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* Tier Bronze */}
-                <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/50 flex flex-col">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">🥉</span>
-                    <div>
-                      <h4 className="font-bold text-text-dark text-sm">Hạng Đồng</h4>
-                      <p className="text-[11px] text-gray-400">0 - 299 điểm</p>
-                    </div>
-                  </div>
-                  <ul className="text-xs text-gray-600 space-y-2 mt-2 flex-1">
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Tích 1 điểm cho mỗi 10.000đ chi tiêu</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Tặng pate khai vị cho mèo khi check-in</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Giảm 3% dịch vụ spa tắm cắt</li>
-                  </ul>
-                </div>
-
-                {/* Tier Silver */}
-                <div className="p-5 rounded-2xl border border-gray-100 bg-gray-50/50 flex flex-col">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">🥈</span>
-                    <div>
-                      <h4 className="font-bold text-text-dark text-sm">Hạng Bạc</h4>
-                      <p className="text-[11px] text-gray-400">300 - 599 điểm</p>
-                    </div>
-                  </div>
-                  <ul className="text-xs text-gray-600 space-y-2 mt-2 flex-1">
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Giảm 5% toàn bộ hóa đơn</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Ưu tiên nhận phòng sớm miễn phí 2 tiếng</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Miễn phí chải lông & sấy dưỡng</li>
-                  </ul>
-                </div>
-
-                {/* Tier Gold (Current) */}
-                <div className="p-5 rounded-2xl border-2 border-amber-400 bg-amber-50/40 flex flex-col relative shadow-md">
-                  <div className="absolute -top-3 right-4 bg-amber-500 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
-                    ĐANG ĐẠT
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">👑</span>
-                    <div>
-                      <h4 className="font-bold text-amber-950 text-sm">Hạng Vàng</h4>
-                      <p className="text-[11px] text-amber-700">600 - 999 điểm</p>
-                    </div>
-                  </div>
-                  <ul className="text-xs text-gray-700 space-y-2 mt-2 flex-1">
-                    <li className="flex items-start gap-1.5 font-semibold"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" /> Giảm trực tiếp 10% mọi dịch vụ</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" /> Đưa đón mèo miễn phí bán kính 5km</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" /> Tặng voucher sinh nhật 200.000đ</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" /> Miễn phí nâng cấp phòng VIP dịp lễ</li>
-                  </ul>
-                </div>
-
-                {/* Tier Diamond */}
-                <div className="p-5 rounded-2xl border border-cyan-200 bg-cyan-50/40 flex flex-col">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">💎</span>
-                    <div>
-                      <h4 className="font-bold text-cyan-950 text-sm">Hạng Kim Cương</h4>
-                      <p className="text-[11px] text-cyan-700">Từ 1.000 điểm</p>
-                    </div>
-                  </div>
-                  <ul className="text-xs text-gray-700 space-y-2 mt-2 flex-1">
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-cyan-600 shrink-0 mt-0.5" /> Giảm trực tiếp 15% trọn đời</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-cyan-600 shrink-0 mt-0.5" /> Đưa đón miễn phí 10km</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-cyan-600 shrink-0 mt-0.5" /> Camera AI Full HD xem 24/7</li>
-                    <li className="flex items-start gap-1.5"><Check className="w-3.5 h-3.5 text-cyan-600 shrink-0 mt-0.5" /> Bác sĩ thú y kiểm tra sức khỏe tận nơi</li>
-                  </ul>
-                </div>
-
+                ))}
               </div>
             </div>
-
-            {/* Point History Table */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-bold text-text-dark font-title mb-4">Lịch sử biến động điểm</h3>
-              
-              <div className="border border-gray-100 rounded-2xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-gray-50 text-gray-500 font-bold border-b border-gray-100">
-                    <tr>
-                      <th className="py-3 px-4">Ngày</th>
-                      <th className="py-3 px-4">Nội dung</th>
-                      <th className="py-3 px-4">Mã đơn</th>
-                      <th className="py-3 px-4 text-right">Biến động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 text-gray-700">
-                    {INITIAL_POINT_HISTORY.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50/50">
-                        <td className="py-3 px-4 text-gray-500">{item.date}</td>
-                        <td className="py-3 px-4 font-medium text-text-dark">{item.desc}</td>
-                        <td className="py-3 px-4 text-gray-400 font-mono">{item.code}</td>
-                        <td className="py-3 px-4 text-right font-extrabold">
-                          <span className={item.type === 'earn' ? 'text-emerald-600' : 'text-red-500'}>
-                            {item.points}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
           </div>
         )}
 
         {/* TAB 3: LỊCH SỬ GỬI MÈO */}
         {activeTab === 'history' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-              <div>
-                <h3 className="text-xl font-bold text-text-dark font-title">Lịch sử lưu trú của các bé</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Theo dõi danh sách các lần gửi mèo tại Mèo Vàng Nhà và trạng thái chăm sóc.
-                </p>
-              </div>
-              <Link
-                to="/booking"
-                className="px-5 py-2.5 bg-primary hover:bg-secondary text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-200 transition-all flex items-center gap-2 cursor-pointer"
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {combinedBoardingList.map((stay, idx) => (
+              <div 
+                key={stay.id || idx}
+                className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition flex flex-col md:flex-row items-center gap-6"
               >
-                <PawPrint className="w-4 h-4" />
-                <span>Đặt phòng mới</span>
-              </Link>
-            </div>
-
-            <div className="space-y-4">
-              {combinedBoardingList.map((stay, idx) => (
-                <div 
-                  key={stay.id || idx}
-                  className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row items-center gap-6"
-                >
-                  {/* Pet Image */}
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 border-2 border-emerald-100 shrink-0 shadow-inner">
-                    <img src={stay.image} alt={stay.petNames} className="w-full h-full object-cover" />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 text-center md:text-left space-y-1">
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
-                      <h4 className="text-lg font-bold text-text-dark">{stay.petNames}</h4>
-                      <span className={`text-xs font-bold px-3 py-0.5 rounded-full ${
-                        stay.status === 'Đang lưu trú'
-                          ? 'bg-emerald-100 text-emerald-700 animate-pulse'
-                          : stay.status === 'Sắp tới'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {stay.status}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-emerald-700 font-bold">
-                      {stay.roomName} • <span className="text-gray-500 font-normal">{stay.packageDesc}</span>
-                    </p>
-
-                    <p className="text-xs text-gray-600 flex items-center justify-center md:justify-start gap-1.5 pt-1">
-                      <Calendar className="w-3.5 h-3.5 text-primary" />
-                      <span>Thời gian: <b>{stay.checkIn}</b> đến <b>{stay.checkOut}</b></span>
-                    </p>
-
-                    <p className="text-[11px] text-gray-400">Mã đơn lưu trú: #{stay.id}</p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0 w-full md:w-auto">
-                    {stay.status === 'Đang lưu trú' ? (
-                      <button
-                        onClick={() => navigate('/tracking', { state: { bookingData: stay } })}
-                        className="px-5 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-200 flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>Xem Camera & Nhật ký</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          const inv = SAMPLE_TRANSACTIONS.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS[0];
-                          openInvoice(inv);
-                        }}
-                        className="px-4 py-2 bg-emerald-50 text-primary hover:bg-primary hover:text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>Xem hóa đơn</span>
-                      </button>
-                    )}
-
-                    <Link
-                      to="/booking"
-                      className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-xs font-bold transition-colors text-center border border-gray-200 cursor-pointer"
-                    >
-                      Đặt lại phòng này
-                    </Link>
-                  </div>
-
+                <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-100 shrink-0 shadow-inner">
+                  <img src={stay.image} alt={stay.petNames} className="w-full h-full object-cover" />
                 </div>
-              ))}
-            </div>
 
+                <div className="flex-1 text-center md:text-left space-y-1">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
+                    <h4 className="text-lg font-bold text-gray-900">{stay.petNames}</h4>
+                    <span className={`text-xs font-bold px-3 py-0.5 rounded-full ${
+                      stay.status === 'Đang lưu trú'
+                        ? 'bg-emerald-100 text-emerald-700 animate-pulse'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {stay.status}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-emerald-700 font-bold">
+                    {stay.roomName} • <span className="text-gray-500 font-normal">{stay.packageDesc}</span>
+                  </p>
+
+                  <p className="text-xs text-gray-600 flex items-center justify-center md:justify-start gap-1.5 pt-1">
+                    <Calendar className="w-3.5 h-3.5 text-primary" />
+                    <span>Thời gian: <b>{stay.checkIn}</b> đến <b>{stay.checkOut}</b></span>
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                  {stay.status === 'Đang lưu trú' ? (
+                    <button
+                      onClick={() => navigate('/tracking', { state: { bookingData: stay } })}
+                      className="px-5 py-2.5 bg-[#f97316] hover:bg-[#ea580c] text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Xem Camera & Nhật ký</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const inv = SAMPLE_TRANSACTIONS.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS[0];
+                        openInvoice(inv);
+                      }}
+                      className="px-4 py-2 bg-emerald-50 text-[#00B16A] hover:bg-[#00B16A] hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>Xem hóa đơn</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* TAB 4: LỊCH SỬ GIAO DỊCH & HÓA ĐƠN CHI TIẾT */}
+        {/* TAB 4: LỊCH SỬ GIAO DỊCH & HÓA ĐƠN */}
         {activeTab === 'transactions' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 mb-6 border-b border-gray-100">
-                <div>
-                  <h3 className="text-xl font-bold text-text-dark font-title">Lịch sử giao dịch & Hóa đơn</h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Bấm vào từng giao dịch để xem phiếu thanh toán điện tử chi tiết và in ấn.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>Bảo mật giao dịch bởi PetHotel Pay</span>
-                </div>
-              </div>
-
-              {/* Transactions List */}
-              <div className="space-y-4">
-                {SAMPLE_TRANSACTIONS.map((trans) => (
-                  <div 
-                    key={trans.id}
-                    className="p-5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50/60 transition-colors shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-mono text-xs font-extrabold text-primary bg-emerald-50 px-2.5 py-0.5 rounded-md">
-                          {trans.code}
-                        </span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {trans.date}
-                        </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                          {trans.status}
-                        </span>
-                      </div>
-
-                      <h4 className="font-bold text-text-dark text-sm">{trans.service}</h4>
-                      <p className="text-xs text-gray-500">
-                        Bé mèo: <span className="font-semibold text-text-dark">{trans.petNames}</span> • 
-                        Phương thức: <span className="font-semibold text-text-dark">{trans.paymentMethod}</span>
-                      </p>
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-4 animate-in fade-in duration-200">
+            <h3 className="text-xl font-black text-gray-900 mb-2">Lịch sử hóa đơn điện tử</h3>
+            <div className="space-y-4">
+              {SAMPLE_TRANSACTIONS.map((trans) => (
+                <div 
+                  key={trans.id}
+                  className="p-5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50 transition shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                        {trans.code}
+                      </span>
+                      <span className="text-xs text-gray-400">{trans.date}</span>
                     </div>
-
-                    <div className="flex items-center justify-between lg:justify-end gap-6 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-                      <div className="text-left lg:text-right">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Số tiền thanh toán</p>
-                        <p className="text-lg font-extrabold text-emerald-700">{formatVND(trans.amount)}</p>
-                      </div>
-
-                      <button
-                        onClick={() => openInvoice(trans)}
-                        className="px-4 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-200 flex items-center gap-1.5 cursor-pointer shrink-0"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Xem hóa đơn</span>
-                      </button>
-                    </div>
+                    <h4 className="font-bold text-gray-800 text-sm">{trans.service}</h4>
+                    <p className="text-xs text-gray-500">Bé: {trans.petNames} • {trans.paymentMethod}</p>
                   </div>
-                ))}
-              </div>
 
+                  <div className="flex items-center justify-between lg:justify-end gap-6 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                    <div className="text-left lg:text-right">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">Số tiền thanh toán</p>
+                      <p className="text-lg font-black text-emerald-700">{formatVND(trans.amount)}</p>
+                    </div>
+
+                    <button
+                      onClick={() => openInvoice(trans)}
+                      className="px-4 py-2 bg-[#00B16A] hover:bg-[#009458] text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Xem hóa đơn</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -948,7 +712,6 @@ const CustomerProfile = () => {
         onClose={() => setIsInvoiceOpen(false)}
         invoice={selectedInvoice}
       />
-
     </div>
   );
 };
