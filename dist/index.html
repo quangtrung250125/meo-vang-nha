@@ -1,173 +1,22 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Raleway:wght@400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <title>pethotel</title>
-    <script type="module" crossorigin src="/assets/index-ywhhPeiW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BXse2E44.css">
-  </head>
-  <body>
-    <div id="root"></div>
 
-    <style>
-      @keyframes floating-ping {
-        0% { transform: scale(1); opacity: 0.6; }
-        75%, 100% { transform: scale(1.6); opacity: 0; }
-      }
-      .floating-contact-container {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 999999;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 14px;
-        pointer-events: none;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      }
-      .floating-btn-wrap {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        pointer-events: auto;
-      }
-      .floating-pulse {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        animation: floating-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
-        pointer-events: none;
-      }
-      .floating-pulse.messenger {
-        background: linear-gradient(135deg, #0084FF, #FF5983);
-      }
-      .floating-pulse.zalo {
-        background: #0068FF;
-      }
-      .floating-btn {
-        position: relative;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #ffffff;
-        text-decoration: none;
-        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
-        cursor: pointer;
-      }
-      .floating-btn:hover {
-        transform: scale(1.12);
-      }
-      .floating-btn:active {
-        transform: scale(0.95);
-      }
-      .floating-btn.messenger {
-        background: linear-gradient(135deg, #0084FF 0%, #A824FB 50%, #FF5983 100%);
-        box-shadow: 0 8px 24px rgba(168, 36, 251, 0.35);
-      }
-      .floating-btn.messenger:hover {
-        box-shadow: 0 10px 28px rgba(168, 36, 251, 0.5);
-      }
-      .floating-btn.zalo {
-        background: #0068FF;
-        box-shadow: 0 8px 24px rgba(0, 104, 255, 0.35);
-      }
-      .floating-btn.zalo:hover {
-        background: #0056d6;
-        box-shadow: 0 10px 28px rgba(0, 104, 255, 0.5);
-      }
-      .floating-tooltip {
-        position: absolute;
-        right: calc(100% + 12px);
-        background: rgba(17, 24, 39, 0.9);
-        backdrop-filter: blur(8px);
-        color: #ffffff;
-        font-size: 13px;
-        font-weight: 500;
-        padding: 6px 14px;
-        border-radius: 9999px;
-        white-space: nowrap;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        opacity: 0;
-        transform: translateX(8px);
-        pointer-events: none;
-        transition: opacity 0.2s ease, transform 0.2s ease;
-      }
-      .floating-btn-wrap:hover .floating-tooltip {
-        opacity: 1;
-        transform: translateX(0);
-      }
-      @media (max-width: 640px) {
-        .floating-contact-container {
-          bottom: 16px;
-          right: 16px;
-          gap: 10px;
-        }
-        .floating-btn {
-          width: 48px;
-          height: 48px;
-        }
-        .floating-pulse {
-          width: 48px;
-          height: 48px;
-        }
-        .floating-tooltip {
-          display: none;
-        }
-      }
-    </style>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/images/LogoMeoVangNha/813939190_1681772440267304_6167511068586325652_n.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Raleway:wght@400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&display=swap"
+    rel="stylesheet">
+  <title>Mèo Vắng Nhà</title>
+  <script type="module" crossorigin src="/assets/index-DOotkgER.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BaL23KZC.css">
+</head>
 
-    <aside aria-label="Liên hệ nhanh" class="floating-contact-container">
-      <!-- 1. Nút Messenger -->
-      <div class="floating-btn-wrap">
-        <span class="floating-tooltip">Chat Messenger Mèo Vắng Nhà</span>
-        <span class="floating-pulse messenger"></span>
-        <a 
-          id="btn-floating-messenger"
-          href="https://www.messenger.com/t/310542365485288" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          aria-label="Chat Messenger với Mèo Vắng Nhà" 
-          title="Chat Messenger Mèo Vắng Nhà"
-          class="floating-btn messenger"
-        >
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.914 1.455 5.517 3.735 7.215V22l3.37-1.85c.915.253 1.887.39 2.895.39 5.523 0 10-4.145 10-9.282C22 6.145 17.523 2 12 2zm1.066 12.445l-2.614-2.79-5.1 2.79 5.607-5.955 2.68 2.79 5.034-2.79-5.607 5.955z"/>
-          </svg>
-        </a>
-      </div>
+<body>
+  <div id="root"></div>
+</body>
 
-      <!-- 2. Nút Zalo -->
-      <div class="floating-btn-wrap">
-        <span class="floating-tooltip">Chat Zalo: 090 495 75 55</span>
-        <span class="floating-pulse zalo"></span>
-        <a 
-          id="btn-floating-zalo"
-          href="https://zalo.me/0904957555" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          aria-label="Chat Zalo qua số 090 495 75 55" 
-          title="Chat Zalo: 090 495 75 55"
-          class="floating-btn zalo"
-        >
-          <svg viewBox="0 0 48 48" width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M41.5 4.5L12.5 4.5C4 11.9 1.3 22 9 36.4c.5 1.7-.4 3.4-2 5.1 2.4.3 4.8-.1 6.9-1.3 14 6.3 21.9 2.2 29.6-2.7l.04-31C43.5 5.4 42.6 4.5 41.5 4.5z" fill="white" fill-opacity="0.2"/>
-            <text x="24" y="29.5" text-anchor="middle" fill="#FFFFFF" font-weight="900" font-size="14.5" font-family="system-ui, -apple-system, sans-serif" letter-spacing="-0.5px">Zalo</text>
-          </svg>
-        </a>
-      </div>
-    </aside>
-  </body>
 </html>

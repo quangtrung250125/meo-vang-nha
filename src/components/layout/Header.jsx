@@ -14,7 +14,8 @@ import {
   DoorOpen, 
   Sparkles, 
   CalendarCheck, 
-  CheckCheck
+  CheckCheck,
+  Repeat2
 } from 'lucide-react';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
@@ -22,8 +23,7 @@ import { useUI } from '../../contexts/UIContext';
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const customerContext = useCustomerProfile?.() || {};
-  const customerProfile = customerContext.customerProfile;
+  const { customerProfile, logoutCustomer } = useCustomerProfile();
   const { 
     openSearch, 
     notifications, 
@@ -38,7 +38,14 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showPromoBar, setShowPromoBar] = useState(true);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const searchInputRef = useRef(null);
+
+  const handleLogout = (switchAccount = false) => {
+    if (logoutCustomer) logoutCustomer();
+    setIsLogoutConfirmOpen(false);
+    if (switchAccount) openAuth();
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -120,6 +127,7 @@ const Header = () => {
               <span>Tích Điểm VIP</span>
             </button>
             <Link to="/booking" className={isActive('/booking')}>Đặt phòng</Link>
+            <Link to="/tracking" className={isActive('/tracking')}>Theo dõi</Link>
           </nav>
 
           {/* ACTION BUTTONS (Search, Notifications, Booking CTA, User) */}
@@ -288,6 +296,15 @@ const Header = () => {
                     >
                       Hồ sơ thú cưng
                     </Link>
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        setIsLogoutConfirmOpen(true);
+                      }}
+                      className="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-medium"
+                    >
+                      Đăng xuất
+                    </button>
                   </div>
                 )}
               </div>
@@ -347,6 +364,13 @@ const Header = () => {
               <Sparkles className="w-4 h-4 text-accent" />
             </button>
             <Link
+              to="/tracking"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-text-dark font-medium py-2 border-b border-gray-50 text-sm"
+            >
+              Theo dõi
+            </Link>
+            <Link
               to="/booking"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-center bg-accent text-white font-bold py-3 rounded-2xl shadow-md text-sm mt-3"
@@ -356,6 +380,58 @@ const Header = () => {
           </div>
         )}
       </header>
+      
+      {isLogoutConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsLogoutConfirmOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsLogoutConfirmOpen(false)}
+              className="absolute right-4 top-4 rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Đóng xác nhận"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-bold text-text-dark">Bạn muốn làm gì?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-gray-500">
+              Bạn có chắc muốn rời tài khoản hiện tại không? Hồ sơ và dữ liệu đã lưu sẽ không bị xóa.
+            </p>
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => handleLogout(true)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-white hover:opacity-90"
+              >
+                <Repeat2 className="h-4 w-4" />
+                Chuyển đổi tài khoản
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLogout(false)}
+                className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 font-bold text-gray-700 hover:bg-gray-50"
+              >
+                <LogOut className="h-4 w-4" />
+                Đăng xuất
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-800"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
