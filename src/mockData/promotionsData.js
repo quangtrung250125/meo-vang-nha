@@ -152,6 +152,16 @@ export const luckyWheelPrizes = [
     description: 'Voucher giảm 20% tổng giá trị phòng lưu trú (tối đa 150.000đ).'
   },
   {
+    id: 'no-prize-1',
+    text: 'Chúc bạn may mắn lần sau',
+    shortName: 'Lần sau nhé!',
+    code: '',
+    type: 'noPrize',
+    color: '#94A3B8', // slate gray
+    textColor: '#ffffff',
+    description: 'Rất tiếc, bạn chưa trúng giải lần này. Hãy thử lại nhé!'
+  },
+  {
     id: 'prize-2',
     text: 'Tặng 1 Lon Pate Cao Cấp',
     shortName: 'Pate Cao Cấp',
@@ -172,6 +182,16 @@ export const luckyWheelPrizes = [
     description: 'Giảm ngay 50.000đ cho đơn đặt phòng từ 300.000đ.'
   },
   {
+    id: 'no-prize-2',
+    text: 'Chúc bạn may mắn lần sau',
+    shortName: 'Lần sau nhé!',
+    code: '',
+    type: 'noPrize',
+    color: '#64748B', // darker slate
+    textColor: '#ffffff',
+    description: 'Rất tiếc, bạn chưa trúng giải lần này. Hãy thử lại nhé!'
+  },
+  {
     id: 'prize-4',
     text: 'Gói Cắt Móng & Vệ Sinh Tai',
     shortName: 'Spa Móng & Tai',
@@ -190,6 +210,16 @@ export const luckyWheelPrizes = [
     color: '#6366F1', // indigo
     textColor: '#ffffff',
     description: 'Giảm 10% không giới hạn giá trị đơn đặt phòng.'
+  },
+  {
+    id: 'no-prize-3',
+    text: 'Chúc bạn may mắn lần sau',
+    shortName: 'Lần sau nhé!',
+    code: '',
+    type: 'noPrize',
+    color: '#78716C', // stone
+    textColor: '#ffffff',
+    description: 'Rất tiếc, bạn chưa trúng giải lần này. Hãy thử lại nhé!'
   },
   {
     id: 'prize-6',

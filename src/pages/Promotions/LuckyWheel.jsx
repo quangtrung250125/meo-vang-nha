@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Trophy, Copy, Check, ArrowRight, RotateCw, PartyPopper } from 'lucide-react';
+import { Sparkles, Trophy, Copy, Check, ArrowRight, RotateCw, PartyPopper, Frown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { luckyWheelPrizes } from '../../mockData/promotionsData';
@@ -258,7 +258,7 @@ const LuckyWheel = ({ onClaimPrize }) => {
             </h4>
             
             <div className="space-y-2">
-              {luckyWheelPrizes.map((p) => (
+              {luckyWheelPrizes.filter(p => p.type !== 'noPrize').map((p) => (
                 <div 
                   key={p.id}
                   className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-xs border border-white/5"
@@ -289,68 +289,124 @@ const LuckyWheel = ({ onClaimPrize }) => {
       {showPrizeModal && wonPrize && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
-            className={`rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl relative border-4 animate-in zoom-in-95 duration-200 ${wonPrize.type === 'luck' ? 'border-slate-300 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 text-slate-700' : 'border-amber-300 bg-white text-text-dark'}`}
+            className={`rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl relative border-4 animate-in zoom-in-95 duration-200 ${(wonPrize.type === 'luck' || wonPrize.type === 'noPrize') ? 'border-slate-300 bg-white text-slate-700' : 'border-amber-300 bg-white text-text-dark'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${wonPrize.type === 'luck' ? 'bg-slate-200 text-slate-600 animate-pulse' : 'bg-amber-100 text-amber-600 animate-bounce'}`}>
-              {wonPrize.type === 'luck' ? <span className="text-2xl">😢</span> : <PartyPopper className="w-8 h-8" />}
-            </div>
+            {(wonPrize.type === 'noPrize' || wonPrize.type === 'luck') ? (
+              /* No Prize / Luck Modal */
+              <>
+                <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-4">
+                  <Frown className="w-8 h-8" />
+                </div>
 
-            <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${wonPrize.type === 'luck' ? 'text-slate-600 bg-slate-100 border-slate-200' : 'text-emerald-600 bg-emerald-50 border-emerald-200'}`}>
-              {wonPrize.type === 'luck' ? 'May mắn lần này' : 'Chúc mừng bạn đã trúng'}
-            </span>
-
-            <h3 className={`text-2xl font-extrabold font-title mt-3 mb-2 ${wonPrize.type === 'luck' ? 'text-slate-700' : 'text-text-dark'}`}>
-              {wonPrize.text}
-            </h3>
-
-            <p className={`text-xs mb-6 ${wonPrize.type === 'luck' ? 'text-slate-500' : 'text-gray-500'}`}>
-              {wonPrize.description}
-            </p>
-
-            {wonPrize.type !== 'luck' && (
-              <div className="bg-bg-cream border-2 border-dashed border-primary/40 rounded-2xl p-4 mb-6">
-                <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider block mb-1">
-                  Mã ưu đãi của bạn
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                  Rất tiếc!
                 </span>
-                <div className="flex items-center justify-center gap-3">
-                  <span className="font-mono text-xl sm:text-2xl font-black text-primary tracking-wider">
-                    {wonPrize.code}
-                  </span>
+
+                <h3 className="text-2xl font-extrabold font-title text-text-dark mt-3 mb-2">
+                  {wonPrize.text}
+                </h3>
+
+                <p className="text-xs text-gray-500 mb-6">
+                  {wonPrize.description}
+                </p>
+
+                <div className="flex flex-col gap-2.5">
+                  {spinsLeft > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPrizeModal(false)}
+                      className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-hover transition-colors shadow-md shadow-accent/30 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RotateCw className="w-4 h-4" />
+                      <span>Quay lại lần nữa ({spinsLeft} lượt còn lại)</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPrizeModal(false);
+                        navigate('/booking');
+                      }}
+                      className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-hover transition-colors shadow-md shadow-accent/30 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>Đặt phòng ngay</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => handleCopyCode(wonPrize.code)}
-                    className="p-2 rounded-xl bg-primary text-white hover:bg-secondary transition-colors cursor-pointer"
-                    title="Sao chép mã"
+                    onClick={() => setShowPrizeModal(false)}
+                    className="w-full py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 text-xs font-semibold transition-colors cursor-pointer"
                   >
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    Đóng & tiếp tục xem ưu đãi
                   </button>
                 </div>
-              </div>
+              </>
+            ) : (
+              /* Won Prize Modal */
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 animate-bounce">
+                  <PartyPopper className="w-8 h-8" />
+                </div>
+
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  Chúc mừng bạn đã trúng
+                </span>
+
+                <h3 className="text-2xl font-extrabold font-title text-text-dark mt-3 mb-2">
+                  {wonPrize.text}
+                </h3>
+
+                <p className="text-xs text-gray-500 mb-6">
+                  {wonPrize.description}
+                </p>
+
+                {/* Voucher Box */}
+                <div className="bg-bg-cream border-2 border-dashed border-primary/40 rounded-2xl p-4 mb-6">
+                  <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider block mb-1">
+                    Mã ưu đãi của bạn
+                  </span>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="font-mono text-xl sm:text-2xl font-black text-primary tracking-wider">
+                      {wonPrize.code}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCode(wonPrize.code)}
+                      className="p-2 rounded-xl bg-primary text-white hover:bg-secondary transition-colors cursor-pointer"
+                      title="Sao chép mã"
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPrizeModal(false);
+                      navigate('/booking');
+                    }}
+                    className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-hover transition-colors shadow-md shadow-accent/30 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Dùng ngay khi đặt phòng</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPrizeModal(false)}
+                    className="w-full py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Đóng & tiếp tục xem ưu đãi
+                  </button>
+                </div>
+              </>
             )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPrizeModal(false);
-                  navigate('/booking');
-                }}
-                className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-hover transition-colors shadow-md shadow-accent/30 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>Dùng ngay khi đặt phòng</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowPrizeModal(false)}
-                className="w-full py-2.5 rounded-xl text-gray-500 hover:bg-gray-100 text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Đóng & tiếp tục xem ưu đãi
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   Search, 
   BookOpen, 
@@ -20,6 +20,9 @@ const News = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [readingArticle, setReadingArticle] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const articlesGridRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // Filter articles based on Category & Search
   const filteredArticles = useMemo(() => {
@@ -34,6 +37,40 @@ const News = () => {
   }, [selectedCategory, searchQuery]);
 
   const featuredArticle = articlesList.find(a => a.featured) || articlesList[0];
+
+  // Search suggestions: articles matching the query
+  const searchSuggestions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return articlesList.filter(article =>
+      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      article.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      article.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    ).slice(0, 5);
+  }, [searchQuery]);
+
+  // Scroll to articles section when search query changes and has results
+  useEffect(() => {
+    if (searchQuery.trim() && filteredArticles.length > 0 && articlesGridRef.current) {
+      const timeout = setTimeout(() => {
+        articlesGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timeout);
+    }
+  }, [searchQuery, filteredArticles]);
+
+  const handleSearchSubmit = useCallback((e) => {
+    e.preventDefault();
+    setShowSuggestions(false);
+    if (searchQuery.trim() && filteredArticles.length > 0 && articlesGridRef.current) {
+      articlesGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [searchQuery, filteredArticles]);
+
+  const handleSuggestionClick = useCallback((article) => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+    setReadingArticle(article);
+  }, []);
 
   return (
     <div className="w-full pb-20">
@@ -53,24 +90,89 @@ const News = () => {
 
           {/* Search Bar */}
           <div className="mt-8 max-w-xl mx-auto relative">
-            <div className="relative flex items-center">
+            <form onSubmit={handleSearchSubmit} className="relative flex items-center">
               <Search className="w-5 h-5 text-gray-400 absolute left-4 pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => searchQuery.trim() && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 placeholder="Tìm kiếm: biếng ăn, cách chọn cát, lịch tiêm phòng..."
-                className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-white shadow-lg shadow-primary/5 text-text-dark text-sm placeholder:text-gray-400 focus:outline-hidden focus:ring-2 focus:ring-primary border border-emerald-100 transition-all"
+                className="w-full pl-12 pr-20 py-3.5 rounded-2xl bg-white shadow-lg shadow-primary/5 text-text-dark text-sm placeholder:text-gray-400 focus:outline-hidden focus:ring-2 focus:ring-primary border border-emerald-100 transition-all"
               />
               {searchQuery && (
                 <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-4 text-xs font-semibold text-gray-400 hover:text-gray-600"
+                  type="button"
+                  onClick={() => { setSearchQuery(''); setShowSuggestions(false); }}
+                  className="absolute right-14 text-xs font-semibold text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
                   Xóa
                 </button>
               )}
-            </div>
+              <button
+                type="submit"
+                className="absolute right-3 p-2 rounded-xl bg-primary text-white hover:bg-secondary transition-colors cursor-pointer"
+                title="Tìm kiếm"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </form>
+
+            {/* Search Suggestions Dropdown */}
+            {showSuggestions && searchQuery.trim() && searchSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-30">
+                <div className="p-2">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-3 py-1.5">Bài viết liên quan</p>
+                  {searchSuggestions.map((article) => (
+                    <button
+                      key={article.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleSuggestionClick(article)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary-light transition-colors text-left cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                        <img src={article.coverImage} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-dark truncate group-hover:text-primary transition-colors">
+                          {article.title}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">{article.categoryName} • {article.readTime}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary shrink-0" />
+                    </button>
+                  ))}
+                </div>
+                {filteredArticles.length > searchSuggestions.length && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setShowSuggestions(false);
+                      if (articlesGridRef.current) {
+                        articlesGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
+                    className="w-full py-2.5 bg-gray-50 text-xs font-semibold text-primary hover:bg-primary-light transition-colors cursor-pointer border-t border-gray-100"
+                  >
+                    Xem tất cả {filteredArticles.length} kết quả →
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showSuggestions && searchQuery.trim() && searchSuggestions.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-30 p-4 text-center">
+                <p className="text-sm text-gray-500">Không tìm thấy bài viết nào cho "<strong>{searchQuery}</strong>"</p>
+                <p className="text-xs text-gray-400 mt-1">Thử từ khóa khác: biếng ăn, cát mèo, tiêm phòng...</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -164,7 +266,7 @@ const News = () => {
         </section>
 
         {/* Articles Grid */}
-        <section>
+        <section ref={articlesGridRef}>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-2xl font-bold font-title text-text-dark">
@@ -272,7 +374,7 @@ const News = () => {
               Gọi hotline tư vấn
             </a>
             <a
-              href="https://zalo.me"
+              href="https://zalo.me/0909123456"
               target="_blank"
               rel="noreferrer"
               className="px-6 py-3.5 rounded-2xl bg-white border border-gray-200 text-text-dark text-sm font-bold hover:bg-gray-50 transition-all text-center"
