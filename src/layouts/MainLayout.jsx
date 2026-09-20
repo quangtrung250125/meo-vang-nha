@@ -6,11 +6,16 @@ import FloatingContactButtons from '../../Chi/FloatingContactButtons';
 import CustomerWelcomeModal from '../components/CustomerWelcomeModal';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 import { usePetProfile } from '../contexts/PetContext';
+import SearchModal from '../components/SearchModal';
+import PolicyModal from '../components/PolicyModal';
+import AuthModal from '../components/AuthModal';
+import { useUI } from '../contexts/UIContext';
 
 const MainLayout = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const { registerCustomer } = useCustomerProfile();
   const { petList, savePet } = usePetProfile();
+  const { isAuthOpen, closeAuth } = useUI();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsWelcomeOpen(true), 3000);
@@ -62,6 +67,9 @@ const MainLayout = () => {
       </main>
       <Footer />
       <FloatingContactButtons />
+      <SearchModal />
+      <PolicyModal />
+      <AuthModal isOpen={isAuthOpen} onClose={closeAuth} />
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, PawPrint } from 'lucide-react';
+import { MapPin, PawPrint, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const ADDRESS = 'Số 14 ngõ Hàng Bột, Cát Linh, Đống Đa, Hanoi, Vietnam, 11500';
@@ -8,7 +8,21 @@ const MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent(ADDRES
 
 const Footer = () => {
   return (
-    <footer className="bg-bg-beige pt-16 pb-6 mt-auto border-t border-gray-100">
+    <>
+      <div className="bg-[#cf750c] text-white text-sm py-3 px-4 font-medium border-t border-amber-500">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-3">
+          <div className="flex items-center gap-2 text-center sm:text-left">
+            <Clock className="w-5 h-5 text-amber-200 shrink-0" />
+            <span>
+              Giờ mở cửa: <strong className="underline decoration-amber-300 text-base">08:30 - 19:30</strong> <span className="hidden sm:inline">(Nhận/trả ngoài giờ: <i className="text-amber-100">Cần liên hệ trước</i>)</span>
+            </span>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-amber-100 italic text-sm font-normal">
+            Hân hạnh phục vụ các bé và gia đình!
+          </div>
+        </div>
+      </div>
+      <footer id="footer" className="bg-[#2d1a0e] text-amber-100/90 pt-12 pb-8 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.5fr_0.8fr_1fr_1.4fr] gap-8 lg:gap-10 mb-8">
           <div className="col-span-1 md:col-span-2">
@@ -77,7 +91,8 @@ const Footer = () => {
           <img src="/images/LogoMeoVangNha/813939190_1681772440267304_6167511068586325652_n.png" alt="Mèo Vắng Nhà" className="footer-mark" />
         </div>
       </div>
-    </footer>
+      </footer>
+    </>
   );
 };
 
