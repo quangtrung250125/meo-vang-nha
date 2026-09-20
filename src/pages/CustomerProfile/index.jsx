@@ -5,7 +5,7 @@ import {
   ShieldCheck, Heart, Sparkles, PawPrint, Eye, ArrowRight, 
   Clock, MapPin, Phone, Mail, Gift, ChevronRight, Download, 
   RefreshCw, Star, Info, AlertCircle, Camera, Check, CreditCard,
-  UserCheck
+  UserCheck, Crown
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
