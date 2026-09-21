@@ -125,10 +125,10 @@ const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
           <div className="h-14 w-14 rounded-full bg-red-100 flex items-center justify-center"><AlertTriangle className="h-7 w-7 text-red-500" /></div>
           <div>
             <h3 className="font-black text-gray-800 text-lg">Xác nhận hủy đơn?</h3>
-            <p className="text-sm text-gray-500 mt-1">Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị hủy vĩnh viễn.</p>
+            <p className="text-sm text-gray-500 mt-1">Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị hủy.</p>
           </div>
           <div className="flex gap-3 w-full mt-2">
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Quay lại</button>
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Đóng</button>
             <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-sm shadow-lg shadow-red-200 transition-all hover:scale-[1.02]">Xác nhận hủy</button>
           </div>
         </div>

@@ -294,7 +294,7 @@ export const RoomStateProvider = ({ children }) => {
   }, []);
 
   /**
-   * Xóa đơn đặt phòng khỏi hệ thống
+   * Hủy / xóa đơn đặt phòng khỏi hệ thống
    */
   const removeBooking = useCallback((roomId, code) => {
     setBookings((prev) => {
