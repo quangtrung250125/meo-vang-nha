@@ -2,9 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle, Download, Home, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
-import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
-
+import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
+import { useRoomState, determineBookingStatus } from './RoomStateContext';
 
 const Step5Success = ({ data }) => {
   const [bookingId, setBookingId] = useState('');
@@ -40,7 +39,6 @@ const Step5Success = ({ data }) => {
     });
 
     // ── Đồng bộ sang Admin Tình trạng phòng ──
-    // Xác định phòng từ bookingData (data.selectedRoom.id là 'VIP-03' dạng thực tế)
     const roomId = data.selectedRoom?.id;
     if (roomId) {
       const bookingStatus = determineBookingStatus(data.checkIn);
@@ -94,7 +92,7 @@ const Step5Success = ({ data }) => {
             value={`https://meovangnha.vn/booking/${bookingId}`}
             size={180}
             level="H"
-            fgColor="#1E293B" // text-dark
+            fgColor="#1E293B"
           />
         </div>
 
