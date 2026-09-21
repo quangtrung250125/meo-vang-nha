@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
@@ -109,7 +109,7 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
   );
 };
 
-// Xác nhận xóa đơn
+// Xác nhận hủy đơn
 const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -124,12 +124,12 @@ const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
         <div className="flex flex-col items-center text-center gap-3">
           <div className="h-14 w-14 rounded-full bg-red-100 flex items-center justify-center"><AlertTriangle className="h-7 w-7 text-red-500" /></div>
           <div>
-            <h3 className="font-black text-gray-800 text-lg">Xác nhận xóa đơn?</h3>
-            <p className="text-sm text-gray-500 mt-1">Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị xóa vĩnh viễn.</p>
+            <h3 className="font-black text-gray-800 text-lg">Xác nhận hủy đơn?</h3>
+            <p className="text-sm text-gray-500 mt-1">Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị hủy vĩnh viễn.</p>
           </div>
           <div className="flex gap-3 w-full mt-2">
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Hủy</button>
-            <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-sm shadow-lg shadow-red-200 transition-all hover:scale-[1.02]">Xác nhận xóa</button>
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Quay lại</button>
+            <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-sm shadow-lg shadow-red-200 transition-all hover:scale-[1.02]">Xác nhận hủy</button>
           </div>
         </div>
       </div>
@@ -310,7 +310,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
 
   const handleDeleteConfirm = () => {
     onDelete(roomId, code);
-    showToast(`🗑️ Đã xóa đơn ${code}`, "error");
+    showToast(`🗑️ Đã hủy đơn ${code}`, "error");
     setShowDeleteConfirm(false);
     setTimeout(() => onClose(), 1200);
   };
@@ -399,7 +399,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
               </button>
               <button id={`btn-delete-booking-${code}`} onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-500 hover:text-white hover:border-red-500 hover:scale-[1.02] transition-all">
-                <Trash2 className="h-4 w-4" />Xóa đơn
+                <Trash2 className="h-4 w-4" />Hủy đơn
               </button>
             </div>
           </div>
