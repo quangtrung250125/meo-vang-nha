@@ -32,14 +32,53 @@ export const ROOM_CONFIG = [
 // ─────────────────────────────────────────────
 // Dữ liệu booking khởi tạo (sạch, không có mã BK)
 // ─────────────────────────────────────────────
-const INITIAL_BOOKINGS = {
-  'VIP-01': [],
-  'VIP-02': [],
+export const INITIAL_BOOKINGS = {
+  'VIP-01': [
+    {
+      code: 'MVN-2026-8891',
+      cats: 1,
+      status: 'đang ở',
+      ownerName: 'Nguyễn Đức An',
+      ownerPhone: '0376131531',
+      ownerTier: 'Vàng',
+      catNames: 'Bé Miu Miu',
+      checkIn: '2026-09-20',
+      checkOut: '2026-09-24',
+      packages: ['Gói Chăm Sóc Toàn Diện', 'Combo Spa'],
+    },
+  ],
+  'VIP-02': [
+    {
+      code: 'MVN-2026-8420',
+      cats: 2,
+      status: 'đang ở',
+      ownerName: 'Trần Thị Mai',
+      ownerPhone: '0912345678',
+      ownerTier: 'Bạch_Kim',
+      catNames: 'Bánh Bao, Đậu Phộng',
+      checkIn: '2026-09-21',
+      checkOut: '2026-09-25',
+      packages: ['Gói Cơ Bản', 'Tắm & Vệ Sinh'],
+    },
+  ],
   'VIP-03': [],
   'VIP-04': [],
   'VIP-05': [],
   'VIP-06': [],
-  'VVIP-01': [],
+  'VVIP-01': [
+    {
+      code: 'MVN-2026-7734',
+      cats: 2,
+      status: 'check-in',
+      ownerName: 'Lê Hoàng Long',
+      ownerPhone: '0988776655',
+      ownerTier: 'Kim_Cương',
+      catNames: 'Sữa, Cà Phê',
+      checkIn: '2026-09-23',
+      checkOut: '2026-09-28',
+      packages: ['Gói VIP Hoàng Gia', 'Khám Sức Khỏe'],
+    },
+  ],
   'VVIP-02': [],
   'VVIP-03': [],
   'DELUXE-01': [],
@@ -101,10 +140,15 @@ const getInitialBookings = () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       const cleaned = { ...INITIAL_BOOKINGS };
+      let hasAny = false;
       Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
-        cleaned[roomId] = (parsed[roomId] || []).filter((b) => !b.code?.includes('BK'));
+        const list = (parsed[roomId] || []).filter((b) => !b.code?.includes('BK'));
+        if (list.length > 0) hasAny = true;
+        cleaned[roomId] = list;
       });
-      return cleaned;
+      if (hasAny) {
+        return cleaned;
+      }
     }
   } catch (e) {
     console.error('Failed to load bookings from storage', e);
@@ -258,6 +302,17 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {
         console.error('Failed to update booking in localStorage', e);
       }
+      try {
+        const savedHist = localStorage.getItem('bookingHistory');
+        if (savedHist) {
+          const list = JSON.parse(savedHist);
+          if (Array.isArray(list)) {
+            const nextList = list.map(item => (item.id === code || item.code === code) ? { ...item, ...updates } : item);
+            localStorage.setItem('bookingHistory', JSON.stringify(nextList));
+          }
+        }
+      } catch (e) {}
+
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code, updates, allBookings: updated });
       }
@@ -307,6 +362,17 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {
         console.error('Failed to remove booking', e);
       }
+      try {
+        const savedHist = localStorage.getItem('bookingHistory');
+        if (savedHist) {
+          const list = JSON.parse(savedHist);
+          if (Array.isArray(list)) {
+            const nextList = list.filter(item => item.id !== code && item.code !== code);
+            localStorage.setItem('bookingHistory', JSON.stringify(nextList));
+          }
+        }
+      } catch (e) {}
+
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });
       }

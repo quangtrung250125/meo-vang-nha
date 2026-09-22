@@ -4,12 +4,13 @@ import { CheckCircle, Download, Home, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
-
+import { useCustomerProfile } from '../../contexts/CustomerContext';
 
 const Step5Success = ({ data }) => {
   const [bookingId, setBookingId] = useState('');
   const { addBooking } = useBookingHistory();
   const { addNewBooking } = useRoomState();
+  const { customerProfile, authenticatedCustomer } = useCustomerProfile?.() || {};
   const hasAdded = useRef(false);
 
   // Kiểm tra Thứ 5
@@ -27,30 +28,51 @@ const Step5Success = ({ data }) => {
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
 
-    // Save to booking history context
-    addBooking({
+    // Xác định thông tin chủ nuôi từ context hoặc localStorage
+    const activeCustomer = customerProfile || authenticatedCustomer;
+    const ownerName = activeCustomer?.fullName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+
+    // Tên các bé mèo
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+
+    // Gói dịch vụ đã chọn
+    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+
+    // Đối tượng đơn đặt phòng hoàn chỉnh
+    const fullBookingRecord = {
       id: newId,
+      code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
+      packages: [packageName],
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
-      createdAt: new Date().toISOString()
-    });
+      status: bookingStatus,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to booking history context
+    addBooking(fullBookingRecord);
 
     // ── Đồng bộ sang Admin Tình trạng phòng ──
-    // Xác định phòng từ bookingData (data.selectedRoom.id là 'VIP-03' dạng thực tế)
     const roomId = data.selectedRoom?.id;
     if (roomId) {
-      const bookingStatus = determineBookingStatus(data.checkIn);
-      addNewBooking(roomId, {
-        code: newId,
-        cats: data.catCount || data.petProfiles?.length || 1,
-        status: bookingStatus,
-      });
+      addNewBooking(roomId, fullBookingRecord);
     }
-  }, [addBooking, addNewBooking, data]);
+  }, [addBooking, addNewBooking, data, customerProfile, authenticatedCustomer]);
 
   if (!bookingId) return null;
 
