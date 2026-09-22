@@ -677,7 +677,7 @@ const TrackingPage = () => {
                   <span className="bg-primary text-white text-xs font-bold px-2.5 py-0.5 rounded-full">Đang lưu trú</span>
                 </div>
                 <p className="text-gray-600 text-sm mb-3">
-                  {activeBooking.selectedPackage?.name || 'Gói lưu trú'}
+                  {(activeBooking.selectedPackage?.name && activeBooking.selectedPackage.name !== 'Gói Tiêu Chuẩn') ? activeBooking.selectedPackage.name : 'Gói Mèo Quý Tộc'}
                   {activeBooking.selectedRoom?.name ? ` • Phòng ${activeBooking.selectedRoom.name}` : ''}
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm">

@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
 import { Package, Utensils, Droplets, Camera, Home, Sparkles, Plus, ChevronDown, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { packagesList } from '../mockData/servicesData';
+
+export const formatPackagePrice = (price) => {
+  if (price === undefined || price === null || price === '') return '';
+  const num = typeof price === 'number' ? price : parseInt(String(price).replace(/\D/g, ''), 10);
+  if (!isNaN(num) && num > 0) {
+    return `${num.toLocaleString('vi-VN')}đ/ngày`;
+  }
+  let s = String(price).trim();
+  if (!s.includes('đ')) s += 'đ';
+  if (!s.includes('/ngày')) s += '/ngày';
+  return s;
+};
+
+const getFeatureIcon = (text = '') => {
+  const t = text.toLowerCase();
+  if (t.includes('ăn') || t.includes('bữa') || t.includes('pate') || t.includes('hạt')) return Utensils;
+  if (t.includes('vệ sinh') || t.includes('cát') || t.includes('dọn')) return Droplets;
+  if (t.includes('camera')) return Camera;
+  if (t.includes('đón') || t.includes('phòng') || t.includes('vip') || t.includes('deluxe')) return Home;
+  if (t.includes('tắm') || t.includes('spa')) return Sparkles;
+  return CheckCircle2;
+};
 
 export const ADDONS = {
   room: {
@@ -35,14 +58,33 @@ export const ADDONS = {
 };
 
 const PackageBlock = ({ booking }) => {
-  const pkg = booking?.selectedPackage;
+  const rawPkg = booking?.selectedPackage;
   const room = booking?.selectedRoom;
-  const perks = [
-    { icon: Utensils, text: '3 bữa ăn/ngày (sáng, trưa, tối)' },
-    { icon: Droplets, text: 'Dọn vệ sinh 2 lần/ngày' },
-    { icon: Camera, text: 'Camera included' },
-    { icon: Home, text: 'Đưa đón miễn phí trong bán kính 5km' },
-  ];
+
+  // Lấy danh sách gói lưu trú thực tế từ thẻ dịch vụ
+  const stayPackages = packagesList.filter(p => p.category === 'Lưu trú');
+
+  // Tìm gói dịch vụ thực tế trong thẻ dịch vụ dựa vào id hoặc tên
+  const matchedServicePkg = stayPackages.find(
+    p => p.id === rawPkg?.id || (rawPkg?.name && p.name.toLowerCase() === rawPkg.name.toLowerCase())
+  );
+
+  // Nếu booking có gói không tồn tại trong thẻ dịch vụ (như "Gói Tiêu Chuẩn" bị đặt trước đây),
+  // tự động chuẩn hóa sang gói lưu trú thực tế có sẵn từ thẻ dịch vụ
+  const realPkg = matchedServicePkg || (rawPkg?.name && rawPkg.name !== 'Gói Tiêu Chuẩn' ? rawPkg : stayPackages[0]);
+
+  const displayName = (rawPkg?.name && rawPkg.name !== 'Gói Tiêu Chuẩn') ? rawPkg.name : realPkg.name;
+  const displayPrice = formatPackagePrice(rawPkg?.price || realPkg.price);
+
+  // Lấy quyền lợi thực tế từ gói dịch vụ có sẵn ở thẻ dịch vụ
+  const features = (matchedServicePkg?.features && matchedServicePkg.features.length > 0)
+    ? matchedServicePkg.features
+    : (realPkg.features || [
+        'Phòng sạch sẽ, thông thoáng chuẩn 5 sao',
+        'Chế độ dinh dưỡng khoa học hàng ngày',
+        'Cát vệ sinh khử khuẩn dọn dẹp thường xuyên',
+        'Camera theo dõi 24/24'
+      ]);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -55,21 +97,21 @@ const PackageBlock = ({ booking }) => {
           <span className="text-2xl">🐱</span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-text-dark text-base">{pkg?.name || 'Gói Tiêu Chuẩn'}</p>
-          <p className="text-primary font-bold text-sm">{pkg?.price || '150.000đ'}/ngày</p>
+          <p className="font-bold text-text-dark text-base">{displayName}</p>
+          <p className="text-primary font-bold text-sm">{displayPrice}</p>
           {room && <p className="text-xs text-gray-500 mt-0.5">Phòng: {room.name}</p>}
         </div>
       </div>
       <div className="space-y-2.5">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Quyền lợi đi kèm</p>
-        {perks.map((perk, i) => {
-          const Icon = perk.icon;
+        {features.map((feat, i) => {
+          const Icon = getFeatureIcon(feat);
           return (
             <div key={i} className="flex items-center gap-2.5">
               <div className="w-6 h-6 bg-primary-light rounded-lg flex items-center justify-center shrink-0">
                 <Icon className="w-3.5 h-3.5 text-primary" />
               </div>
-              <span className="text-sm text-gray-700">{perk.text}</span>
+              <span className="text-sm text-gray-700">{feat}</span>
               <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />
             </div>
           );
