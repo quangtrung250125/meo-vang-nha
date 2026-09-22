@@ -64,17 +64,19 @@ const CustomerWelcomeModal = ({ isOpen, onClose, onSubmit }) => {
         setStep(2);
     };
 
-    const handlePasswordStep = (event) => {
+    const handlePasswordStep = async (event) => {
         event.preventDefault();
         setPasswordError('');
 
         if (existingCustomer) {
-            if (!authenticateCustomer(formData.phone, formData.password)) {
-                setPasswordError('Mật khẩu không đúng. Vui lòng thử lại.');
+            try {
+                await authenticateCustomer(formData.phone, formData.password);
+                setStep(3);
+                return;
+            } catch (err) {
+                setPasswordError(err.message || 'Mật khẩu không đúng. Vui lòng thử lại.');
                 return;
             }
-            setStep(3);
-            return;
         }
 
         if (formData.password.length < 6) {
