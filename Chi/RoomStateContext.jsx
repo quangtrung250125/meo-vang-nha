@@ -86,11 +86,6 @@ export const INITIAL_BOOKINGS = {
 };
 
 // ─────────────────────────────────────────────
-// Storage schema version: Tự động migrate khi có thay đổi cấu trúc dữ liệu
-// ─────────────────────────────────────────────
-const STORAGE_VERSION = 'v2_date_filtered';
-
-// ─────────────────────────────────────────────
 // Helper: Chuẩn hóa ngày về dạng YYYY-MM-DD
 // ─────────────────────────────────────────────
 export function formatDateKey(date) {
@@ -132,36 +127,33 @@ export function formatDateKey(date) {
 
 // ─────────────────────────────────────────────
 // Helper: Kiểm tra đơn đặt phòng có hiệu lực trên ngày đang xem hay không
-// Quy tắc: Ngày đang xem nằm trong khoảng lưu trú [checkIn, checkOut]
-// Nếu đơn không có ngày checkIn/checkOut → ẩn khỏi ô phòng (tránh hiển thị sai)
+// Quy tắc hiển thị: Ngày đang xem nằm trong khoảng lưu trú [checkIn, checkOut]
+// Không làm thay đổi hay sửa đổi dữ liệu/mã của các booking đã lưu
 // ─────────────────────────────────────────────
 export function isBookingActiveOnDate(booking, targetDate) {
   if (!booking) return false;
-  if (!targetDate) return true; // Không truyền ngày thì hiển thị hết (chế độ không lọc)
+  if (!targetDate) return true; // Không truyền ngày thì hiển thị
   const tKey = formatDateKey(targetDate);
   if (!tKey) return true;
 
-  // Lấy ngày nhận và ngày trả (hỗ trợ nhiều tên trường khác nhau nếu có)
-  let rawIn = booking.checkIn || booking.checkInDate || booking.check_in;
-  let rawOut = booking.checkOut || booking.checkOutDate || booking.check_out;
+  // Lấy ngày nhận và ngày trả của booking (không thay đổi booking gốc)
+  let inKey = formatDateKey(booking.checkIn || booking.checkInDate || booking.check_in);
+  let outKey = formatDateKey(booking.checkOut || booking.checkOutDate || booking.check_out);
 
-  // Nếu thiếu ngày nhưng trùng mã đơn mẫu ban đầu → tự động điền ngày mẫu
-  if ((!rawIn || !rawOut) && booking.code) {
+  // Nếu là booking ban đầu mà dữ liệu cũ thiếu trường ngày, tra cứu ngày gốc tương ứng
+  if ((!inKey || !outKey) && booking.code) {
     for (const rid of Object.keys(INITIAL_BOOKINGS)) {
       const found = INITIAL_BOOKINGS[rid].find((b) => b.code === booking.code);
       if (found) {
-        rawIn = rawIn || found.checkIn;
-        rawOut = rawOut || found.checkOut;
+        inKey = inKey || formatDateKey(found.checkIn);
+        outKey = outKey || formatDateKey(found.checkOut);
         break;
       }
     }
   }
 
-  const inKey = formatDateKey(rawIn);
-  const outKey = formatDateKey(rawOut);
-
-  // Nếu đơn vẫn không có ngày hợp lệ → tuyệt đối ẩn đi
-  if (!inKey || !outKey) return false;
+  // Nếu không xác định được ngày, vẫn giữ hiển thị (bảo toàn booking trước đó)
+  if (!inKey || !outKey) return true;
 
   // Quy tắc: Ngày đang xem nằm trong khoảng [checkIn, checkOut]
   return tKey >= inKey && tKey <= outKey;
@@ -223,41 +215,37 @@ const getInitialMaintenance = () => {
   }
 };
 
+/**
+ * Khởi tạo danh sách booking:
+ * Giữ nguyên 100% tất cả các booking trước đó từ localStorage và mã của từng booking,
+ * tuyệt đối không xóa, không ghi đè và không làm thay đổi các booking đã lưu.
+ */
 const getInitialBookings = () => {
   try {
-    // Tự động nâng cấp schema version: nếu là dữ liệu phiên bản cũ thiếu ngày → reset về INITIAL_BOOKINGS
-    const version = localStorage.getItem('mvn_room_bookings_version');
-    if (version !== STORAGE_VERSION) {
-      localStorage.setItem('mvn_room_bookings', JSON.stringify(INITIAL_BOOKINGS));
-      localStorage.setItem('mvn_room_bookings_version', STORAGE_VERSION);
-      return INITIAL_BOOKINGS;
-    }
-
     const saved = localStorage.getItem('mvn_room_bookings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      const merged = { ...INITIAL_BOOKINGS };
+      const result = { ...INITIAL_BOOKINGS };
+      let hasAny = false;
 
+      // Giữ nguyên vẹn toàn bộ danh sách booking trước đó từ storage
       Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
-        const storedList = (parsed[roomId] || []).filter((b) => {
-          if (b.code?.includes('BK')) return false;
-          // Chỉ chấp nhận booking có ngày hợp lệ từ localStorage
-          const inKey = formatDateKey(b.checkIn || b.checkInDate);
-          const outKey = formatDateKey(b.checkOut || b.checkOutDate);
-          return inKey.length === 10 && outKey.length === 10;
-        });
-
-        if (storedList.length > 0) {
-          const initList = INITIAL_BOOKINGS[roomId] || [];
-          const storedCodes = new Set(storedList.map((b) => b.code));
-          const missingInitial = initList.filter((b) => !storedCodes.has(b.code));
-          merged[roomId] = [...missingInitial, ...storedList];
-        } else {
-          merged[roomId] = INITIAL_BOOKINGS[roomId] || [];
+        if (Array.isArray(parsed[roomId]) && parsed[roomId].length > 0) {
+          hasAny = true;
+          result[roomId] = parsed[roomId];
         }
       });
 
-      return merged;
+      // Bảo toàn cả các phòng khác nếu có trong storage
+      Object.keys(parsed).forEach((roomId) => {
+        if (!result[roomId] && Array.isArray(parsed[roomId])) {
+          result[roomId] = parsed[roomId];
+        }
+      });
+
+      if (hasAny) {
+        return result;
+      }
     }
   } catch (e) {
     console.error('Failed to load bookings from storage', e);
@@ -579,15 +567,6 @@ export const RoomStateProvider = ({ children }) => {
     [bookings, maintenanceRooms]
   );
 
-  const resetDemoData = useCallback(() => {
-    localStorage.setItem('mvn_room_bookings', JSON.stringify(INITIAL_BOOKINGS));
-    localStorage.setItem('mvn_room_bookings_version', STORAGE_VERSION);
-    setBookings(INITIAL_BOOKINGS);
-    if (syncChannel) {
-      syncChannel.postMessage({ type: 'BOOKINGS_RESET', allBookings: INITIAL_BOOKINGS });
-    }
-  }, []);
-
   return (
     <RoomStateContext.Provider
       value={{
@@ -597,7 +576,6 @@ export const RoomStateProvider = ({ children }) => {
         checkInBooking,
         checkOutBooking,
         removeBooking,
-        resetDemoData,
         getRoomAvailability,
         newBookingIds,
         maintenanceRooms,
