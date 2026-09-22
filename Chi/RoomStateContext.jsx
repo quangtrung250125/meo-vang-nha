@@ -37,13 +37,13 @@ export const INITIAL_BOOKINGS = {
     {
       code: 'MVN-2026-8891',
       cats: 1,
-      status: 'đang ở',
+      status: 'check-in',
       ownerName: 'Nguyễn Đức An',
       ownerPhone: '0376131531',
       ownerTier: 'Vàng',
       catNames: 'Bé Miu Miu',
-      checkIn: '2026-09-20',
-      checkOut: '2026-09-24',
+      checkIn: '2026-09-22',
+      checkOut: '2026-09-25',
       packages: ['Gói Chăm Sóc Toàn Diện', 'Combo Spa'],
     },
   ],
@@ -51,13 +51,13 @@ export const INITIAL_BOOKINGS = {
     {
       code: 'MVN-2026-8420',
       cats: 2,
-      status: 'đang ở',
+      status: 'check-in',
       ownerName: 'Trần Thị Mai',
       ownerPhone: '0912345678',
       ownerTier: 'Bạch_Kim',
       catNames: 'Bánh Bao, Đậu Phộng',
-      checkIn: '2026-09-21',
-      checkOut: '2026-09-25',
+      checkIn: '2026-09-22',
+      checkOut: '2026-09-26',
       packages: ['Gói Cơ Bản', 'Tắm & Vệ Sinh'],
     },
   ],
@@ -101,15 +101,10 @@ export function getRoomStatus(roomId, bookings, isMaintenance) {
 
 // ─────────────────────────────────────────────
 // Helper: Xác định trạng thái booking dựa trên thời gian
+// Mặc định: 'check-in' (kể cả hôm nay là ngày nhận phòng)
+// Cho đến khi Admin bấm nút 'Check-in' mới chuyển sang 'đang ở'
 // ─────────────────────────────────────────────
 export function determineBookingStatus(checkIn) {
-  if (!checkIn) return 'check-in';
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  // Nếu ngày check-in bằng hôm nay hoặc trước đó -> đang ở, nếu ngày mai trở đi -> check-in
-  if (checkIn <= todayStr) {
-    return 'đang ở';
-  }
   return 'check-in';
 }
 
@@ -309,6 +304,7 @@ export const RoomStateProvider = ({ children }) => {
           if (Array.isArray(list)) {
             const nextList = list.map(item => (item.id === code || item.code === code) ? { ...item, ...updates } : item);
             localStorage.setItem('bookingHistory', JSON.stringify(nextList));
+            window.dispatchEvent(new Event('mvn_booking_sync'));
           }
         }
       } catch (e) {}
@@ -369,6 +365,7 @@ export const RoomStateProvider = ({ children }) => {
           if (Array.isArray(list)) {
             const nextList = list.filter(item => item.id !== code && item.code !== code);
             localStorage.setItem('bookingHistory', JSON.stringify(nextList));
+            window.dispatchEvent(new Event('mvn_booking_sync'));
           }
         }
       } catch (e) {}

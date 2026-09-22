@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { PawPrint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
-import { usePetProfile } from '../../contexts/PetContext';
+import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
+import { usePetProfile } from '../src/contexts/PetContext';
 
 const calculateBookingStatus = (booking) => {
   if (!booking) return 'Chưa rõ';
