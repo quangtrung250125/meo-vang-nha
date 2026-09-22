@@ -12,7 +12,7 @@ import {
   PlusCircle,
   Zap,
 } from 'lucide-react';
-import { useRoomState, ROOM_CONFIG, getRoomStatus, isBookingActiveOnDate } from './RoomStateContext';
+import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
 
 /**
@@ -210,23 +210,11 @@ const bookingStatusBadge = (status) => {
 // ─────────────────────────────────────────────
 // RoomCard Component
 // ─────────────────────────────────────────────
-const RoomCard = ({
-  room,
-  bookings,
-  isMaintenance,
-  onToggleMaintenance,
-  newBookingIds = new Set(),
-  onBookingClick,
-  selectedDate,
-}) => {
-  const allBks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
-  // Lọc theo ngày đang xem trên lịch: chỉ hiển thị mã đơn khi selectedDate nằm trong [checkIn, checkOut]
-  const bks = selectedDate
-    ? allBks.filter((b) => isBookingActiveOnDate(b, selectedDate))
-    : allBks;
+const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick }) => {
+  const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
   const totalCats = bks.reduce((s, b) => s + b.cats, 0);
-  const remaining = Math.max(0, room.capacity - totalCats);
-  const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
+  const remaining = room.capacity - totalCats;
+  const status = getRoomStatus(room.id, bookings, isMaintenance);
 
   /**
    * Màu nền ô phòng theo đúng spec:
@@ -456,10 +444,10 @@ const RoomStatusPage = () => {
 
   const isToday = isSameDay(selectedDate, new Date());
 
-  // Lọc phòng theo hạng & trạng thái theo Ngày đang xem trên thanh Toolbar
+  // Lọc phòng theo hạng & trạng thái
   const filteredRooms = ROOM_CONFIG.filter((room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
+    const status = getRoomStatus(room.id, bookings, isMaintenance);
 
     const statusMap = {
       Trống: 'empty',
@@ -482,10 +470,10 @@ const RoomStatusPage = () => {
     }))
     .filter((g) => g.rooms.length > 0);
 
-  // Thống kê nhanh theo Ngày đang xem
+  // Thống kê nhanh
   const stats = ROOM_CONFIG.reduce((acc, room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
+    const status = getRoomStatus(room.id, bookings, isMaintenance);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
@@ -695,7 +683,6 @@ const RoomStatusPage = () => {
                       onToggleMaintenance={handleToggleMaintenance}
                       newBookingIds={newBookingIds}
                       onBookingClick={handleBookingClick}
-                      selectedDate={selectedDate}
                     />
                   ))}
                 </div>
