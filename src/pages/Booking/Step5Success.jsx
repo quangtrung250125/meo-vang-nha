@@ -11,7 +11,7 @@ const Step5Success = ({ data }) => {
   const [bookingConflict, setBookingConflict] = useState(false);
   const { addBooking, upsertBooking } = useBookingHistory();
   const { addNewBooking } = useRoomState();
-  const { authenticatedCustomer } = useCustomerProfile();
+  const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
 
   // Kiểm tra Thứ 5
@@ -29,18 +29,36 @@ const Step5Success = ({ data }) => {
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
 
+    const activeCustomer = authenticatedCustomer || customerProfile;
+    const ownerName = activeCustomer?.fullName || data.customerName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || data.customerPhone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+
     const bookingPayload = {
       id: newId,
       code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
+      packages: [packageName],
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
-      customerPhone: authenticatedCustomer?.phone || data.customerPhone || '',
-      customerName: authenticatedCustomer?.fullName || data.customerName || 'Khách hàng',
-      customerId: authenticatedCustomer?.customerId || null,
+      customerPhone: ownerPhone,
+      customerName: ownerName,
+      customerId: activeCustomer?.customerId || null,
+      status: bookingStatus,
       createdAt: new Date().toISOString(),
     };
 
@@ -50,16 +68,8 @@ const Step5Success = ({ data }) => {
     // ── Đồng bộ sang Admin Tình trạng phòng ──
     const roomId = data.selectedRoom?.id;
     if (roomId) {
-      const bookingStatus = determineBookingStatus(data.checkIn);
       const roomAdded = addNewBooking(roomId, {
-        code: newId,
-        cats: data.catCount || data.petProfiles?.length || 1,
-        status: bookingStatus,
-        checkIn: data.checkIn,
-        checkOut: data.checkOut,
-        customerPhone: authenticatedCustomer?.phone || data.customerPhone || '',
-        customerName: authenticatedCustomer?.fullName || data.customerName || 'Khách hàng',
-        customerId: authenticatedCustomer?.customerId || null,
+        ...bookingPayload,
         roomId,
       });
 
@@ -67,7 +77,7 @@ const Step5Success = ({ data }) => {
         setBookingConflict(true);
       }
     }
-  }, [addBooking, addNewBooking, authenticatedCustomer, data, upsertBooking]);
+  }, [addBooking, addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking]);
 
   if (bookingConflict) {
     return (

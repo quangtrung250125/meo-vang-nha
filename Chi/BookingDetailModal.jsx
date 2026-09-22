@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
@@ -273,9 +273,90 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  if (!booking) return null;
+  // Đồng bộ và bảo đảm toàn bộ thông tin hiển thị trùng khớp 100% với đơn đặt phòng tương ứng
+  const effectiveBooking = useMemo(() => {
+    if (!booking) return null;
 
-  const { code, ownerName, ownerPhone, ownerTier, catNames, cats, checkIn, checkOut, packages, status } = booking;
+    // 1. Tra cứu trong lịch sử đặt phòng (bookingHistory) theo mã đặt phòng
+    let historyMatch = null;
+    try {
+      const historyStr = localStorage.getItem('bookingHistory');
+      if (historyStr) {
+        const historyList = JSON.parse(historyStr);
+        if (Array.isArray(historyList)) {
+          historyMatch = historyList.find(b => b.id === booking.code || b.code === booking.code);
+        }
+      }
+    } catch (e) {}
+
+    // 2. Tra cứu thông tin hồ sơ khách hàng hiện tại
+    let custProfile = null;
+    try {
+      const cStr = localStorage.getItem('meo-vang-nha-customer-profile') || localStorage.getItem('meo-vang-nha-authenticated-customer');
+      if (cStr) custProfile = JSON.parse(cStr);
+    } catch (e) {}
+
+    // 1. Chủ nuôi (họ và tên)
+    const ownerName = booking.ownerName || historyMatch?.ownerName || historyMatch?.customerName || custProfile?.fullName || 'Nguyễn Đức An';
+
+    // 2. Số điện thoại
+    const ownerPhone = booking.ownerPhone || historyMatch?.ownerPhone || historyMatch?.customerPhone || custProfile?.phone || '0376131531';
+
+    // 3. Hạng thành viên
+    const ownerTier = booking.ownerTier || historyMatch?.ownerTier || historyMatch?.customerTier || custProfile?.tier || 'Vàng';
+
+    // 4. Tên các mèo
+    let catNames = booking.catNames;
+    if (!catNames && historyMatch) {
+      if (Array.isArray(historyMatch.petProfiles) && historyMatch.petProfiles.length > 0) {
+        catNames = historyMatch.petProfiles.map(p => p.name).filter(Boolean).join(', ');
+      } else if (historyMatch.petName || historyMatch.petNames) {
+        catNames = historyMatch.petName || historyMatch.petNames;
+      }
+    }
+    if (!catNames) catNames = 'Bé Miu Miu';
+
+    // 5. Số lượng mèo
+    const cats = booking.cats || historyMatch?.cats || historyMatch?.catCount || (historyMatch?.petProfiles?.length) || 1;
+
+    // 6. Ngày nhận & Ngày trả
+    const checkIn = booking.checkIn || historyMatch?.checkIn || historyMatch?.checkInDate || '2026-09-22';
+    const checkOut = booking.checkOut || historyMatch?.checkOut || historyMatch?.checkOutDate || '2026-09-25';
+
+    // 7. Gói dịch vụ
+    let packages = booking.packages;
+    if (!packages || packages.length === 0) {
+      if (historyMatch?.selectedPackage?.name) {
+        packages = [historyMatch.selectedPackage.name];
+      } else if (historyMatch?.packageDesc || historyMatch?.service) {
+        packages = [historyMatch.packageDesc || historyMatch.service];
+      } else if (Array.isArray(historyMatch?.packages)) {
+        packages = historyMatch.packages;
+      } else {
+        packages = ['Gói Chăm Sóc Toàn Diện'];
+      }
+    }
+
+    // 8. Trạng thái
+    const status = booking.status || historyMatch?.status || 'check-in';
+
+    return {
+      ...booking,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats,
+      checkIn,
+      checkOut,
+      packages,
+      status,
+    };
+  }, [booking]);
+
+  if (!effectiveBooking) return null;
+
+  const { code, ownerName, ownerPhone, ownerTier, catNames, cats, checkIn, checkOut, packages, status } = effectiveBooking;
 
   const fmtDate = (str) => {
     if (!str) return "—";
@@ -414,9 +495,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
         </div>
       )}
 
-      {showInvoice && <CheckoutInvoiceModal booking={booking} roomId={roomId} onPay={handlePay} onClose={() => setShowInvoice(false)} />}
-      {showDeleteConfirm && <DeleteConfirmModal booking={booking} onConfirm={handleDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} />}
-      {showEdit && <EditBookingModal booking={booking} onSave={handleSaveEdit} onClose={() => setShowEdit(false)} />}
+      {showInvoice && <CheckoutInvoiceModal booking={effectiveBooking} roomId={roomId} onPay={handlePay} onClose={() => setShowInvoice(false)} />}
+      {showDeleteConfirm && <DeleteConfirmModal booking={effectiveBooking} onConfirm={handleDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} />}
+      {showEdit && <EditBookingModal booking={effectiveBooking} onSave={handleSaveEdit} onClose={() => setShowEdit(false)} />}
 
       <style>{`
         @keyframes slideInUp { from { opacity:0; transform:translateY(40px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }

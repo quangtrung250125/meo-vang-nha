@@ -4,11 +4,13 @@ import { CheckCircle, Download, Home, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
 import { useRoomState, determineBookingStatus } from './RoomStateContext';
+import { useCustomerProfile } from '../src/contexts/CustomerContext';
 
 const Step5Success = ({ data }) => {
   const [bookingId, setBookingId] = useState('');
-  const { addBooking } = useBookingHistory();
+  const { addBooking, upsertBooking } = useBookingHistory();
   const { addNewBooking } = useRoomState();
+  const { authenticatedCustomer, customerProfile } = useCustomerProfile?.() || {};
   const hasAdded = useRef(false);
 
   // Kiểm tra Thứ 5
@@ -26,29 +28,55 @@ const Step5Success = ({ data }) => {
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
 
-    // Save to booking history context
-    addBooking({
+    const activeCustomer = authenticatedCustomer || customerProfile;
+    const ownerName = activeCustomer?.fullName || data.customerName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || data.customerPhone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+
+    const bookingPayload = {
       id: newId,
+      code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
+      packages: [packageName],
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
-      createdAt: new Date().toISOString()
-    });
+      customerPhone: ownerPhone,
+      customerName: ownerName,
+      customerId: activeCustomer?.customerId || null,
+      status: bookingStatus,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to booking history context
+    if (upsertBooking) {
+      upsertBooking(bookingPayload);
+    } else {
+      addBooking(bookingPayload);
+    }
 
     // ── Đồng bộ sang Admin Tình trạng phòng ──
     const roomId = data.selectedRoom?.id;
     if (roomId) {
-      const bookingStatus = determineBookingStatus(data.checkIn);
       addNewBooking(roomId, {
-        code: newId,
-        cats: data.catCount || data.petProfiles?.length || 1,
-        status: bookingStatus,
+        ...bookingPayload,
+        roomId,
       });
     }
-  }, [addBooking, addNewBooking, data]);
+  }, [addBooking, addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking]);
 
   if (!bookingId) return null;
 

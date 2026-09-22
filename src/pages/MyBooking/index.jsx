@@ -4,22 +4,32 @@ import { useNavigate } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 
-const calculateBookingStatus = (checkInDate, checkOutDate) => {
-  if (!checkInDate || !checkOutDate) return 'Chưa rõ';
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const checkIn = new Date(checkInDate);
-  checkIn.setHours(0, 0, 0, 0);
-  
-  const checkOut = new Date(checkOutDate);
-  checkOut.setHours(23, 59, 59, 999);
-  
-  if (today < checkIn) return 'Sắp tới';
-  if (today >= checkIn && today <= checkOut) return 'Đang lưu trú';
-  if (today > checkOut) return 'Đã hoàn tất';
-  return 'Chưa rõ';
+const calculateBookingStatus = (booking) => {
+  if (!booking) return 'Chưa rõ';
+
+  // 1. Khi Admin bấm 'Check-in' -> status chuyển thành 'đang ở' -> hiển thị 'Đang lưu trú'
+  if (booking.status === 'đang ở' || booking.status === 'Đang lưu trú') {
+    return 'Đang lưu trú';
+  }
+
+  // 2. Khi Admin bấm 'Check-out' hoặc đơn hoàn tất -> hiển thị 'Đã hoàn tất'
+  if (booking.status === 'check-out' || booking.status === 'Đã hoàn tất' || booking.status === 'hoàn tất') {
+    return 'Đã hoàn tất';
+  }
+
+  // 3. Mặc định ban đầu (kể cả hôm nay là ngày nhận phòng): luôn ở trạng thái 'Sắp tới'
+  // Cho đến khi Admin bấm nút 'Check-in' trong ô chi tiết đặt phòng mới chuyển thành 'Đang lưu trú'
+  if (booking.checkOut) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.checkOut);
+    checkOut.setHours(23, 59, 59, 999);
+    if (today > checkOut) {
+      return 'Đã hoàn tất';
+    }
+  }
+
+  return 'Sắp tới';
 };
 
 const MyBooking = () => {
@@ -32,7 +42,7 @@ const MyBooking = () => {
 
   const processedBookings = globalBookingList.map(booking => ({
     ...booking,
-    dynamicStatus: calculateBookingStatus(booking.checkIn, booking.checkOut)
+    dynamicStatus: calculateBookingStatus(booking)
   }));
 
   const filteredBookings = processedBookings.filter(booking => {
