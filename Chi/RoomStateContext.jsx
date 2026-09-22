@@ -86,13 +86,98 @@ export const INITIAL_BOOKINGS = {
 };
 
 // ─────────────────────────────────────────────
-// Helper: Tính trạng thái phòng
+// Storage schema version: Tự động migrate khi có thay đổi cấu trúc dữ liệu
 // ─────────────────────────────────────────────
-export function getRoomStatus(roomId, bookings, isMaintenance) {
+const STORAGE_VERSION = 'v2_date_filtered';
+
+// ─────────────────────────────────────────────
+// Helper: Chuẩn hóa ngày về dạng YYYY-MM-DD
+// ─────────────────────────────────────────────
+export function formatDateKey(date) {
+  if (!date) return '';
+  if (date instanceof Date && !isNaN(date.getTime())) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof date === 'string') {
+    const trimmed = date.trim();
+    // YYYY-MM-DD hoặc YYYY-MM-DDTHH:mm:ss
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) {
+      const parts = trimmed.split('T')[0].split('-');
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    // DD/MM/YYYY
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed)) {
+      const parts = trimmed.split('/');
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2];
+      return `${y}-${m}-${d}`;
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return '';
+}
+
+// ─────────────────────────────────────────────
+// Helper: Kiểm tra đơn đặt phòng có hiệu lực trên ngày đang xem hay không
+// Quy tắc: Ngày đang xem nằm trong khoảng lưu trú [checkIn, checkOut]
+// Nếu đơn không có ngày checkIn/checkOut → ẩn khỏi ô phòng (tránh hiển thị sai)
+// ─────────────────────────────────────────────
+export function isBookingActiveOnDate(booking, targetDate) {
+  if (!booking) return false;
+  if (!targetDate) return true; // Không truyền ngày thì hiển thị hết (chế độ không lọc)
+  const tKey = formatDateKey(targetDate);
+  if (!tKey) return true;
+
+  // Lấy ngày nhận và ngày trả (hỗ trợ nhiều tên trường khác nhau nếu có)
+  let rawIn = booking.checkIn || booking.checkInDate || booking.check_in;
+  let rawOut = booking.checkOut || booking.checkOutDate || booking.check_out;
+
+  // Nếu thiếu ngày nhưng trùng mã đơn mẫu ban đầu → tự động điền ngày mẫu
+  if ((!rawIn || !rawOut) && booking.code) {
+    for (const rid of Object.keys(INITIAL_BOOKINGS)) {
+      const found = INITIAL_BOOKINGS[rid].find((b) => b.code === booking.code);
+      if (found) {
+        rawIn = rawIn || found.checkIn;
+        rawOut = rawOut || found.checkOut;
+        break;
+      }
+    }
+  }
+
+  const inKey = formatDateKey(rawIn);
+  const outKey = formatDateKey(rawOut);
+
+  // Nếu đơn vẫn không có ngày hợp lệ → tuyệt đối ẩn đi
+  if (!inKey || !outKey) return false;
+
+  // Quy tắc: Ngày đang xem nằm trong khoảng [checkIn, checkOut]
+  return tKey >= inKey && tKey <= outKey;
+}
+
+// ─────────────────────────────────────────────
+// Helper: Tính trạng thái phòng theo ngày
+// ─────────────────────────────────────────────
+export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = null) {
   if (isMaintenance) return 'maintenance';
   const room = ROOM_CONFIG.find((r) => r.id === roomId);
   if (!room) return 'empty';
-  const bks = (bookings[roomId] || []).filter((b) => !b.code?.includes('BK'));
+  const allBks = (bookings[roomId] || []).filter((b) => !b.code?.includes('BK'));
+  const bks = targetDate
+    ? allBks.filter((b) => isBookingActiveOnDate(b, targetDate))
+    : allBks;
   const total = bks.reduce((s, b) => s + b.cats, 0);
   if (total === 0) return 'empty';
   if (total < room.capacity) return 'available';
@@ -140,19 +225,39 @@ const getInitialMaintenance = () => {
 
 const getInitialBookings = () => {
   try {
+    // Tự động nâng cấp schema version: nếu là dữ liệu phiên bản cũ thiếu ngày → reset về INITIAL_BOOKINGS
+    const version = localStorage.getItem('mvn_room_bookings_version');
+    if (version !== STORAGE_VERSION) {
+      localStorage.setItem('mvn_room_bookings', JSON.stringify(INITIAL_BOOKINGS));
+      localStorage.setItem('mvn_room_bookings_version', STORAGE_VERSION);
+      return INITIAL_BOOKINGS;
+    }
+
     const saved = localStorage.getItem('mvn_room_bookings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      const cleaned = { ...INITIAL_BOOKINGS };
-      let hasAny = false;
+      const merged = { ...INITIAL_BOOKINGS };
+
       Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
-        const list = (parsed[roomId] || []).filter((b) => !b.code?.includes('BK'));
-        if (list.length > 0) hasAny = true;
-        cleaned[roomId] = list;
+        const storedList = (parsed[roomId] || []).filter((b) => {
+          if (b.code?.includes('BK')) return false;
+          // Chỉ chấp nhận booking có ngày hợp lệ từ localStorage
+          const inKey = formatDateKey(b.checkIn || b.checkInDate);
+          const outKey = formatDateKey(b.checkOut || b.checkOutDate);
+          return inKey.length === 10 && outKey.length === 10;
+        });
+
+        if (storedList.length > 0) {
+          const initList = INITIAL_BOOKINGS[roomId] || [];
+          const storedCodes = new Set(storedList.map((b) => b.code));
+          const missingInitial = initList.filter((b) => !storedCodes.has(b.code));
+          merged[roomId] = [...missingInitial, ...storedList];
+        } else {
+          merged[roomId] = INITIAL_BOOKINGS[roomId] || [];
+        }
       });
-      if (hasAny) {
-        return cleaned;
-      }
+
+      return merged;
     }
   } catch (e) {
     console.error('Failed to load bookings from storage', e);
@@ -432,19 +537,23 @@ export const RoomStateProvider = ({ children }) => {
    * Trả về danh sách phòng còn chỗ, nhóm theo hạng
    * Dùng bởi Step1Dates khi bấm "Kiểm tra phòng trống"
    * @param {number} catCount - số mèo cần gửi
+   * @param {Date|string|null} targetDate - ngày cần kiểm tra phòng trống (tùy chọn)
    */
   const getRoomAvailability = useCallback(
-    (catCount = 1) => {
+    (catCount = 1, targetDate = null) => {
       const order = ['VIP', 'VVIP', 'DELUXE'];
       const grouped = {};
 
       ROOM_CONFIG.forEach((room) => {
         const isMaint = !!maintenanceRooms[room.id];
-        const status = getRoomStatus(room.id, bookings, isMaint);
+        const status = getRoomStatus(room.id, bookings, isMaint, targetDate);
         // Bỏ qua phòng đang bảo trì hoặc đã đầy
         if (status === 'maintenance' || status === 'full') return;
 
-        const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
+        const allBks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
+        const bks = targetDate
+          ? allBks.filter((b) => isBookingActiveOnDate(b, targetDate))
+          : allBks;
         const used = bks.reduce((s, b) => s + b.cats, 0);
         const remaining = room.capacity - used;
 
@@ -470,6 +579,15 @@ export const RoomStateProvider = ({ children }) => {
     [bookings, maintenanceRooms]
   );
 
+  const resetDemoData = useCallback(() => {
+    localStorage.setItem('mvn_room_bookings', JSON.stringify(INITIAL_BOOKINGS));
+    localStorage.setItem('mvn_room_bookings_version', STORAGE_VERSION);
+    setBookings(INITIAL_BOOKINGS);
+    if (syncChannel) {
+      syncChannel.postMessage({ type: 'BOOKINGS_RESET', allBookings: INITIAL_BOOKINGS });
+    }
+  }, []);
+
   return (
     <RoomStateContext.Provider
       value={{
@@ -479,6 +597,7 @@ export const RoomStateProvider = ({ children }) => {
         checkInBooking,
         checkOutBooking,
         removeBooking,
+        resetDemoData,
         getRoomAvailability,
         newBookingIds,
         maintenanceRooms,
