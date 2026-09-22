@@ -35,7 +35,8 @@ export const ROOM_CONFIG = [
 export const INITIAL_BOOKINGS = {
   'VIP-01': [
     {
-      code: 'MVN-2026-8891',
+      code: 'MVN-88992',
+      id: 'MVN-88992',
       cats: 1,
       status: 'check-in',
       ownerName: 'Nguyễn Đức An',
@@ -49,7 +50,8 @@ export const INITIAL_BOOKINGS = {
   ],
   'VIP-02': [
     {
-      code: 'MVN-2026-8420',
+      code: 'MVN-84201',
+      id: 'MVN-84201',
       cats: 2,
       status: 'check-in',
       ownerName: 'Trần Thị Mai',
@@ -67,7 +69,8 @@ export const INITIAL_BOOKINGS = {
   'VIP-06': [],
   'VVIP-01': [
     {
-      code: 'MVN-2026-7734',
+      code: 'MVN-77341',
+      id: 'MVN-77341',
       cats: 2,
       status: 'check-in',
       ownerName: 'Lê Hoàng Long',
@@ -126,6 +129,21 @@ export function formatDateKey(date) {
 }
 
 // ─────────────────────────────────────────────
+// Helper: Chuẩn hóa mã đặt phòng về chuẩn 5 chữ số MVN-XXXXX
+// ─────────────────────────────────────────────
+export function normalizeBookingCode(code) {
+  if (!code) return code;
+  if (typeof code === 'string' && code.startsWith('MVN-2026-')) {
+    const tail = code.replace('MVN-2026-', '');
+    if (tail === '8891') return 'MVN-88992';
+    if (tail === '8420') return 'MVN-84201';
+    if (tail === '7734') return 'MVN-77341';
+    return `MVN-${tail.padEnd(5, '0')}`;
+  }
+  return code;
+}
+
+// ─────────────────────────────────────────────
 // Helper: Kiểm tra đơn đặt phòng có hiệu lực trên ngày đang xem hay không
 // Quy tắc hiển thị: Ngày đang xem nằm trong khoảng lưu trú [checkIn, checkOut]
 // Không làm thay đổi hay sửa đổi dữ liệu/mã của các booking đã lưu
@@ -142,8 +160,11 @@ export function isBookingActiveOnDate(booking, targetDate) {
 
   // Nếu là booking ban đầu mà dữ liệu cũ thiếu trường ngày, tra cứu ngày gốc tương ứng
   if ((!inKey || !outKey) && booking.code) {
+    const normCode = normalizeBookingCode(booking.code);
     for (const rid of Object.keys(INITIAL_BOOKINGS)) {
-      const found = INITIAL_BOOKINGS[rid].find((b) => b.code === booking.code);
+      const found = INITIAL_BOOKINGS[rid].find(
+        (b) => b.code === booking.code || b.code === normCode || normalizeBookingCode(b.code) === normCode
+      );
       if (found) {
         inKey = inKey || formatDateKey(found.checkIn);
         outKey = outKey || formatDateKey(found.checkOut);
@@ -217,8 +238,8 @@ const getInitialMaintenance = () => {
 
 /**
  * Khởi tạo danh sách booking:
- * Giữ nguyên 100% tất cả các booking trước đó từ localStorage và mã của từng booking,
- * tuyệt đối không xóa, không ghi đè và không làm thay đổi các booking đã lưu.
+ * Giữ nguyên 100% tất cả các booking trước đó từ localStorage,
+ * tự động chuẩn hóa các mã dạng MVN-2026-XXXX cũ sang chuẩn MVN-XXXXX 5 chữ số.
  */
 const getInitialBookings = () => {
   try {
@@ -228,22 +249,33 @@ const getInitialBookings = () => {
       const result = { ...INITIAL_BOOKINGS };
       let hasAny = false;
 
-      // Giữ nguyên vẹn toàn bộ danh sách booking trước đó từ storage
+      // Giữ nguyên vẹn toàn bộ danh sách booking trước đó từ storage và chuẩn hóa mã
       Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
         if (Array.isArray(parsed[roomId]) && parsed[roomId].length > 0) {
           hasAny = true;
-          result[roomId] = parsed[roomId];
+          result[roomId] = parsed[roomId].map((b) => ({
+            ...b,
+            code: normalizeBookingCode(b.code),
+            id: normalizeBookingCode(b.id || b.code),
+          }));
         }
       });
 
       // Bảo toàn cả các phòng khác nếu có trong storage
       Object.keys(parsed).forEach((roomId) => {
         if (!result[roomId] && Array.isArray(parsed[roomId])) {
-          result[roomId] = parsed[roomId];
+          result[roomId] = parsed[roomId].map((b) => ({
+            ...b,
+            code: normalizeBookingCode(b.code),
+            id: normalizeBookingCode(b.id || b.code),
+          }));
         }
       });
 
       if (hasAny) {
+        try {
+          localStorage.setItem('mvn_room_bookings', JSON.stringify(result));
+        } catch (e) {}
         return result;
       }
     }
