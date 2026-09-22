@@ -5,8 +5,10 @@ import {
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
   Loader2, ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
-  Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2
+  Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2,
+  CalendarCheck, StickyNote, PhoneCall
 } from 'lucide-react';
+import { packagesList } from '../../mockData/servicesData';
 import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
@@ -394,6 +396,326 @@ const StaffChatModal = ({ isOpen, onClose, onSend }) => {
   );
 };
 
+// ─── Extend Stay Modal ───────────────────────────────────────────────────────
+const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, onOpenChat, onOpenCall }) => {
+  const [step, setStep] = useState(1); // 1 = form, 2 = success
+  const [days, setDays] = useState(3);
+  const [note, setNote] = useState('');
+  const [showNote, setShowNote] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [roomAvailable, setRoomAvailable] = useState(null); // null=unchecked, true/false
+  const [miniCallOpen, setMiniCallOpen] = useState(false);
+
+  if (!isOpen) return null;
+
+  const firstPet = resolvedPets?.[0];
+  const currentCheckOut = booking?.checkOut || '';
+
+  // Calculate new checkout date
+  const getNewCheckOut = () => {
+    if (!currentCheckOut) return '';
+    const d = new Date(currentCheckOut);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+  const newCheckOutDate = getNewCheckOut();
+  const newCheckOutStr = newCheckOutDate
+    ? `${String(newCheckOutDate.getDate()).padStart(2,'0')}/${String(newCheckOutDate.getMonth()+1).padStart(2,'0')}/${newCheckOutDate.getFullYear()}`
+    : '';
+
+  // Get package price
+  const pkgId = booking?.selectedPackage?.id;
+  const pkg = packagesList.find(p => p.id === pkgId) || packagesList[0];
+  const pricePerDay = pkg?.price || 0;
+  const totalExtend = pricePerDay * days;
+  const formatMoney = (n) => n.toLocaleString('vi-VN');
+
+  const handleCheckRoom = () => {
+    setChecking(true);
+    setRoomAvailable(null);
+    setTimeout(() => {
+      setChecking(false);
+      setRoomAvailable(true); // Simulate available
+    }, 1800);
+  };
+
+  const handleConfirm = () => {
+    setStep(2);
+    onConfirm({ days, newCheckOut: newCheckOutDate?.toISOString().split('T')[0], note });
+  };
+
+  const handleClose = () => {
+    setStep(1);
+    setDays(3);
+    setNote('');
+    setShowNote(false);
+    setRoomAvailable(null);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── STEP 1: Form ── */}
+        {step === 1 && (
+          <>
+            {/* Header */}
+            <div className="bg-gradient-to-r from-primary to-secondary px-6 py-5 flex items-center justify-between text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  {firstPet?.imagePreview
+                    ? <img src={firstPet.imagePreview} alt={firstPet.name} className="w-full h-full object-cover rounded-2xl" />
+                    : <PawPrint className="w-5 h-5 text-white" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Gia hạn lưu trú</h3>
+                  <p className="text-white/80 text-xs mt-0.5">
+                    {firstPet?.name || 'Bé mèo'}
+                    {booking?.selectedRoom?.name ? ` • Phòng ${booking.selectedRoom.name}` : ''}
+                    {pkg?.name ? ` • ${pkg.name}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleClose}
+                className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-5">
+              {/* Current checkout info */}
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <CalendarDays className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-500">Ngày trả hiện tại</p>
+                  <p className="font-bold text-text-dark">{formatDate(currentCheckOut)}</p>
+                </div>
+              </div>
+
+              {/* Slider section */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-bold text-gray-700">Số ngày gia hạn</p>
+                </div>
+
+                {/* Big number display */}
+                <div className="text-center mb-3">
+                  <span className="text-5xl font-black text-primary">{days}</span>
+                  <span className="text-lg font-bold text-gray-500 ml-1">ngày</span>
+                </div>
+
+                {/* Slider */}
+                <div className="relative px-1">
+                  <input
+                    type="range"
+                    min={1}
+                    max={15}
+                    step={1}
+                    value={days}
+                    onChange={e => { setDays(Number(e.target.value)); setRoomAvailable(null); }}
+                    className="w-full h-2 appearance-none rounded-full cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #22c55e 0%, #22c55e ${((days-1)/14)*100}%, #e5e7eb ${((days-1)/14)*100}%, #e5e7eb 100%)`
+                    }}
+                  />
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-xs text-gray-400">1 ngày</span>
+                    <span className="text-xs text-gray-400">15 ngày</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Note for > 15 days */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 flex flex-col gap-2">
+                <p className="text-xs text-amber-700 font-medium">Cần gia hạn trên 15 ngày? Vui lòng liên hệ nhân viên:</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { handleClose(); onOpenChat(); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Chat với nhân viên
+                  </button>
+                  <button
+                    onClick={() => setMiniCallOpen(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-secondary text-white font-bold text-xs py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    Gọi hotline
+                  </button>
+                </div>
+              </div>
+
+              {/* Room availability check */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-bold text-gray-700">Kiểm tra phòng trống</p>
+                  {roomAvailable === true && (
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Còn phòng
+                    </span>
+                  )}
+                  {roomAvailable === false && (
+                    <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Hết phòng
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mb-3">Kiểm tra xem phòng hiện tại còn trống trong thời gian gia hạn.</p>
+                <button
+                  onClick={handleCheckRoom}
+                  disabled={checking}
+                  className="w-full flex items-center justify-center gap-2 border border-primary text-primary font-bold py-2.5 rounded-xl hover:bg-primary-light transition-colors cursor-pointer text-sm disabled:opacity-60 disabled:cursor-wait"
+                >
+                  {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
+                  {checking ? 'Đang kiểm tra...' : 'Kiểm tra ngay'}
+                </button>
+              </div>
+
+              {/* Cost Summary */}
+              <div className="bg-primary-light/50 border border-primary/20 rounded-2xl p-4 space-y-2">
+                <p className="text-sm font-bold text-gray-700 mb-3">Tóm tắt chi phí gia hạn</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Gói {pkg?.name || 'hiện tại'}</span>
+                  <span className="font-semibold text-gray-800">{formatMoney(pricePerDay)}đ/ngày</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Số ngày gia hạn</span>
+                  <span className="font-semibold text-gray-800">× {days} ngày</span>
+                </div>
+                <div className="border-t border-primary/20 pt-2 mt-2 flex justify-between">
+                  <span className="font-bold text-gray-700">Dự kiến phát sinh</span>
+                  <span className="font-black text-primary text-lg">{formatMoney(totalExtend)}đ</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 italic">* Phí sẽ được cộng vào hoá đơn thanh toán khi đón bé về.</p>
+                {newCheckOutStr && (
+                  <div className="bg-white rounded-xl p-3 mt-2 flex items-center gap-2 border border-primary/10">
+                    <CalendarDays className="w-4 h-4 text-primary shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Ngày trả dự kiến mới</p>
+                      <p className="font-bold text-primary">{newCheckOutStr}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Staff note toggle */}
+              <div>
+                <button
+                  onClick={() => setShowNote(v => !v)}
+                  className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition-colors cursor-pointer font-medium"
+                >
+                  <StickyNote className="w-4 h-4" />
+                  {showNote ? 'Ẩn ghi chú' : 'Thêm ghi chú cho nhân viên (không bắt buộc)'}
+                </button>
+                {showNote && (
+                  <textarea
+                    rows={3}
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="VD: Bé dùng cát trắng, xin vui lòng đổi cát trước khi gia hạn..."
+                    className="mt-2 w-full bg-gray-50 border border-gray-200 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 rounded-2xl p-4 text-sm text-gray-800 placeholder-gray-400 resize-none outline-none transition-all"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Footer CTA */}
+            <div className="p-5 border-t border-gray-100 shrink-0 flex flex-col gap-3">
+              <button
+                onClick={handleConfirm}
+                className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-primary/30 active:scale-[0.98] cursor-pointer text-base"
+              >
+                <CalendarCheck className="w-5 h-5" />
+                Xác nhận gia hạn {days} ngày
+              </button>
+              <button
+                onClick={handleClose}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-3 rounded-2xl transition-colors cursor-pointer text-sm"
+              >
+                Để sau
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 2: Success ── */}
+        {step === 2 && (
+          <div className="flex flex-col items-center justify-center p-10 text-center gap-5">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center shadow-lg">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-extrabold text-text-dark font-title mb-2">Đã gửi yêu cầu!</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Yêu cầu gia hạn <span className="font-bold text-primary">{days} ngày</span> đã được gửi tới nhân viên.
+                Ngày trả dự kiến mới: <span className="font-bold text-primary">{newCheckOutStr}</span>.
+              </p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 w-full">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-xs font-bold text-amber-700">Đang chờ xác nhận</p>
+              </div>
+              <p className="text-xs text-amber-600 leading-relaxed">
+                Nhân viên sẽ xem xét và xác nhận yêu cầu trong thời gian sớm nhất. Trạng thái sẽ được cập nhật ngay khi có phản hồi.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2.5 w-full">
+              <button
+                onClick={() => { handleClose(); onOpenChat(); }}
+                className="w-full flex items-center justify-center gap-2 border border-primary text-primary font-bold py-3 rounded-2xl hover:bg-primary-light transition-colors cursor-pointer text-sm"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Chat với nhân viên
+              </button>
+              <button
+                onClick={handleClose}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-3 rounded-2xl transition-colors cursor-pointer text-sm"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mini Call Confirm (inline, over the modal) */}
+        {miniCallOpen && (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center rounded-3xl z-10" onClick={() => setMiniCallOpen(false)}>
+            <div className="bg-white rounded-3xl p-6 mx-4 shadow-xl max-w-xs w-full" onClick={e => e.stopPropagation()}>
+              <div className="text-center mb-5">
+                <div className="w-14 h-14 rounded-full bg-primary-light flex items-center justify-center mx-auto mb-3">
+                  <Phone className="w-7 h-7 text-primary" />
+                </div>
+                <h4 className="font-bold text-text-dark">Gọi tới Mèo Vắng Nhà?</h4>
+                <p className="text-2xl font-black text-primary mt-1">{HOTLINE_DISPLAY}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setMiniCallOpen(false)} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer text-sm">Huỷ</button>
+                <button
+                  onClick={() => { setMiniCallOpen(false); window.location.href = `tel:${HOTLINE_NUMBER}`; }}
+                  className="flex-1 bg-primary text-white font-bold py-3 rounded-xl hover:bg-secondary transition-colors shadow-md cursor-pointer text-sm flex items-center justify-center gap-1.5"
+                >
+                  <Phone className="w-4 h-4" /> Gọi ngay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const TrackingPage = () => {
@@ -404,7 +726,9 @@ const TrackingPage = () => {
 
   const [showCallModal, setShowCallModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
   const [successNotice, setSuccessNotice] = useState(false);
+  const [extendPending, setExtendPending] = useState(null); // { days, newCheckOut }
 
   const handleCallConfirm = () => {
     setShowCallModal(false);
@@ -417,6 +741,11 @@ const TrackingPage = () => {
     setTimeout(() => {
       setSuccessNotice(false);
     }, 3000);
+  };
+
+  const handleExtendConfirm = ({ days, newCheckOut, note }) => {
+    setExtendPending({ days, newCheckOut });
+    toast.success(`Đã gửi yêu cầu gia hạn ${days} ngày! Nhân viên sẽ xác nhận sớm.`, { duration: 4000 });
   };
 
   const [isCameraUnlocked, setIsCameraUnlocked] = useState(false);
@@ -572,6 +901,17 @@ const TrackingPage = () => {
         onSend={handleSendMessage}
       />
 
+      {/* Extend Stay Modal */}
+      <ExtendStayModal
+        isOpen={showExtendModal}
+        onClose={() => setShowExtendModal(false)}
+        booking={activeBooking}
+        resolvedPets={resolvedPets}
+        onConfirm={handleExtendConfirm}
+        onOpenChat={() => setShowChatModal(true)}
+        onOpenCall={() => setShowCallModal(true)}
+      />
+
       {/* ── Top Success Notification Banner (3 seconds) ── */}
       {successNotice && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
@@ -687,19 +1027,28 @@ const TrackingPage = () => {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span className="font-bold text-amber-600">Còn {daysRemaining} ngày</span>
+                    <span className="font-bold text-amber-600">
+                      Còn {extendPending ? daysRemaining + extendPending.days : daysRemaining} ngày
+                      {extendPending ? ' (dự kiến)' : ''}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col gap-2 w-full sm:w-auto shrink-0">
                 <button
-                  onClick={() => toast('Tính năng gia hạn sẽ sớm ra mắt! Vui lòng liên hệ nhân viên.', { icon: '🔔' })}
+                  onClick={() => setShowExtendModal(true)}
                   className="flex items-center justify-center gap-2 bg-primary text-white font-bold px-5 py-2.5 rounded-xl hover:bg-secondary transition-colors shadow-md shadow-primary/25 cursor-pointer text-sm"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Gia hạn lưu trú
                 </button>
+                {extendPending && (
+                  <span className="flex items-center justify-center gap-1.5 bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-lg">
+                    <Clock className="w-3.5 h-3.5" />
+                    Chờ xác nhận gia hạn
+                  </span>
+                )}
               </div>
             </div>
 

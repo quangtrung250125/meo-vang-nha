@@ -362,3 +362,33 @@ html.dark .banner-sky { background: #1e2f3b; }
   .promo-carousel__arrow--next { right: 1rem; }
   .promo-carousel__dots { bottom: 1rem; }
 }
+
+/* ── Extend Stay slider thumb ───────────────────────────────────────────── */
+input[type="range"].appearance-none::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+input[type="range"].appearance-none::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 12px rgba(34, 197, 94, 0.55);
+}
+input[type="range"].appearance-none::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+  cursor: pointer;
+}
+input[type="range"].appearance-none:focus {
+  outline: none;
+}
