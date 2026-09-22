@@ -255,7 +255,23 @@ export const CustomerProvider = ({ children }) => {
             throw new Error('Đăng ký không thành công, vui lòng thử lại.');
         }
 
-        // 2. Lưu liên kết phone -> email
+        // 2. Lưu trực tiếp vào bảng public.customer_profiles trong Supabase Database
+        try {
+            const { error: profileError } = await supabase.from('customer_profiles').upsert({
+                id: user.id,
+                phone: rawPhone,
+                full_name: fullName,
+                email: email,
+                labels: profile.labels || ['Khách hàng mới'],
+            });
+            if (profileError) {
+                console.warn('Cảnh báo ghi bảng customer_profiles:', profileError.message);
+            }
+        } catch (tableErr) {
+            console.warn('Lỗi lưu vào customer_profiles:', tableErr);
+        }
+
+        // 3. Lưu liên kết phone -> email
         if (normalizedPhone) {
             savePhoneEmailMap(normalizedPhone, email);
         }
@@ -352,7 +368,7 @@ export const CustomerProvider = ({ children }) => {
     };
 
     // Cập nhật thông tin hồ sơ
-    const saveCustomerProfile = (profile) => {
+    const saveCustomerProfile = async (profile) => {
         const normalized = {
             ...(customerProfile || {}),
             ...profile,
@@ -360,6 +376,20 @@ export const CustomerProvider = ({ children }) => {
         };
         setCustomerProfile(normalized);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+
+        if (normalized.id) {
+            try {
+                await supabase.from('customer_profiles').upsert({
+                    id: normalized.id,
+                    phone: normalized.phone || '',
+                    full_name: normalized.fullName || normalized.full_name || '',
+                    email: normalized.email || '',
+                    labels: normalized.labels || ['Khách hàng mới'],
+                });
+            } catch (err) {
+                console.warn('Lỗi cập nhật customer_profiles:', err);
+            }
+        }
     };
 
     // Đăng xuất khỏi Supabase
