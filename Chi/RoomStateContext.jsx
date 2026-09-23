@@ -173,7 +173,9 @@ export const RoomStateProvider = ({ children }) => {
     if (syncChannel) {
       syncChannel.onmessage = (event) => {
         const msg = event.data;
-        if (msg?.type === 'BOOKING_ADDED' && msg.allBookings) {
+        if (msg?.type === 'DEMO_RESET' && msg.allBookings) {
+          setBookings(msg.allBookings);
+        } else if (msg?.type === 'BOOKING_ADDED' && msg.allBookings) {
           setBookings(msg.allBookings);
           if (msg.booking?.code) {
             setNewBookingIds((prev) => {
@@ -470,6 +472,20 @@ export const RoomStateProvider = ({ children }) => {
     [bookings, maintenanceRooms]
   );
 
+  // HÀM KHÔI PHỤC DỮ LIỆU MẪU
+  const resetDemoData = useCallback(() => {
+    localStorage.removeItem('mvn_room_bookings');
+    localStorage.removeItem(BOOKING_DETAILS_KEY);
+    
+    setBookings(INITIAL_BOOKINGS);
+    
+    if (syncChannel) {
+      syncChannel.postMessage({ type: 'DEMO_RESET', allBookings: INITIAL_BOOKINGS });
+    }
+    
+    window.location.reload();
+  }, []);
+
   return (
     <RoomStateContext.Provider
       value={{
@@ -483,6 +499,7 @@ export const RoomStateProvider = ({ children }) => {
         newBookingIds,
         maintenanceRooms,
         toggleMaintenance,
+        resetDemoData,
       }}
     >
       {children}

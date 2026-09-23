@@ -11,6 +11,7 @@ import {
   BedDouble,
   PlusCircle,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
@@ -406,7 +407,7 @@ const RoomStatusPage = () => {
   const [activeBooking, setActiveBooking] = useState(null); // { booking, roomId }
 
   // Lấy bookings và maintenance thời gian thực (kèm lưu vĩnh viễn) từ shared context
-  const { bookings, newBookingIds, maintenanceRooms, toggleMaintenance, checkInBooking, checkOutBooking, removeBooking, updateBooking } = useRoomState();
+  const { bookings, newBookingIds, maintenanceRooms, toggleMaintenance, checkInBooking, checkOutBooking, removeBooking, updateBooking, resetDemoData } = useRoomState();
 
   const handleBookingClick = useCallback((booking, roomId) => {
     setActiveBooking({ booking, roomId });
@@ -515,15 +516,31 @@ const RoomStatusPage = () => {
             </p>
           </div>
 
-          {/* Nút [Đặt phòng] → điều hướng mượt mà đến trang Đặt phòng */}
-          <button
-            id="btn-dat-phong-room-status"
-            onClick={() => navigate(`${basePrefix}/booking`)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-orange-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Đặt phòng
-          </button>
+          {/* Nhóm nút chức năng */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              id="btn-reset-demo-room-status"
+              onClick={() => {
+                if (window.confirm('Khôi phục dữ liệu phòng về trạng thái mẫu ban đầu (sẽ xóa các phòng đang trống)?')) {
+                  resetDemoData();
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+              title="Khôi phục dữ liệu phòng mẫu ban đầu"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Khôi phục mẫu
+            </button>
+
+            <button
+              id="btn-dat-phong-room-status"
+              onClick={() => navigate(`${basePrefix}/booking`)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-md shadow-orange-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Đặt phòng
+            </button>
+          </div>
         </div>
 
         {/* ── Thanh thống kê nhanh ── */}
