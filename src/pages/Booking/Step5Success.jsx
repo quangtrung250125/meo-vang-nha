@@ -108,10 +108,10 @@ const Step5Success = ({ data, onBackToStep1 }) => {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           {onBackToStep1 ? (
             <button
-              onClick={onBackToStep1}
+              onClick={() => onBackToStep1(data.selectedRoom?.id)}
               className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
             >
-              Quay về chọn phòng khác
+              Chọn phòng khác
             </button>
           ) : (
             <Link
@@ -119,7 +119,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
               onClick={() => window.location.reload()}
               className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
             >
-              Quay về chọn phòng khác
+              Chọn phòng khác
             </Link>
           )}
         </div>

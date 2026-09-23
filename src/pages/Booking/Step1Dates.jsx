@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Gift, Search, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Plus, Gift, Search, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useRoomState } from '../../contexts/RoomStateContext';
+import { sendWebNotification } from '../../utils/notificationService';
 
 
 /* ------------------------------------------------
@@ -150,8 +151,12 @@ const Step1Dates = ({ data, updateData, onNext }) => {
           g.rooms.some((r) => r.id === data.selectedRoom.id && !r.isBooked)
         );
         if (!roomStillFree) {
-          updateData({ selectedRoom: null });
-          setError(`Phòng ${data.selectedRoom.id} vừa được khách khác đặt. Vui lòng chọn phòng khác!`);
+          const roomName = data.selectedRoom.id;
+          updateData({ selectedRoom: null, conflictedRoomId: roomName });
+          setError(`Phòng ${roomName} vừa được khách khác đặt. Vui lòng chọn phòng khác!`);
+          sendWebNotification('⚠️ Phòng vừa có khách đặt!', {
+            body: `Phòng ${roomName} vừa có khách khác đặt trước. Hệ thống đã bôi đỏ để bạn chọn phòng khác.`,
+          });
         }
       }
     }
@@ -213,7 +218,41 @@ const Step1Dates = ({ data, updateData, onNext }) => {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-text-dark font-title">1. Chọn thời gian &amp; Phòng</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold text-text-dark font-title">1. Chọn thời gian &amp; Phòng</h2>
+        {data.conflictedRoomId && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+            <span>Phòng {data.conflictedRoomId} vừa bị trùng (đã bôi đỏ)</span>
+          </span>
+        )}
+      </div>
+
+      {/* Banner thông báo phòng vừa trùng để khách dễ phân biệt */}
+      {data.conflictedRoomId && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-800 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+              !
+            </div>
+            <div>
+              <p className="font-bold text-red-900">
+                Phòng <span className="underline decoration-red-500 underline-offset-2 font-black">{data.conflictedRoomId}</span> vừa được khách khác đặt trước cùng lúc!
+              </p>
+              <p className="text-red-700 text-xs mt-0.5">
+                Hệ thống đã tự động <strong className="text-red-900">bôi đỏ nổi bật</strong> phòng này bên dưới. Vui lòng chọn một phòng còn trống khác để tiếp tục.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => updateData({ conflictedRoomId: null })}
+            className="text-xs text-red-600 hover:text-red-900 font-bold px-2 py-1 rounded-lg hover:bg-red-100 transition-colors shrink-0"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Date Inputs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -349,7 +388,24 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                 <div className="flex flex-wrap gap-2.5 pt-1">
                   {rooms.map((room) => {
                     const isSelected = data.selectedRoom?.id === room.id;
-                    const isFull = room.isBooked || room.remaining <= 0;
+                    const isConflicted = data.conflictedRoomId === room.id;
+                    const isFull = room.isBooked || room.remaining <= 0 || isConflicted;
+
+                    // Phòng vừa được ghi nhận đặt cùng lúc trước đó -> BÔI ĐỎ NỔI BẬT ĐỂ DỄ PHÂN BIỆT
+                    if (isConflicted) {
+                      return (
+                        <div
+                          key={room.id}
+                          title={`Phòng ${room.id} vừa được một khách hàng khác đặt trước cùng lúc`}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 border-red-500 bg-red-100 text-red-900 cursor-not-allowed text-sm select-none shadow-md ring-2 ring-red-400/60 animate-pulse"
+                        >
+                          <span className="font-black text-red-900">{room.id}</span>
+                          <span className="text-xs font-black px-2 py-0.5 rounded-md bg-red-600 text-white shadow-xs">
+                            ⚠️ Vừa có khách đặt
+                          </span>
+                        </div>
+                      );
+                    }
 
                     if (isFull) {
                       return (

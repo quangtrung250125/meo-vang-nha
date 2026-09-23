@@ -1,6 +1,7 @@
 /* ============================================================
    Mèo Vắng Nhà — Service Worker & Web Push Engine
    Xử lý Push Notifications ngay cả khi khách không mở web/tab
+   Hỗ trợ máy tính, điện thoại Android & iOS PWA
    ============================================================ */
 
 const CACHE_NAME = 'meo-vang-nha-v2';
@@ -35,7 +36,7 @@ self.addEventListener('push', (event) => {
     body: 'Bạn có thông báo mới từ khách sạn mèo!',
     icon: APP_ICON,
     badge: APP_BADGE,
-    url: '/',
+    url: '/booking',
   };
 
   if (event.data) {
@@ -53,7 +54,7 @@ self.addEventListener('push', (event) => {
     badge: data.badge || APP_BADGE,
     image: data.image || undefined,
     data: {
-      url: data.url || data.data?.url || '/',
+      url: data.url || data.data?.url || '/booking',
       timestamp: Date.now(),
     },
     vibrate: [200, 100, 200],
@@ -77,7 +78,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'close') return;
 
-  const rawUrl = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/booking';
   const urlToOpen = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
@@ -109,7 +110,7 @@ self.addEventListener('message', (event) => {
       body: body || 'Thông báo từ Mèo Vắng Nhà',
       icon: icon || APP_ICON,
       badge: APP_BADGE,
-      data: { url: url || '/' },
+      data: { url: url || '/booking' },
       vibrate: [200, 100, 200],
       tag: tag || 'meo-vang-nha',
       requireInteraction: requireInteraction || false,

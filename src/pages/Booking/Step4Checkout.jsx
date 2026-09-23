@@ -4,6 +4,7 @@ import { promotionInfo } from '../../mockData/servicesData';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { sendWebNotification } from '../../utils/notificationService';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -114,10 +115,13 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
     if (roomResult && (roomResult.conflict || roomResult.success === false)) {
       setIsSubmitting(false);
-      setConflictError(
+      const msg =
         roomResult.message ||
-        `Rất tiếc, trong lúc bạn thao tác, phòng ${roomId} đã được một khách hàng khác đặt trong khoảng thời gian này. Vui lòng quay lại chọn phòng khác hoặc đổi ngày.`
-      );
+        `Rất tiếc, trong lúc bạn thao tác, phòng ${roomId} đã được một khách hàng khác đặt trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
+      setConflictError(msg);
+      sendWebNotification('⚠️ Phòng vừa có khách đặt!', {
+        body: `Phòng ${roomId} vừa được khách khác đặt trước. Hãy bấm "Chọn phòng khác" để giữ chỗ cho bé nhé!`,
+      });
       return;
     }
 
@@ -131,6 +135,10 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         confirmedBooking: bookingPayload,
       });
     }
+
+    sendWebNotification('🎉 Đặt phòng thành công!', {
+      body: `Mã đặt phòng của bạn là ${newId}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
+    });
 
     setIsSubmitting(false);
     onNext();
@@ -271,16 +279,18 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               <button
                 type="button"
                 onClick={() => {
-                  if (updateData) updateData({ selectedRoom: null });
+                  const conflictedId = data.selectedRoom?.id;
                   if (onBackToStep1) {
-                    onBackToStep1();
-                  } else if (onPrev) {
-                    onPrev();
+                    onBackToStep1(conflictedId);
+                  } else {
+                    if (updateData) updateData({ selectedRoom: null, conflictedRoomId: conflictedId });
+                    if (onPrev) onPrev();
                   }
                 }}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
               >
-                Quay về chọn phòng khác
+                <span>Chọn phòng khác</span>
+                <span aria-hidden="true">→</span>
               </button>
             </div>
           </div>

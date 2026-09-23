@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
 import AuthModal from '../../components/AuthModal';
+import NotificationBar from '../../components/NotificationBar';
 import { packagesList } from '../../mockData/servicesData';
 
 const steps = [
@@ -136,11 +137,20 @@ const Booking = () => {
     );
   };
 
+  const handleBackToStep1 = (conflictedRoomId) => {
+    setBookingData((prev) => ({
+      ...prev,
+      selectedRoom: null,
+      conflictedRoomId: conflictedRoomId || prev.selectedRoom?.id || null,
+    }));
+    setCurrentStep(1);
+  };
+
   return (
     <div className="min-h-screen bg-bg-cream pt-24 pb-12">
       <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold text-text-dark font-title mb-4">
             Đặt Phòng Cho Boss
           </h1>
@@ -148,6 +158,9 @@ const Booking = () => {
             Chỉ với vài bước đơn giản, bé mèo của bạn sẽ có một kỳ nghỉ tuyệt vời tại Mèo Vắng Nhà.
           </p>
         </div>
+
+        {/* Thanh bật thông báo đẩy cho điện thoại & máy tính */}
+        <NotificationBar />
 
         {/* Stepper (Only show on steps 1-4) */}
         {currentStep < 5 && renderStepper()}
@@ -170,15 +183,18 @@ const Booking = () => {
             <Step3PetProfile data={bookingData} updateData={updateData} onNext={handleNext} onPrev={handlePrev} />
           )}
           {currentStep === 4 && (
-            <Step4Checkout data={bookingData} updateData={updateData} onNext={handleNext} onPrev={handlePrev} />
+            <Step4Checkout
+              data={bookingData}
+              updateData={updateData}
+              onNext={handleNext}
+              onPrev={handlePrev}
+              onBackToStep1={handleBackToStep1}
+            />
           )}
           {currentStep === 5 && (
             <Step5Success
               data={bookingData}
-              onBackToStep1={() => {
-                updateData({ selectedRoom: null });
-                setCurrentStep(1);
-              }}
+              onBackToStep1={handleBackToStep1}
             />
           )}
         </div>
