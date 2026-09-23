@@ -8,18 +8,18 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 const calculateBookingStatus = (booking) => {
   if (!booking) return 'Chưa rõ';
 
-  // 1. Khi Admin bấm 'Check-in' -> status chuyển thành 'đang ở' -> hiển thị 'Đang lưu trú'
-  if (booking.status === 'đang ở' || booking.status === 'Đang lưu trú') {
-    return 'Đang lưu trú';
-  }
-
-  // 2. Khi Admin bấm 'Check-out' hoặc đơn hoàn tất -> hiển thị 'Đã hoàn tất'
-  if (booking.status === 'check-out' || booking.status === 'Đã hoàn tất' || booking.status === 'hoàn tất') {
+  // 1. Khi Admin bấm 'Check-out' hoặc đơn hoàn tất hoặc hủy -> luôn là 'Đã hoàn tất'
+  if (
+    booking.status === 'check-out' ||
+    booking.status === 'Đã hoàn tất' ||
+    booking.status === 'hoàn tất' ||
+    booking.status === 'cancelled' ||
+    booking.status === 'Đã hủy'
+  ) {
     return 'Đã hoàn tất';
   }
 
-  // 3. Mặc định ban đầu (kể cả hôm nay là ngày nhận phòng): luôn ở trạng thái 'Sắp tới'
-  // Cho đến khi Admin bấm nút 'Check-in' trong ô chi tiết đặt phòng mới chuyển thành 'Đang lưu trú'
+  // 2. Khi hết hạn đặt phòng (hôm nay đã qua ngày checkOut) -> tự động chuyển thành 'Đã hoàn tất'
   if (booking.checkOut) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -30,6 +30,25 @@ const calculateBookingStatus = (booking) => {
     }
   }
 
+  // 3. Nếu ngày hôm nay nằm trong khoảng [checkIn, checkOut] hoặc admin đã check-in
+  if (booking.status === 'đang ở' || booking.status === 'Đang lưu trú') {
+    return 'Đang lưu trú';
+  }
+
+  if (booking.checkIn && booking.checkOut) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const inDate = new Date(booking.checkIn);
+    inDate.setHours(0, 0, 0, 0);
+    const outDate = new Date(booking.checkOut);
+    outDate.setHours(23, 59, 59, 999);
+
+    if (today >= inDate && today <= outDate) {
+      return 'Đang lưu trú';
+    }
+  }
+
+  // 4. Mặc định là 'Sắp tới' (chưa đến ngày nhận phòng)
   return 'Sắp tới';
 };
 

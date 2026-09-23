@@ -66,14 +66,23 @@ const getStatusBadge = (status) => {
   }
 };
 
-const calculateStatus = (checkIn, checkOut) => {
+const calculateStatus = (checkIn, checkOut, status) => {
+  if (
+    status === 'check-out' ||
+    status === 'Đã hoàn tất' ||
+    status === 'hoàn tất' ||
+    status === 'cancelled' ||
+    status === 'Đã hủy'
+  ) {
+    return 'Đã hoàn tất';
+  }
   if (!checkIn || !checkOut) return 'Chưa rõ';
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
   const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
+  if (today > outDate) return 'Đã hoàn tất';
   if (today < inDate) return 'Sắp tới';
-  if (today >= inDate && today <= outDate) return 'Đang lưu trú';
-  return 'Đã hoàn tất';
+  return 'Đang lưu trú';
 };
 
 // ─────────────────────────────────────────────
@@ -86,7 +95,7 @@ const BookingCard = ({ booking, petList }) => {
   const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
   const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
   const firstPetImage = resolvedPets[0]?.imagePreview;
-  const status = calculateStatus(booking.checkIn, booking.checkOut);
+  const status = calculateStatus(booking.checkIn, booking.checkOut, booking.status);
   const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
 
   return (
@@ -287,7 +296,7 @@ const PetProfile = () => {
   const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
   const bookings = myBookings.map(b => ({
     ...b,
-    dynamicStatus: calculateStatus(b.checkIn, b.checkOut),
+    dynamicStatus: calculateStatus(b.checkIn, b.checkOut, b.status),
   }));
 
   return (

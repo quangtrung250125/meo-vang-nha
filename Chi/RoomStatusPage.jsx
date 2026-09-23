@@ -211,11 +211,33 @@ const bookingStatusBadge = (status) => {
 // ─────────────────────────────────────────────
 // RoomCard Component
 // ─────────────────────────────────────────────
-const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick }) => {
-  const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
-  const totalCats = bks.reduce((s, b) => s + b.cats, 0);
-  const remaining = room.capacity - totalCats;
-  const status = getRoomStatus(room.id, bookings, isMaintenance);
+const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick, selectedDate = new Date() }) => {
+  const selectedDateStr = (() => {
+    const d = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  })();
+
+  const bks = (bookings[room.id] || []).filter((b) => {
+    if (!b || b.code?.includes('BK')) return false;
+    // Bỏ qua nếu đơn đã check-out, đã hoàn tất hoặc bị hủy
+    if (
+      b.status === 'check-out' ||
+      b.status === 'Đã hoàn tất' ||
+      b.status === 'hoàn tất' ||
+      b.status === 'cancelled' ||
+      b.status === 'Đã hủy'
+    ) return false;
+    // Chỉ tính đang ở phòng nếu ngày đang xem nằm trong khoảng [checkIn, checkOut]
+    if (!b.checkIn || !b.checkOut) return true;
+    return selectedDateStr >= b.checkIn && selectedDateStr <= b.checkOut;
+  });
+
+  const totalCats = bks.reduce((s, b) => s + (b.cats || 1), 0);
+  const remaining = Math.max(0, room.capacity - totalCats);
+  const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
 
   /**
    * Màu nền ô phòng theo đúng spec:
@@ -445,10 +467,10 @@ const RoomStatusPage = () => {
 
   const isToday = isSameDay(selectedDate, new Date());
 
-  // Lọc phòng theo hạng & trạng thái
+  // Lọc phòng theo hạng & trạng thái (dựa theo ngày được chọn)
   const filteredRooms = ROOM_CONFIG.filter((room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, bookings, isMaintenance);
+    const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
 
     const statusMap = {
       Trống: 'empty',
@@ -471,10 +493,10 @@ const RoomStatusPage = () => {
     }))
     .filter((g) => g.rooms.length > 0);
 
-  // Thống kê nhanh
+  // Thống kê nhanh theo ngày đang xem
   const stats = ROOM_CONFIG.reduce((acc, room) => {
     const isMaintenance = !!maintenanceRooms[room.id];
-    const status = getRoomStatus(room.id, bookings, isMaintenance);
+    const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
@@ -700,6 +722,7 @@ const RoomStatusPage = () => {
                       onToggleMaintenance={handleToggleMaintenance}
                       newBookingIds={newBookingIds}
                       onBookingClick={handleBookingClick}
+                      selectedDate={selectedDate}
                     />
                   ))}
                 </div>

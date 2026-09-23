@@ -28,14 +28,23 @@ import cameraFeed from '../../assets/images/camera_feed.png';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const calculateStatus = (checkIn, checkOut) => {
+const calculateStatus = (checkIn, checkOut, status) => {
+  if (
+    status === 'check-out' ||
+    status === 'Đã hoàn tất' ||
+    status === 'hoàn tất' ||
+    status === 'cancelled' ||
+    status === 'Đã hủy'
+  ) {
+    return 'Đã hoàn tất';
+  }
   if (!checkIn || !checkOut) return 'Chưa rõ';
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
   const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
+  if (today > outDate) return 'Đã hoàn tất';
   if (today < inDate) return 'Sắp tới';
-  if (today >= inDate && today <= outDate) return 'Đang lưu trú';
-  return 'Đã hoàn tất';
+  return 'Đang lưu trú';
 };
 
 const formatDate = (dateStr) => {
@@ -794,7 +803,7 @@ const TrackingPage = () => {
 
   // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin)
   const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
-  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut) === 'Đang lưu trú');
+  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú');
 
   const resolvedPets = activeBooking
     ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)

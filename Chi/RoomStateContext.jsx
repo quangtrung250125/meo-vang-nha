@@ -89,12 +89,41 @@ export const INITIAL_BOOKINGS = {
 // ─────────────────────────────────────────────
 // Helper: Tính trạng thái phòng
 // ─────────────────────────────────────────────
-export function getRoomStatus(roomId, bookings, isMaintenance) {
+export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new Date()) {
   if (isMaintenance) return 'maintenance';
   const room = ROOM_CONFIG.find((r) => r.id === roomId);
   if (!room) return 'empty';
-  const bks = (bookings[roomId] || []).filter((b) => !b.code?.includes('BK'));
-  const total = bks.reduce((s, b) => s + b.cats, 0);
+
+  const t = targetDate instanceof Date ? targetDate : new Date(targetDate);
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, '0');
+  const d = String(t.getDate()).padStart(2, '0');
+  const targetDateStr = `${y}-${m}-${d}`;
+
+  const bks = (bookings[roomId] || []).filter((b) => {
+    if (!b || b.code?.includes('BK')) return false;
+    // Bỏ qua các đơn đã check-out, đã hoàn tất hoặc bị hủy
+    if (
+      b.status === 'check-out' ||
+      b.status === 'Đã hoàn tất' ||
+      b.status === 'hoàn tất' ||
+      b.status === 'cancelled' ||
+      b.status === 'Đã hủy'
+    ) {
+      return false;
+    }
+    // Nếu ngày hết hạn đặt phòng đã qua so với ngày kiểm tra -> phòng đã hết hạn, không còn chiếm phòng
+    if (b.checkOut && targetDateStr > b.checkOut) {
+      return false;
+    }
+    // Chỉ tính chiếm phòng nếu ngày kiểm tra nằm trong khoảng [checkIn, checkOut]
+    if (b.checkIn && b.checkOut) {
+      return targetDateStr >= b.checkIn && targetDateStr <= b.checkOut;
+    }
+    return true;
+  });
+
+  const total = bks.reduce((s, b) => s + (b.cats || 1), 0);
   if (total === 0) return 'empty';
   if (total < room.capacity) return 'available';
   return 'full';
@@ -494,13 +523,16 @@ export const RoomStateProvider = ({ children }) => {
   }, [updateBooking]);
 
   /**
-   * Check-out: xóa booking khỏi phòng (sau khi thanh toán)
+   * Check-out: cập nhật trạng thái đã check-out, giải phóng phòng để phòng TRỐNG ngay lập tức
    */
   const checkOutBooking = useCallback((roomId, code) => {
     setBookings((prev) => {
+      const currentList = prev[roomId] || [];
+      // Giải phóng booking khỏi phòng đang ở để phòng trở lại TRỐNG
+      const updatedList = currentList.filter((b) => b.code !== code && b.id !== code);
       const updated = {
         ...prev,
-        [roomId]: (prev[roomId] || []).filter((b) => b.code !== code),
+        [roomId]: updatedList,
       };
       try {
         localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
@@ -508,10 +540,54 @@ export const RoomStateProvider = ({ children }) => {
         console.error('Failed to checkout booking', e);
       }
       if (syncChannel) {
-        syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });
+        syncChannel.postMessage({
+          type: 'BOOKING_REMOVED',
+          roomId,
+          code,
+          allBookings: updated,
+        });
       }
       return updated;
     });
+
+    // Cập nhật trạng thái thành 'check-out' trong bookingHistory
+    try {
+      const savedHist = localStorage.getItem('bookingHistory');
+      if (savedHist) {
+        const list = JSON.parse(savedHist);
+        if (Array.isArray(list)) {
+          const nextList = list.map((item) =>
+            item.id === code || item.code === code
+              ? { ...item, status: 'check-out' }
+              : item
+          );
+          localStorage.setItem('bookingHistory', JSON.stringify(nextList));
+          window.dispatchEvent(new Event('mvn_booking_sync'));
+        }
+      }
+    } catch (e) {}
+
+    // Cập nhật lên Supabase Database realtime
+    (async () => {
+      try {
+        const { data: existingRows } = await supabase
+          .from('bookings')
+          .select('id, data')
+          .or(`id.eq.${code},code.eq.${code}`);
+
+        if (existingRows && existingRows.length > 0) {
+          const target = existingRows[0];
+          await supabase
+            .from('bookings')
+            .update({
+              data: { ...(target.data || {}), status: 'check-out' },
+            })
+            .eq('id', target.id);
+        }
+      } catch (err) {
+        console.warn('Lỗi cập nhật check-out lên Supabase:', err);
+      }
+    })();
   }, []);
 
   /**
@@ -568,7 +644,13 @@ export const RoomStateProvider = ({ children }) => {
         if (catCount > room.capacity) return;
 
         const bks = (bookings[room.id] || []).filter(
-          (b) => !b.code?.includes('BK') && b.status !== 'cancelled' && b.status !== 'Đã hủy'
+          (b) =>
+            !b.code?.includes('BK') &&
+            b.status !== 'cancelled' &&
+            b.status !== 'Đã hủy' &&
+            b.status !== 'check-out' &&
+            b.status !== 'Đã hoàn tất' &&
+            b.status !== 'hoàn tất'
         );
 
         let isBookedInDateRange = false;
