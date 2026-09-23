@@ -61,7 +61,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const roomId = data.selectedRoom?.id;
     if (!roomId) {
       setConflictError('Vui lòng chọn phòng trước khi gửi yêu cầu.');
@@ -110,8 +110,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       createdAt: new Date().toISOString(),
     };
 
-    // ── Kiểm tra độc quyền phòng theo ngày và thêm booking ──
-    const roomResult = addNewBooking(roomId, bookingPayload);
+    // ── Kiểm tra độc quyền phòng theo ngày và thêm booking (Atomic qua server) ──
+    const roomResult = await addNewBooking(roomId, bookingPayload);
 
     if (roomResult && (roomResult.conflict || roomResult.success === false)) {
       setIsSubmitting(false);
@@ -122,6 +122,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
         body: msg,
       });
+      if (updateData) {
+        updateData({ conflictedRoomId: roomResult.conflictedRoomId || roomId });
+      }
       return;
     }
 

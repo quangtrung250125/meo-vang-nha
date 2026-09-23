@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications')) {
+        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings')) {
           return next();
         }
 
@@ -40,6 +40,17 @@ function apiDevPlugin() {
         const urlPath = req.url.split('?')[0];
 
         try {
+          if (urlPath === '/api/bookings') {
+            if (req.method === 'GET') {
+              const { handleGetBookings } = await import('./api/lib/bookingsService.js');
+              return handleGetBookings(req, res);
+            }
+            if (req.method === 'POST') {
+              req.body = await parseBody();
+              const { handleAddBooking } = await import('./api/lib/bookingsService.js');
+              return handleAddBooking(req, res);
+            }
+          }
           if (urlPath === '/api/notifications/vapid-public-key') {
             const { default: handler } = await import('./api/notifications/vapid-public-key.js');
             return handler(req, res);

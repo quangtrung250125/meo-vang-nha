@@ -350,6 +350,43 @@ export const RoomStateProvider = ({ children }) => {
     };
   }, []);
 
+  // 3. Đồng bộ Realtime đa thiết bị (Điện thoại + Máy tính) qua server trung tâm /api/bookings
+  useEffect(() => {
+    let isMounted = true;
+    const fetchServerBookings = async () => {
+      try {
+        const res = await fetch('/api/bookings');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.bookings && isMounted) {
+            setBookings((prev) => {
+              // Chỉ cập nhật nếu có thay đổi để tránh re-render thừa
+              const prevStr = JSON.stringify(prev);
+              const nextStr = JSON.stringify(json.bookings);
+              if (prevStr !== nextStr) {
+                try {
+                  localStorage.setItem('mvn_room_bookings', nextStr);
+                } catch (e) {}
+                return json.bookings;
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (err) {}
+    };
+
+    fetchServerBookings();
+    const intervalId = setInterval(fetchServerBookings, 2000);
+    window.addEventListener('focus', fetchServerBookings);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', fetchServerBookings);
+    };
+  }, []);
+
   // Lắng nghe và đồng bộ dữ liệu Realtime từ Supabase bookings table
   useEffect(() => {
     let isMounted = true;
@@ -543,10 +580,85 @@ export const RoomStateProvider = ({ children }) => {
    * @param {object} booking   - { code, cats, status, ...detailFields }
    * @returns {object} { success: boolean, conflict?: boolean, reason?: string, message?: string }
    */
-  const addNewBooking = useCallback((roomId, booking) => {
+  const addNewBooking = useCallback(async (roomId, booking) => {
+    // 1. Gửi request atomic lên server trung tâm (/api/bookings)
+    // Đảm bảo tuyệt đối không bị race condition giữa 2 thiết bị/tài khoản cùng đặt chỗ cuối
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, booking }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.conflict) {
+        if (data.allBookings) {
+          setBookings(data.allBookings);
+          try { localStorage.setItem('mvn_room_bookings', JSON.stringify(data.allBookings)); } catch (e) {}
+        }
+        return {
+          success: false,
+          conflict: true,
+          reason: data.reason || 'ROOM_CAPACITY_FULL',
+          message: data.message || `Phòng ${roomId} đã kín chỗ! Vui lòng bấm "Chọn phòng khác".`,
+          conflictedRoomId: roomId,
+          availableSlots: data.availableSlots ?? 0,
+          capacity: data.capacity,
+          conflictBooking: data.conflictBooking,
+        };
+      }
+
+      if (data.success && data.allBookings) {
+        setBookings(data.allBookings);
+        try { localStorage.setItem('mvn_room_bookings', JSON.stringify(data.allBookings)); } catch (e) {}
+
+        if (syncChannel) {
+          syncChannel.postMessage({
+            type: 'BOOKING_ADDED',
+            roomId,
+            booking: data.booking,
+            allBookings: data.allBookings,
+          });
+        }
+
+        try {
+          supabase.channel('mvn_room_state_rt').send({
+            type: 'broadcast',
+            event: 'BOOKING_ADDED',
+            payload: {
+              roomId,
+              booking: data.booking,
+              allBookings: data.allBookings,
+            },
+          });
+        } catch (e) {}
+
+        if (data.booking?.code) {
+          setNewBookingIds((prev) => {
+            const next = new Set(prev);
+            next.add(data.booking.code);
+            return next;
+          });
+          setTimeout(() => {
+            setNewBookingIds((prev) => {
+              const next = new Set(prev);
+              next.delete(data.booking.code);
+              return next;
+            });
+          }, 6000);
+        }
+
+        return { success: true, booking: data.booking, allBookings: data.allBookings };
+      }
+    } catch (err) {
+      console.warn('[addNewBooking] Không kết nối được server, fallback local:', err);
+    }
+
+    // 2. Fallback kiểm tra bộ nhớ local (nếu offline)
     const current = bookings[roomId] || [];
 
-    // 1. Kiểm tra nếu cùng 1 khách hàng gửi lại / cập nhật đơn
+    // Kiểm tra nếu cùng 1 khách hàng gửi lại / cập nhật đơn
     const duplicateByCustomer = current.find((existing) => {
       if ((booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id)) {
         return true;
@@ -572,20 +684,9 @@ export const RoomStateProvider = ({ children }) => {
       };
       setBookings(updated);
       try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
-      if (syncChannel) {
-        syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated });
-      }
-      try {
-        supabase.channel('mvn_room_state_rt').send({
-          type: 'broadcast',
-          event: 'BOOKING_UPDATED',
-          payload: { roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated }
-        });
-      } catch (e) {}
       return { success: true, isDuplicate: true, booking };
     }
 
-    // 2. Kiểm tra số chỗ còn trống theo sức chứa phòng trong khoảng ngày lưu trú
     const room = ROOM_CONFIG.find((r) => r.id === roomId);
     const capacity = room?.capacity || 2;
     const newCats = Number(booking.cats) || 1;
@@ -625,57 +726,12 @@ export const RoomStateProvider = ({ children }) => {
       };
     }
 
-    // 3. Nếu còn đủ chỗ, thêm booking vào phòng
     const updated = {
       ...bookings,
       [roomId]: [...current, booking],
     };
     setBookings(updated);
-
-    try {
-      localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Failed to save bookings to localStorage', e);
-    }
-
-    // Phát sóng đa tab qua BroadcastChannel
-    if (syncChannel) {
-      syncChannel.postMessage({
-        type: 'BOOKING_ADDED',
-        roomId,
-        booking,
-        allBookings: updated,
-      });
-    }
-
-    // Phát sóng đa trình duyệt / ẩn danh qua Supabase Realtime Broadcast
-    try {
-      supabase.channel('mvn_room_state_rt').send({
-        type: 'broadcast',
-        event: 'BOOKING_ADDED',
-        payload: {
-          roomId,
-          booking,
-          allBookings: updated,
-        }
-      });
-    } catch (e) {}
-
-    if (booking?.code) {
-      setNewBookingIds((prev) => {
-        const next = new Set(prev);
-        next.add(booking.code);
-        return next;
-      });
-      setTimeout(() => {
-        setNewBookingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(booking.code);
-          return next;
-        });
-      }, 6000);
-    }
-
+    try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
     return { success: true, booking };
   }, [bookings]);
 

@@ -73,23 +73,27 @@ const Step5Success = ({ data, onBackToStep1 }) => {
       createdAt: new Date().toISOString(),
     };
 
-    // ── Kiểm tra độc quyền phòng và đồng bộ sang Admin Tình trạng phòng ──
-    const roomId = data.selectedRoom?.id;
-    if (roomId) {
-      const roomResult = addNewBooking(roomId, bookingPayload);
+    const executeFallbackBooking = async () => {
+      // ── Kiểm tra độc quyền phòng và đồng bộ sang Admin Tình trạng phòng ──
+      const roomId = data.selectedRoom?.id;
+      if (roomId) {
+        const roomResult = await addNewBooking(roomId, bookingPayload);
 
-      if (roomResult && (roomResult.conflict || roomResult.success === false)) {
-        setBookingConflict(true);
-        setConflictMessage(
-          roomResult.message ||
-            `Phòng ${roomId} vừa có khách đặt trong khoảng thời gian này. Vui lòng chọn phòng khác!`
-        );
-        return; // Dừng lại, KHÔNG lưu đơn vào booking history
+        if (roomResult && (roomResult.conflict || roomResult.success === false)) {
+          setBookingConflict(true);
+          setConflictMessage(
+            roomResult.message ||
+              `Phòng ${roomId} vừa có khách đặt trong khoảng thời gian này. Vui lòng chọn phòng khác!`
+          );
+          return; // Dừng lại, KHÔNG lưu đơn vào booking history
+        }
       }
-    }
 
-    // Chỉ lưu vào booking history khi phòng không bị xung đột
-    upsertBooking(bookingPayload);
+      // Chỉ lưu vào booking history khi phòng không bị xung đột
+      upsertBooking(bookingPayload);
+    };
+
+    executeFallbackBooking();
   }, [addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking, bookingId]);
 
   if (bookingConflict) {
