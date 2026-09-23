@@ -34,6 +34,8 @@ const Step5Success = ({ data }) => {
       selectedRoom: data.selectedRoom,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
+      totalAmount: data.totalAmount || 0,
+      paymentStatus: 'Chưa thanh toán',
       createdAt: new Date().toISOString()
     });
   }, [addBooking, data]);

@@ -3,6 +3,7 @@ import { PawPrint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { toast } from 'react-hot-toast';
 
 const calculateBookingStatus = (checkInDate, checkOutDate) => {
   if (!checkInDate || !checkOutDate) return 'Chưa rõ';
@@ -23,7 +24,7 @@ const calculateBookingStatus = (checkInDate, checkOutDate) => {
 };
 
 const MyBooking = () => {
-  const { globalBookingList } = useBookingHistory();
+  const { globalBookingList, updateBooking } = useBookingHistory();
   const { petList } = usePetProfile();
   const [activeTab, setActiveTab] = useState('Tất cả');
   const navigate = useNavigate();
@@ -56,6 +57,11 @@ const MyBooking = () => {
       return `${day}/${month}/${year}`;
     }
     return `${format(checkIn)} - ${format(checkOut)}`;
+  };
+
+  const handlePayment = (bookingId) => {
+    updateBooking(bookingId, { paymentStatus: 'Đã thanh toán' });
+    toast.success('Thanh toán thành công! Hệ thống đã cập nhật hạng thành viên.');
   };
 
   return (
@@ -117,6 +123,9 @@ const MyBooking = () => {
                       <span className={`text-xs font-bold px-3 py-1 rounded-full w-max mx-auto sm:mx-0 ${getBadgeColor(booking.dynamicStatus)}`}>
                         {booking.dynamicStatus}
                       </span>
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full w-max mx-auto sm:mx-0 ${booking.paymentStatus === 'Đã thanh toán' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {booking.paymentStatus || 'Chưa thanh toán'}
+                      </span>
                     </div>
                     <p className="text-gray-600 text-sm font-medium mb-1">
                       {booking.selectedRoom?.name ? `Phòng ${booking.selectedRoom.name} • ` : ''} 
@@ -127,16 +136,24 @@ const MyBooking = () => {
                   </div>
 
                   {/* Actions */}
-                  {booking.dynamicStatus === 'Đang lưu trú' && (
-                    <div className="flex flex-col items-center sm:items-end gap-3 shrink-0 mt-4 sm:mt-0 border-t sm:border-t-0 border-gray-100 pt-4 sm:pt-0 w-full sm:w-auto">
+                  <div className="flex flex-col items-center sm:items-end gap-3 shrink-0 mt-4 sm:mt-0 border-t sm:border-t-0 border-gray-100 pt-4 sm:pt-0 w-full sm:w-auto">
+                    {booking.dynamicStatus === 'Đang lưu trú' && (
                       <button 
                         onClick={() => navigate('/tracking')}
                         className="w-full sm:w-auto text-center px-6 py-2.5 rounded-xl text-sm font-bold text-accent border-2 border-accent/20 hover:border-accent hover:bg-accent hover:text-white transition-colors bg-accent/5"
                       >
                         Xem chi tiết / Camera
                       </button>
-                    </div>
-                  )}
+                    )}
+                    {booking.paymentStatus !== 'Đã thanh toán' && (
+                      <button 
+                        onClick={() => handlePayment(booking.id)}
+                        className="w-full sm:w-auto text-center px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors shadow-sm"
+                      >
+                        Thanh toán ngay
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

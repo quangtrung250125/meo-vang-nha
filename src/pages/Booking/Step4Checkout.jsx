@@ -54,6 +54,7 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
   };
 
   const handleSubmit = () => {
+    updateData({ totalAmount: total });
     onNext();
   };
 

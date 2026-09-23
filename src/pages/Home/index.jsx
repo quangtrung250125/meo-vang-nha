@@ -24,16 +24,23 @@ import { promotionInfo } from '../../mockData/servicesData';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useUI } from '../../contexts/UIContext';
 import { HtmlBannerCarousel } from '../../components/HtmlFeatures';
+import { calculateMembership } from '../../utils/membership';
 
 const Home = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [currentBannerIdx, setCurrentBannerIdx] = useState(0);
   const { customerProfile, saveCustomerProfile } = useCustomerProfile();
   const { petList, savePet } = usePetProfile();
+  const { globalBookingList } = useBookingHistory();
   const { openPolicy } = useUI();
   const isWednesday = new Date().getDay() === 3;
+
+  const { tier, points } = calculateMembership(globalBookingList);
+  const displayOwner = customerProfile?.fullName || 'Khách Hàng Mới';
+  const displayPetCode = petList && petList.length > 0 ? `MVN-${petList[0].id.slice(-5)}` : 'MVN-XXXXX';
 
   const hotPromoCards = [
     {
@@ -624,16 +631,16 @@ const Home = () => {
                   <i className="fa-solid fa-paw text-3xl opacity-80"></i>
                 </div>
                 <div className="mb-8 text-xs space-y-1">
-                  <p className="text-amber-100">Chủ nuôi: <span className="font-semibold text-white">Nguyễn Văn A</span></p>
-                  <p className="text-amber-100">Mã bé cưng: <span className="font-mono text-white">MVN-88992</span></p>
+                  <p className="text-amber-100">Chủ nuôi: <span className="font-semibold text-white">{displayOwner}</span></p>
+                  <p className="text-amber-100">Mã bé cưng: <span className="font-mono text-white">{displayPetCode}</span></p>
                 </div>
                 <div className="flex justify-between items-end border-t border-amber-300/40 pt-4">
                   <div>
                     <p className="text-[10px] text-amber-100 uppercase">Điểm tích lũy</p>
-                    <p className="text-2xl font-black">1,250 <span className="text-xs font-normal">Điểm</span></p>
+                    <p className="text-2xl font-black">{points.toLocaleString()} <span className="text-xs font-normal">Điểm</span></p>
                   </div>
                   <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold border border-white/30">
-                    HẠNG VÀNG
+                    {tier}
                   </span>
                 </div>
               </div>
