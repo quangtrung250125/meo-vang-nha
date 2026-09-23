@@ -123,7 +123,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
   const [isChecking, setIsChecking] = useState(false);
 
   // Kết nối với shared RoomStateContext
-  const { getRoomAvailability } = useRoomState();
+  const { getRoomAvailability, bookings } = useRoomState();
 
   // Kiểm tra nếu ngày check-in là Thứ 5 (getDay() === 4)
   const isThursdayCheckIn = () => {
@@ -139,6 +139,24 @@ const Step1Dates = ({ data, updateData, onNext }) => {
     return new Date(year, month - 1, day);
   };
 
+  // Cập nhật trạng thái phòng Realtime nếu có khách khác vừa đặt
+  useEffect(() => {
+    if (availableGroups && data.checkIn && data.checkOut) {
+      const updatedGroups = getRoomAvailability(data.catCount || 1, data.checkIn, data.checkOut);
+      setAvailableGroups(updatedGroups);
+
+      if (data.selectedRoom) {
+        const roomStillFree = updatedGroups?.some((g) =>
+          g.rooms.some((r) => r.id === data.selectedRoom.id && !r.isBooked)
+        );
+        if (!roomStillFree) {
+          updateData({ selectedRoom: null });
+          setError(`Phòng ${data.selectedRoom.id} vừa được khách khác đặt. Vui lòng chọn phòng khác!`);
+        }
+      }
+    }
+  }, [bookings, data.catCount, data.checkIn, data.checkOut]);
+
   const handleCheckRoom = () => {
     if (!data.checkIn || !data.checkOut) {
       setError('Vui lòng chọn ngày gửi và ngày đón.');
@@ -153,11 +171,12 @@ const Step1Dates = ({ data, updateData, onNext }) => {
     setError('');
     setIsChecking(true);
 
-    // Mô phỏng delay network 600ms để UX mượt mà hơn
+    // Mô phỏng delay network 500ms để UX mượt mà hơn
     setTimeout(() => {
-      const groups = getRoomAvailability(data.catCount || 1);
+      const groups = getRoomAvailability(data.catCount || 1, data.checkIn, data.checkOut);
       setIsChecking(false);
-      if (!groups || groups.length === 0) {
+      const hasAnyFree = groups && groups.some((g) => g.rooms.some((r) => !r.isBooked));
+      if (!groups || groups.length === 0 || !hasAnyFree) {
         setNoRooms(true);
         setAvailableGroups(null);
         updateData({ selectedRoom: null });
@@ -165,7 +184,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
         setNoRooms(false);
         setAvailableGroups(groups);
       }
-    }, 600);
+    }, 500);
   };
 
   const handleNextClick = () => {
@@ -330,6 +349,23 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                 <div className="flex flex-wrap gap-2.5 pt-1">
                   {rooms.map((room) => {
                     const isSelected = data.selectedRoom?.id === room.id;
+                    const isFull = room.isBooked || room.remaining <= 0;
+
+                    if (isFull) {
+                      return (
+                        <div
+                          key={room.id}
+                          title="Phòng đã có khách đặt trong khoảng thời gian này"
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-200 bg-red-50/70 text-gray-400 cursor-not-allowed text-sm select-none"
+                        >
+                          <span className="font-bold line-through text-gray-500">{room.id}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-600">
+                            Đã kín lịch
+                          </span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <button
                         key={room.id}
@@ -344,8 +380,8 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                       >
                         {isSelected && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
                         <span className="font-bold text-text-dark">{room.id}</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                          Còn {room.remaining}/{room.capacity}
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Còn trống
                         </span>
                       </button>
                     );

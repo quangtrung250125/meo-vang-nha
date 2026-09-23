@@ -6,9 +6,10 @@ import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 
-const Step5Success = ({ data }) => {
+const Step5Success = ({ data, onBackToStep1 }) => {
   const [bookingId, setBookingId] = useState('');
   const [bookingConflict, setBookingConflict] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState('');
   const { addBooking, upsertBooking } = useBookingHistory();
   const { addNewBooking } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
@@ -57,41 +58,64 @@ const Step5Success = ({ data }) => {
       petProfiles: data.petProfiles,
       customerPhone: ownerPhone,
       customerName: ownerName,
-      customerId: activeCustomer?.customerId || null,
+      customerId: activeCustomer?.customerId || activeCustomer?.id || null,
       status: bookingStatus,
       createdAt: new Date().toISOString(),
     };
 
-    // Save to booking history context
-    upsertBooking(bookingPayload);
-
-    // ── Đồng bộ sang Admin Tình trạng phòng ──
+    // ── Kiểm tra độc quyền phòng và đồng bộ sang Admin Tình trạng phòng ──
     const roomId = data.selectedRoom?.id;
     if (roomId) {
-      const roomAdded = addNewBooking(roomId, {
+      const roomResult = addNewBooking(roomId, {
         ...bookingPayload,
         roomId,
       });
 
-      if (!roomAdded) {
+      if (roomResult && (roomResult.conflict || roomResult.success === false)) {
         setBookingConflict(true);
+        setConflictMessage(
+          roomResult.message ||
+            `Phòng ${roomId} vừa có khách đặt trong khoảng thời gian này. Vui lòng chọn phòng khác!`
+        );
+        return; // Dừng lại, KHÔNG lưu đơn vào booking history
       }
     }
+
+    // Chỉ lưu vào booking history khi phòng không bị xung đột
+    upsertBooking(bookingPayload);
   }, [addBooking, addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking]);
 
   if (bookingConflict) {
     return (
-      <div className="text-center space-y-6 py-8">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-          <AlertTriangle className="h-10 w-10" />
+      <div className="text-center space-y-6 py-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 text-red-600 shadow-sm">
+          <AlertTriangle className="h-10 w-10 text-red-500 animate-pulse" />
         </div>
-        <h2 className="text-3xl font-bold text-text-dark font-title">Phòng đã được đặt trùng thời gian</h2>
-        <p className="max-w-xl mx-auto text-gray-600 leading-relaxed">
-          Thời gian bạn chọn đã có khách hàng khác đặt cùng phòng này. Hệ thống đã tự động giữ phòng hợp lệ và yêu cầu bạn chọn lại ngày hoặc phòng khác để tiếp tục đặt phòng.
+        <h2 className="text-2xl sm:text-3xl font-bold text-text-dark font-title">
+          Phòng vừa có khách đặt trước!
+        </h2>
+        <p className="max-w-xl mx-auto text-gray-600 leading-relaxed text-sm sm:text-base">
+          {conflictMessage ||
+            `Rất tiếc, trong lúc bạn thao tác, phòng ${data.selectedRoom?.id || ''} đã được một khách hàng khác đặt trong khoảng thời gian này. Để đảm bảo không gian riêng biệt cho các bé, vui lòng quay lại chọn phòng khác hoặc đổi ngày.`}
         </p>
-        <Link to="/booking" className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity">
-          Chọn phòng khác
-        </Link>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          {onBackToStep1 ? (
+            <button
+              onClick={onBackToStep1}
+              className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+            >
+              Quay về chọn phòng khác
+            </button>
+          ) : (
+            <Link
+              to="/booking"
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+            >
+              Quay về chọn phòng khác
+            </Link>
+          )}
+        </div>
       </div>
     );
   }

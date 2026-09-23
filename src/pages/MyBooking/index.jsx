@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { PawPrint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
 
 const calculateBookingStatus = (booking) => {
   if (!booking) return 'Chưa rõ';
@@ -34,18 +35,26 @@ const calculateBookingStatus = (booking) => {
 
 const MyBooking = () => {
   const { globalBookingList } = useBookingHistory();
+  const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
   const { petList } = usePetProfile();
   const [activeTab, setActiveTab] = useState('Tất cả');
   const navigate = useNavigate();
 
+  const activeCustomer = authenticatedCustomer || customerProfile;
+
+  // Lọc chỉ hiển thị đơn của tài khoản đang đăng nhập (Admin thấy tất cả)
+  const myBookings = globalBookingList.filter((booking) =>
+    isBookingOfCustomer(booking, activeCustomer, isAdmin)
+  );
+
   const tabs = ['Tất cả', 'Đang lưu trú', 'Sắp tới', 'Đã hoàn tất'];
 
-  const processedBookings = globalBookingList.map(booking => ({
+  const processedBookings = myBookings.map((booking) => ({
     ...booking,
-    dynamicStatus: calculateBookingStatus(booking)
+    dynamicStatus: calculateBookingStatus(booking),
   }));
 
-  const filteredBookings = processedBookings.filter(booking => {
+  const filteredBookings = processedBookings.filter((booking) => {
     if (activeTab === 'Tất cả') return true;
     return booking.dynamicStatus === activeTab;
   });

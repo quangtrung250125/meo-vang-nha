@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
+import { supabase } from '../src/supabaseClient';
 
 // ─────────────────────────────────────────────
 // Helper: generate a unique booking detail key for localStorage
@@ -115,12 +116,12 @@ const syncChannel = typeof window !== 'undefined' && window.BroadcastChannel
   ? new BroadcastChannel('mvn_room_channel')
   : null;
 
-const isDateRangeOverlap = (startA, endA, startB, endB) => {
+export const isDateRangeOverlap = (startA, endA, startB, endB) => {
   if (!startA || !endA || !startB || !endB) return false;
-  const aStart = new Date(`${startA}T00:00:00`);
-  const aEnd = new Date(`${endA}T00:00:00`);
-  const bStart = new Date(`${startB}T00:00:00`);
-  const bEnd = new Date(`${endB}T00:00:00`);
+  const aStart = new Date(`${startA}T00:00:00`).getTime();
+  const aEnd = new Date(`${endA}T00:00:00`).getTime();
+  const bStart = new Date(`${startB}T00:00:00`).getTime();
+  const bEnd = new Date(`${endB}T00:00:00`).getTime();
   return aStart < bEnd && bStart < aEnd;
 };
 
@@ -223,6 +224,116 @@ export const RoomStateProvider = ({ children }) => {
     };
   }, []);
 
+  // Lắng nghe và đồng bộ dữ liệu Realtime từ Supabase bookings table
+  useEffect(() => {
+    let isMounted = true;
+
+    // 1. Tải bookings đã lưu từ Supabase Database
+    const loadSupabaseBookings = async () => {
+      try {
+        const { data, error } = await supabase.from('bookings').select('*');
+        if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
+          setBookings((prev) => {
+            const next = { ...prev };
+            let changed = false;
+
+            data.forEach((row) => {
+              const bData = row.data || {};
+              const roomId = bData.roomId || bData.selectedRoom?.id;
+              if (roomId && next[roomId]) {
+                const existingList = next[roomId];
+                const exists = existingList.some(
+                  (b) => b.code === row.code || b.id === row.id || (bData.code && b.code === bData.code)
+                );
+                if (!exists) {
+                  const bookingItem = {
+                    ...bData,
+                    id: row.id,
+                    code: row.code || bData.code,
+                    customerId: row.customer_id,
+                  };
+                  next[roomId] = [...existingList, bookingItem];
+                  changed = true;
+                }
+              }
+            });
+
+            if (changed) {
+              try {
+                localStorage.setItem('mvn_room_bookings', JSON.stringify(next));
+              } catch (e) {}
+            }
+            return changed ? next : prev;
+          });
+        }
+      } catch (err) {
+        console.warn('Lỗi kết nối Supabase bookings:', err);
+      }
+    };
+
+    loadSupabaseBookings();
+
+    // 2. Lắng nghe thay đổi Realtime từ Supabase
+    const realtimeChannel = supabase
+      .channel('mvn_room_state_rt')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const row = payload.new;
+            const bData = row.data || {};
+            const roomId = bData.roomId || bData.selectedRoom?.id;
+            if (roomId) {
+              setBookings((prev) => {
+                const current = prev[roomId] || [];
+                if (current.some((b) => b.code === row.code || b.id === row.id)) return prev;
+                const nextBooking = {
+                  ...bData,
+                  id: row.id,
+                  code: row.code || bData.code,
+                  customerId: row.customer_id,
+                };
+                const updated = {
+                  ...prev,
+                  [roomId]: [...current, nextBooking],
+                };
+                try {
+                  localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+                } catch (e) {}
+                return updated;
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const deletedId = payload.old.id;
+            setBookings((prev) => {
+              let changed = false;
+              const next = { ...prev };
+              Object.keys(next).forEach((roomId) => {
+                const filtered = next[roomId].filter((b) => b.id !== deletedId && b.code !== deletedId);
+                if (filtered.length !== next[roomId].length) {
+                  next[roomId] = filtered;
+                  changed = true;
+                }
+              });
+              if (changed) {
+                try {
+                  localStorage.setItem('mvn_room_bookings', JSON.stringify(next));
+                } catch (e) {}
+              }
+              return changed ? next : prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(realtimeChannel);
+    };
+  }, []);
+
   /**
    * Bật/Tắt bảo trì cho 1 phòng - lưu trạng thái vào localStorage & phát sóng đa tab
    */
@@ -248,73 +359,79 @@ export const RoomStateProvider = ({ children }) => {
   }, []);
 
   /**
-   * Thêm booking mới vào phòng → đồng bộ tức thì sang Admin tab Tình trạng phòng (kể cả khác tab)
+   * Thêm booking mới vào phòng → kiểm tra độc quyền phòng theo ngày, đồng bộ tức thì sang Admin
    * @param {string} roomId    - ID phòng, VD: 'VIP-03'
    * @param {object} booking   - { code, cats, status, ...detailFields }
+   * @returns {object} { success: boolean, conflict?: boolean, reason?: string, message?: string }
    */
   const addNewBooking = useCallback((roomId, booking) => {
-    let shouldAdd = true;
-    let conflictBooking = null;
+    const current = bookings[roomId] || [];
 
-    setBookings((prev) => {
-      const current = prev[roomId] || [];
-      const duplicateByCustomer = current.find((existing) => {
-        if (!booking.customerPhone || !existing.customerPhone) return false;
-        return (
-          existing.customerPhone === booking.customerPhone &&
-          existing.checkIn === booking.checkIn &&
-          existing.checkOut === booking.checkOut &&
-          existing.roomId === roomId
-        );
-      });
-
-      if (duplicateByCustomer) {
-        const updated = {
-          ...prev,
-          [roomId]: current.map((item) => item.code === duplicateByCustomer.code ? { ...item, ...booking } : item),
-        };
-        try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
-        if (syncChannel) {
-          syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated });
-        }
-        shouldAdd = false;
-        conflictBooking = duplicateByCustomer;
-        return updated;
-      }
-
-      const conflict = current.find((existing) => {
-        if (!existing.checkIn || !existing.checkOut || !booking.checkIn || !booking.checkOut) return false;
-        if (existing.code === booking.code) return false;
-        return isDateRangeOverlap(existing.checkIn, existing.checkOut, booking.checkIn, booking.checkOut);
-      });
-
-      if (conflict) {
-        shouldAdd = false;
-        conflictBooking = conflict;
-        return prev;
-      }
-
-      const updated = {
-        ...prev,
-        [roomId]: [...current, booking],
-      };
-      try {
-        localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to save bookings to localStorage', e);
-      }
-      if (syncChannel) {
-        syncChannel.postMessage({
-          type: 'BOOKING_ADDED',
-          roomId,
-          booking,
-          allBookings: updated,
-        });
-      }
-      return updated;
+    // 1. Kiểm tra trùng lặp nếu cùng 1 khách gửi lại đơn
+    const duplicateByCustomer = current.find((existing) => {
+      if (!booking.customerPhone || !existing.customerPhone) return false;
+      return (
+        existing.customerPhone === booking.customerPhone &&
+        existing.checkIn === booking.checkIn &&
+        existing.checkOut === booking.checkOut &&
+        (existing.roomId === roomId || existing.code === booking.code || existing.id === booking.id)
+      );
     });
 
-    if (booking?.code && shouldAdd) {
+    if (duplicateByCustomer) {
+      const updated = {
+        ...bookings,
+        [roomId]: current.map((item) => item.code === duplicateByCustomer.code ? { ...item, ...booking } : item),
+      };
+      setBookings(updated);
+      try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated });
+      }
+      return { success: true, isDuplicate: true, booking };
+    }
+
+    // 2. Kiểm tra xung đột ngày (Exclusive room per date range)
+    const conflict = current.find((existing) => {
+      if (!existing.checkIn || !existing.checkOut || !booking.checkIn || !booking.checkOut) return false;
+      if (existing.code === booking.code || (booking.id && existing.id === booking.id)) return false;
+      if (existing.status === 'cancelled' || existing.status === 'Đã hủy') return false;
+      return isDateRangeOverlap(existing.checkIn, existing.checkOut, booking.checkIn, booking.checkOut);
+    });
+
+    if (conflict) {
+      return {
+        success: false,
+        conflict: true,
+        reason: 'DATE_OVERLAP',
+        message: `Phòng ${roomId} đã được đặt từ ngày ${conflict.checkIn} đến ngày ${conflict.checkOut}. Vui lòng chọn phòng khác!`,
+        conflictBooking: conflict
+      };
+    }
+
+    // 3. Nếu không có xung đột, thêm booking vào phòng
+    const updated = {
+      ...bookings,
+      [roomId]: [...current, booking],
+    };
+    setBookings(updated);
+
+    try {
+      localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save bookings to localStorage', e);
+    }
+
+    if (syncChannel) {
+      syncChannel.postMessage({
+        type: 'BOOKING_ADDED',
+        roomId,
+        booking,
+        allBookings: updated,
+      });
+    }
+
+    if (booking?.code) {
       setNewBookingIds((prev) => {
         const next = new Set(prev);
         next.add(booking.code);
@@ -329,8 +446,8 @@ export const RoomStateProvider = ({ children }) => {
       }, 6000);
     }
 
-    return shouldAdd;
-  }, []);
+    return { success: true, booking };
+  }, [bookings]);
 
   /**
    * Cập nhật thông tin booking (chỉnh sửa)
@@ -434,33 +551,60 @@ export const RoomStateProvider = ({ children }) => {
    * Trả về danh sách phòng còn chỗ, nhóm theo hạng
    * Dùng bởi Step1Dates khi bấm "Kiểm tra phòng trống"
    * @param {number} catCount - số mèo cần gửi
+   * @param {string|null} checkIn - ngày nhận (YYYY-MM-DD)
+   * @param {string|null} checkOut - ngày trả (YYYY-MM-DD)
    */
   const getRoomAvailability = useCallback(
-    (catCount = 1) => {
+    (catCount = 1, checkIn = null, checkOut = null) => {
       const order = ['VIP', 'VVIP', 'DELUXE'];
       const grouped = {};
 
       ROOM_CONFIG.forEach((room) => {
         const isMaint = !!maintenanceRooms[room.id];
-        const status = getRoomStatus(room.id, bookings, isMaint);
-        // Bỏ qua phòng đang bảo trì hoặc đã đầy
-        if (status === 'maintenance' || status === 'full') return;
+        // Bỏ qua phòng đang bảo trì
+        if (isMaint) return;
 
-        const bks = (bookings[room.id] || []).filter((b) => !b.code?.includes('BK'));
-        const used = bks.reduce((s, b) => s + b.cats, 0);
-        const remaining = room.capacity - used;
+        // Bỏ qua phòng không đủ sức chứa số mèo
+        if (catCount > room.capacity) return;
 
-        // Chỉ giữ phòng còn đủ chỗ cho số mèo cần gửi
-        if (remaining < catCount) return;
+        const bks = (bookings[room.id] || []).filter(
+          (b) => !b.code?.includes('BK') && b.status !== 'cancelled' && b.status !== 'Đã hủy'
+        );
+
+        let isBookedInDateRange = false;
+        let conflictItem = null;
+
+        if (checkIn && checkOut) {
+          conflictItem = bks.find((b) =>
+            isDateRangeOverlap(b.checkIn, b.checkOut, checkIn, checkOut)
+          );
+          if (conflictItem) {
+            isBookedInDateRange = true;
+          }
+        } else {
+          // Nếu chưa chọn ngày, kiểm tra theo tổng số mèo đang ở
+          const used = bks.reduce((s, b) => s + (b.cats || 1), 0);
+          if (room.capacity - used < catCount) {
+            isBookedInDateRange = true;
+          }
+        }
+
+        const remaining = isBookedInDateRange ? 0 : room.capacity;
+        const status = isBookedInDateRange ? 'full' : 'available';
 
         if (!grouped[room.type]) grouped[room.type] = [];
         grouped[room.type].push({
           id: room.id,
           type: room.type,
           capacity: room.capacity,
-          used,
           remaining,
-          status, // 'empty' | 'available'
+          isBooked: isBookedInDateRange,
+          conflictingBooking: conflictItem ? {
+            code: conflictItem.code,
+            checkIn: conflictItem.checkIn,
+            checkOut: conflictItem.checkOut,
+          } : null,
+          status,
         });
       });
 

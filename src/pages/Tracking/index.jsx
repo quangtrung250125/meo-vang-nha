@@ -11,7 +11,7 @@ import {
 import { packagesList } from '../../mockData/servicesData';
 import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useCareLog } from '../../contexts/CareLogContext';
 import PetDashboardNav from '../../components/PetDashboardNav';
@@ -722,7 +722,9 @@ const TrackingPage = () => {
   const navigate = useNavigate();
   const { petList } = usePetProfile();
   const { globalBookingList, updateBooking } = useBookingHistory();
-  const { customerProfile, saveCustomerProfile } = useCustomerProfile();
+  const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile } = useCustomerProfile();
+  const activeCustomer = authenticatedCustomer || customerProfile;
+  const isLoggedIn = Boolean(activeCustomer);
 
   const [showCallModal, setShowCallModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -784,16 +786,15 @@ const TrackingPage = () => {
     }
   };
 
-  const isLoggedIn = Boolean(customerProfile);
-
   const handleAuthSubmit = (formData) => {
     saveCustomerProfile(formData);
     setIsAuthOpen(false);
     toast.success(`Chào mừng ${formData.fullName || 'bạn'}! 🐾`);
   };
 
-  // Find active booking
-  const activeBooking = globalBookingList.find(b => calculateStatus(b.checkIn, b.checkOut) === 'Đang lưu trú');
+  // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin)
+  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
+  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut) === 'Đang lưu trú');
 
   const resolvedPets = activeBooking
     ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)

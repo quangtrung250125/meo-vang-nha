@@ -8,7 +8,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import AuthModal from '../../components/AuthModal';
@@ -191,7 +191,7 @@ const BookingCard = ({ booking, petList }) => {
 // ─────────────────────────────────────────────
 const PetProfile = () => {
   const { petList, savePet } = usePetProfile();
-  const { customerProfile, saveCustomerProfile, isAuthenticated } = useCustomerProfile();
+  const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile, isAuthenticated } = useCustomerProfile();
   const { globalBookingList } = useBookingHistory();
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -282,8 +282,10 @@ const PetProfile = () => {
   }
 
   // ── LOGGED IN VIEW ──────────────────────────
-  const displayName = customerProfile?.fullName || customerProfile?.name || 'bạn';
-  const bookings = globalBookingList.map(b => ({
+  const activeCustomer = authenticatedCustomer || customerProfile;
+  const displayName = activeCustomer?.fullName || activeCustomer?.name || 'bạn';
+  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
+  const bookings = myBookings.map(b => ({
     ...b,
     dynamicStatus: calculateStatus(b.checkIn, b.checkOut),
   }));

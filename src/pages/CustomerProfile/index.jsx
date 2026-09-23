@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import InvoiceModal from '../../components/InvoiceModal';
 
@@ -139,7 +139,7 @@ const DEFAULT_BOARDING_HISTORY = [
 
 const CustomerProfile = () => {
   const navigate = useNavigate();
-  const { customerProfile, authenticatedCustomer, saveCustomerProfile } = useCustomerProfile();
+  const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile } = useCustomerProfile();
   const { globalBookingList = [] } = useBookingHistory() || {};
   const { petList = [] } = usePetProfile() || {};
 
@@ -214,19 +214,21 @@ const CustomerProfile = () => {
     setIsInvoiceOpen(true);
   };
 
+  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
+
   const combinedBoardingList = [
-    ...(globalBookingList.map(b => ({
+    ...(myBookings.map(b => ({
       id: b.id || 'MVN-NEW',
-      petNames: b.petName || 'Bé Miu Miu',
-      roomName: b.roomType || 'Phòng Deluxe',
-      packageDesc: b.serviceType || 'Lưu trú Khách Sạn',
-      checkIn: b.checkInDate || '2026-09-20',
-      checkOut: b.checkOutDate || '2026-09-24',
-      status: 'Đang lưu trú',
+      petNames: b.catNames || b.petName || 'Bé Miu Miu',
+      roomName: b.selectedRoom?.name || b.roomType || 'Phòng Deluxe',
+      packageDesc: b.selectedPackage?.name || b.serviceType || 'Lưu trú Khách Sạn',
+      checkIn: b.checkIn || b.checkInDate || '2026-09-20',
+      checkOut: b.checkOut || b.checkOutDate || '2026-09-24',
+      status: b.status === 'đang ở' ? 'Đang lưu trú' : (b.status || 'Đang lưu trú'),
       image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
-      invoiceId: 'MVN-2026-8891'
+      invoiceId: b.code || b.id || 'MVN-2026-8891'
     }))),
-    ...DEFAULT_BOARDING_HISTORY
+    ...(activeCustomer?.phone === '0376131531' ? DEFAULT_BOARDING_HISTORY : [])
   ];
 
   const formatVND = (num) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num || 0);

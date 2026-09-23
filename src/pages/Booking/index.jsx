@@ -173,7 +173,13 @@ const Booking = () => {
             <Step4Checkout data={bookingData} updateData={updateData} onNext={handleNext} onPrev={handlePrev} />
           )}
           {currentStep === 5 && (
-            <Step5Success data={bookingData} />
+            <Step5Success
+              data={bookingData}
+              onBackToStep1={() => {
+                updateData({ selectedRoom: null });
+                setCurrentStep(1);
+              }}
+            />
           )}
         </div>
       </div>
