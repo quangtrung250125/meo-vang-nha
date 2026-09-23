@@ -147,16 +147,19 @@ const Step1Dates = ({ data, updateData, onNext }) => {
       setAvailableGroups(updatedGroups);
 
       if (data.selectedRoom) {
-        const roomStillFree = updatedGroups?.some((g) =>
-          g.rooms.some((r) => r.id === data.selectedRoom.id && !r.isBooked)
-        );
-        if (!roomStillFree) {
+        const currentRoom = updatedGroups
+          ?.flatMap((g) => g.rooms)
+          .find((r) => r.id === data.selectedRoom.id);
+
+        if (!currentRoom || currentRoom.remaining < (data.catCount || 1)) {
           const roomName = data.selectedRoom.id;
           updateData({ selectedRoom: null, conflictedRoomId: roomName });
-          setError(`Phòng ${roomName} vừa được khách khác đặt. Vui lòng chọn phòng khác!`);
-          sendWebNotification('⚠️ Phòng vừa có khách đặt!', {
-            body: `Phòng ${roomName} vừa có khách khác đặt trước. Hệ thống đã bôi đỏ để bạn chọn phòng khác.`,
+          setError(`Phòng ${roomName} vừa hết chỗ cho ${data.catCount || 1} bé. Vui lòng chọn phòng khác!`);
+          sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
+            body: `Phòng ${roomName} vừa hết chỗ cho các bé. Hệ thống đã bôi đỏ để bạn chọn phòng khác.`,
           });
+        } else if (currentRoom.remaining !== data.selectedRoom.remaining) {
+          updateData({ selectedRoom: currentRoom });
         }
       }
     }
@@ -389,9 +392,11 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                   {rooms.map((room) => {
                     const isSelected = data.selectedRoom?.id === room.id;
                     const isConflicted = data.conflictedRoomId === room.id;
-                    const isFull = room.isBooked || room.remaining <= 0 || isConflicted;
+                    const neededCats = Number(data.catCount) || 1;
+                    const isZeroSlots = room.remaining <= 0;
+                    const isNotEnoughSlots = room.remaining < neededCats;
 
-                    // Phòng vừa được ghi nhận đặt cùng lúc trước đó -> BÔI ĐỎ NỔI BẬT ĐỂ DỄ PHÂN BIỆT
+                    // 1. Phòng vừa được ghi nhận đặt cùng lúc trước đó -> BÔI ĐỎ NỔI BẬT ĐỂ DỄ PHÂN BIỆT
                     if (isConflicted) {
                       return (
                         <div
@@ -407,21 +412,39 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                       );
                     }
 
-                    if (isFull) {
+                    // 2. Kín phòng (hết toàn bộ chỗ)
+                    if (isZeroSlots) {
                       return (
                         <div
                           key={room.id}
-                          title="Phòng đã có khách đặt trong khoảng thời gian này"
+                          title={`Phòng ${room.id} đã kín phòng (0/${room.capacity} chỗ) trong khoảng thời gian này`}
                           className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-200 bg-red-50/70 text-gray-400 cursor-not-allowed text-sm select-none"
                         >
                           <span className="font-bold line-through text-gray-500">{room.id}</span>
                           <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-600">
-                            Đã kín lịch
+                            Kín phòng (0/{room.capacity})
                           </span>
                         </div>
                       );
                     }
 
+                    // 3. Còn chỗ nhưng không đủ cho số mèo khách muốn gửi
+                    if (isNotEnoughSlots) {
+                      return (
+                        <div
+                          key={room.id}
+                          title={`Phòng ${room.id} chỉ còn ${room.remaining} chỗ trống, không đủ cho ${neededCats} bé`}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-amber-200 bg-amber-50/60 text-gray-500 cursor-not-allowed text-sm select-none"
+                        >
+                          <span className="font-bold text-gray-600">{room.id}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                            Còn {room.remaining} chỗ (cần {neededCats})
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // 4. Còn đủ chỗ cho khách chọn đặt
                     return (
                       <button
                         key={room.id}
@@ -436,9 +459,15 @@ const Step1Dates = ({ data, updateData, onNext }) => {
                       >
                         {isSelected && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
                         <span className="font-bold text-text-dark">{room.id}</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Còn trống
-                        </span>
+                        {room.remaining < room.capacity ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300">
+                            Còn {room.remaining} chỗ
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Còn {room.remaining} chỗ
+                          </span>
+                        )}
                       </button>
                     );
                   })}

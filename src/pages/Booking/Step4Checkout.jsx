@@ -117,10 +117,10 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       setIsSubmitting(false);
       const msg =
         roomResult.message ||
-        `Rất tiếc, trong lúc bạn thao tác, phòng ${roomId} đã được một khách hàng khác đặt trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
+        `Rất tiếc, phòng ${roomId} không còn đủ chỗ trống trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
       setConflictError(msg);
-      sendWebNotification('⚠️ Phòng vừa có khách đặt!', {
-        body: `Phòng ${roomId} vừa được khách khác đặt trước. Hãy bấm "Chọn phòng khác" để giữ chỗ cho bé nhé!`,
+      sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
+        body: msg,
       });
       return;
     }

@@ -154,6 +154,96 @@ export const isDateRangeOverlap = (startA, endA, startB, endB) => {
   return aStart < bEnd && bStart < aEnd;
 };
 
+/**
+ * Helper: Tính số lượng chỗ (số mèo) đang bị chiếm dụng cao nhất trong một khoảng ngày hoặc tại một ngày cụ thể
+ * @param {string} roomId 
+ * @param {object} allBookingsByRoom - Danh sách bookings theo phòng
+ * @param {string|null} checkIn - Ngày bắt đầu YYYY-MM-DD
+ * @param {string|null} checkOut - Ngày kết thúc YYYY-MM-DD
+ * @param {Array<string>} excludeCodes - Các mã đơn muốn loại trừ (ví dụ khi đang sửa đơn hoặc cập nhật)
+ * @returns {number} Số chỗ cao nhất đã được đặt (peak occupied cats)
+ */
+export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, checkOut, excludeCodes = []) {
+  const list = (allBookingsByRoom[roomId] || []).filter((b) => {
+    if (!b || b.code?.includes('BK')) return false;
+    if (excludeCodes.length > 0 && (excludeCodes.includes(b.code) || excludeCodes.includes(b.id))) {
+      return false;
+    }
+    // Bỏ qua các đơn đã kết thúc / đã hủy
+    if (
+      b.status === 'cancelled' ||
+      b.status === 'Đã hủy' ||
+      b.status === 'check-out' ||
+      b.status === 'Đã hoàn tất' ||
+      b.status === 'hoàn tất'
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (list.length === 0) return 0;
+
+  // Trường hợp 1: Có cả ngày checkIn và checkOut
+  if (checkIn && checkOut) {
+    const startDate = new Date(`${checkIn}T00:00:00`);
+    const endDate = new Date(`${checkOut}T00:00:00`);
+    const endLimit = startDate.getTime() >= endDate.getTime() ? startDate : endDate;
+
+    let maxOccupied = 0;
+    const curr = new Date(startDate);
+    const isSingleDay = startDate.getTime() === endLimit.getTime();
+
+    while (isSingleDay ? curr.getTime() <= endLimit.getTime() : curr.getTime() < endLimit.getTime()) {
+      const y = curr.getFullYear();
+      const m = String(curr.getMonth() + 1).padStart(2, '0');
+      const d = String(curr.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
+      let occupiedOnDate = 0;
+      for (const b of list) {
+        if (!b.checkIn || !b.checkOut) continue;
+        const coversDate =
+          b.checkIn <= dateStr &&
+          (b.checkOut > dateStr || (b.checkIn === b.checkOut && b.checkOut === dateStr));
+
+        if (coversDate) {
+          occupiedOnDate += Number(b.cats) || 1;
+        }
+      }
+
+      if (occupiedOnDate > maxOccupied) {
+        maxOccupied = occupiedOnDate;
+      }
+
+      if (isSingleDay) break;
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    return maxOccupied;
+  }
+
+  // Trường hợp 2: Không truyền ngày (mặc định lấy theo ngày hiện tại)
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${y}-${m}-${d}`;
+
+  let todayOccupied = 0;
+  for (const b of list) {
+    if (!b.checkIn || !b.checkOut) {
+      todayOccupied += Number(b.cats) || 1;
+      continue;
+    }
+    if (b.checkIn <= todayStr && (b.checkOut > todayStr || b.checkOut === todayStr)) {
+      todayOccupied += Number(b.cats) || 1;
+    }
+  }
+
+  return todayOccupied;
+}
+
 // ─────────────────────────────────────────────
 // Context
 // ─────────────────────────────────────────────
@@ -495,32 +585,47 @@ export const RoomStateProvider = ({ children }) => {
       return { success: true, isDuplicate: true, booking };
     }
 
-    // 2. Kiểm tra xung đột ngày (Chỉ xung đột nếu phòng đã có đơn hiệu lực khác đặt trong cùng thời gian)
-    const conflict = current.find((existing) => {
-      if (!existing.checkIn || !existing.checkOut || !booking.checkIn || !booking.checkOut) return false;
-      if (existing.code === booking.code || (booking.id && existing.id === booking.id)) return false;
-      // Bỏ qua đơn hủy, đã check-out hoặc đã hoàn tất
-      if (
-        existing.status === 'cancelled' ||
-        existing.status === 'Đã hủy' ||
-        existing.status === 'check-out' ||
-        existing.status === 'Đã hoàn tất' ||
-        existing.status === 'hoàn tất'
-      ) return false;
-      return isDateRangeOverlap(existing.checkIn, existing.checkOut, booking.checkIn, booking.checkOut);
-    });
+    // 2. Kiểm tra số chỗ còn trống theo sức chứa phòng trong khoảng ngày lưu trú
+    const room = ROOM_CONFIG.find((r) => r.id === roomId);
+    const capacity = room?.capacity || 2;
+    const newCats = Number(booking.cats) || 1;
 
-    if (conflict) {
+    const currentOccupied = getPeakOccupancyForRoom(
+      roomId,
+      bookings,
+      booking.checkIn,
+      booking.checkOut,
+      [booking.code, booking.id].filter(Boolean)
+    );
+
+    const availableSlots = Math.max(0, capacity - currentOccupied);
+
+    if (availableSlots < newCats) {
+      const conflictItem = current.find(
+        (b) =>
+          b.checkIn &&
+          b.checkOut &&
+          booking.checkIn &&
+          booking.checkOut &&
+          isDateRangeOverlap(b.checkIn, b.checkOut, booking.checkIn, booking.checkOut)
+      );
+
       return {
         success: false,
         conflict: true,
-        reason: 'DATE_OVERLAP',
-        message: `Phòng ${roomId} đã được đặt từ ngày ${conflict.checkIn} đến ngày ${conflict.checkOut}. Vui lòng chọn phòng khác!`,
-        conflictBooking: conflict
+        reason: 'ROOM_CAPACITY_FULL',
+        message:
+          availableSlots === 0
+            ? `Phòng ${roomId} đã kín chỗ (${capacity}/${capacity} chỗ) từ ngày ${booking.checkIn} đến ngày ${booking.checkOut}. Vui lòng bấm "Chọn phòng khác"!`
+            : `Phòng ${roomId} chỉ còn ${availableSlots} chỗ trống trong thời gian này (bạn đang đặt ${newCats} bé). Vui lòng bấm "Chọn phòng khác"!`,
+        availableSlots,
+        capacity,
+        conflictedRoomId: roomId,
+        conflictBooking: conflictItem,
       };
     }
 
-    // 3. Nếu không có xung đột, thêm booking vào phòng
+    // 3. Nếu còn đủ chỗ, thêm booking vào phòng
     const updated = {
       ...bookings,
       [roomId]: [...current, booking],
@@ -750,52 +855,49 @@ export const RoomStateProvider = ({ children }) => {
         // Bỏ qua phòng đang bảo trì
         if (isMaint) return;
 
-        // Bỏ qua phòng không đủ sức chứa số mèo
+        // Bỏ qua phòng không đủ sức chứa tổng cho số mèo
         if (catCount > room.capacity) return;
 
-        const bks = (bookings[room.id] || []).filter(
-          (b) =>
-            !b.code?.includes('BK') &&
-            b.status !== 'cancelled' &&
-            b.status !== 'Đã hủy' &&
-            b.status !== 'check-out' &&
-            b.status !== 'Đã hoàn tất' &&
-            b.status !== 'hoàn tất'
-        );
+        const occupied = getPeakOccupancyForRoom(room.id, bookings, checkIn, checkOut);
+        const remaining = Math.max(0, room.capacity - occupied);
+        const isFull = remaining === 0;
+        const cannotFit = remaining < catCount;
 
-        let isBookedInDateRange = false;
-        let conflictItem = null;
+        const bks = bookings[room.id] || [];
+        const conflictItem = isFull || cannotFit
+          ? bks.find(
+              (b) =>
+                b.checkIn &&
+                b.checkOut &&
+                checkIn &&
+                checkOut &&
+                isDateRangeOverlap(b.checkIn, b.checkOut, checkIn, checkOut) &&
+                b.status !== 'cancelled' &&
+                b.status !== 'Đã hủy' &&
+                b.status !== 'check-out' &&
+                b.status !== 'Đã hoàn tất' &&
+                b.status !== 'hoàn tất'
+            )
+          : null;
 
-        if (checkIn && checkOut) {
-          conflictItem = bks.find((b) =>
-            isDateRangeOverlap(b.checkIn, b.checkOut, checkIn, checkOut)
-          );
-          if (conflictItem) {
-            isBookedInDateRange = true;
-          }
-        } else {
-          // Nếu chưa chọn ngày, kiểm tra theo tổng số mèo đang ở
-          const used = bks.reduce((s, b) => s + (b.cats || 1), 0);
-          if (room.capacity - used < catCount) {
-            isBookedInDateRange = true;
-          }
-        }
-
-        const remaining = isBookedInDateRange ? 0 : room.capacity;
-        const status = isBookedInDateRange ? 'full' : 'available';
+        const status = isFull ? 'full' : remaining < room.capacity ? 'partial' : 'available';
 
         if (!grouped[room.type]) grouped[room.type] = [];
         grouped[room.type].push({
           id: room.id,
           type: room.type,
           capacity: room.capacity,
+          occupied,
           remaining,
-          isBooked: isBookedInDateRange,
-          conflictingBooking: conflictItem ? {
-            code: conflictItem.code,
-            checkIn: conflictItem.checkIn,
-            checkOut: conflictItem.checkOut,
-          } : null,
+          isBooked: cannotFit, // không thể đặt nếu không đủ số chỗ cho số mèo
+          isFull,
+          conflictingBooking: conflictItem
+            ? {
+                code: conflictItem.code,
+                checkIn: conflictItem.checkIn,
+                checkOut: conflictItem.checkOut,
+              }
+            : null,
           status,
         });
       });
