@@ -176,13 +176,25 @@ export const BookingHistoryProvider = ({ children }) => {
     // Lưu vào Supabase nền
     (async () => {
       try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const genUUID = () => {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          });
+        };
+
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id || bookingData.customerId || null;
+        const rowId = isUUID(bookingData.dbId || bookingData.id) ? (bookingData.dbId || bookingData.id) : genUUID();
+
         await supabase.from('bookings').upsert({
-          id: bookingData.id || crypto.randomUUID(),
+          id: rowId,
           customer_id: userId,
           code: bookingData.code || bookingData.id,
-          data: bookingData,
+          data: { ...bookingData, dbId: rowId },
         });
       } catch (e) {
         console.warn('Lỗi ghi Supabase bookings:', e);
@@ -220,13 +232,25 @@ export const BookingHistoryProvider = ({ children }) => {
     // Lưu vào Supabase nền
     (async () => {
       try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const genUUID = () => {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          });
+        };
+
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id || bookingData.customerId || null;
+        const rowId = isUUID(bookingData.dbId || bookingData.id) ? (bookingData.dbId || bookingData.id) : genUUID();
+
         await supabase.from('bookings').upsert({
-          id: bookingData.id || crypto.randomUUID(),
+          id: rowId,
           customer_id: userId,
           code: bookingData.code || bookingData.id,
-          data: bookingData,
+          data: { ...bookingData, dbId: rowId },
         });
       } catch (e) {
         console.warn('Lỗi upsert Supabase bookings:', e);

@@ -7,10 +7,11 @@ import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateCo
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
-  const [bookingId, setBookingId] = useState('');
+  const initialBookingId = data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id || '';
+  const [bookingId, setBookingId] = useState(initialBookingId);
   const [bookingConflict, setBookingConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState('');
-  const { addBooking, upsertBooking } = useBookingHistory();
+  const { upsertBooking } = useBookingHistory();
   const { addNewBooking } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
@@ -22,10 +23,18 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   })();
 
   useEffect(() => {
+    // Nếu đơn đã được xác nhận thành công tại Bước 4, chỉ hiển thị mã đặt phòng
+    if (data.confirmedBooking || data.bookingId) {
+      if (!bookingId) {
+        setBookingId(data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id);
+      }
+      return;
+    }
+
     if (hasAdded.current) return;
     hasAdded.current = true;
 
-    // Generate random booking ID: MVN-XXXXX
+    // Dự phòng khi chuyển trực tiếp vào Bước 5
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
@@ -54,6 +63,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
       packages: [packageName],
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
+      roomId: data.selectedRoom?.id,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
       customerPhone: ownerPhone,
@@ -66,10 +76,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
     // ── Kiểm tra độc quyền phòng và đồng bộ sang Admin Tình trạng phòng ──
     const roomId = data.selectedRoom?.id;
     if (roomId) {
-      const roomResult = addNewBooking(roomId, {
-        ...bookingPayload,
-        roomId,
-      });
+      const roomResult = addNewBooking(roomId, bookingPayload);
 
       if (roomResult && (roomResult.conflict || roomResult.success === false)) {
         setBookingConflict(true);
@@ -83,7 +90,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
 
     // Chỉ lưu vào booking history khi phòng không bị xung đột
     upsertBooking(bookingPayload);
-  }, [addBooking, addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking]);
+  }, [addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking, bookingId]);
 
   if (bookingConflict) {
     return (

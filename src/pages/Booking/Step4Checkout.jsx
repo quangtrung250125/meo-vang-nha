@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift } from 'lucide-react';
+import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift, AlertTriangle, RefreshCw } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
+import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 
-
-const Step4Checkout = ({ data, onNext, onPrev }) => {
-
+const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
   const [isCouponApplied, setIsCouponApplied] = useState(true);
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
+  const [conflictError, setConflictError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { addNewBooking } = useRoomState();
+  const { authenticatedCustomer, customerProfile } = useCustomerProfile();
+  const { upsertBooking } = useBookingHistory();
 
   // Kiểm tra ngày nhận có phải Thứ 5
   const isThursday = (() => {
@@ -54,6 +61,78 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
   };
 
   const handleSubmit = () => {
+    const roomId = data.selectedRoom?.id;
+    if (!roomId) {
+      setConflictError('Vui lòng chọn phòng trước khi gửi yêu cầu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setConflictError('');
+
+    // Generate random booking ID: MVN-XXXXX
+    const randomNum = Math.floor(10000 + Math.random() * 90000);
+    const newId = `MVN-${randomNum}`;
+
+    const activeCustomer = authenticatedCustomer || customerProfile;
+    const ownerName = activeCustomer?.fullName || data.customerName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || data.customerPhone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+
+    const bookingPayload = {
+      id: newId,
+      code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
+      checkIn: data.checkIn,
+      checkOut: data.checkOut,
+      packages: [packageName],
+      selectedPackage: data.selectedPackage,
+      selectedRoom: data.selectedRoom,
+      roomId,
+      petIds: data.petProfiles?.map(p => p.id) || [],
+      petProfiles: data.petProfiles,
+      customerPhone: ownerPhone,
+      customerName: ownerName,
+      customerId: activeCustomer?.customerId || activeCustomer?.id || null,
+      status: bookingStatus,
+      totalPrice: total,
+      createdAt: new Date().toISOString(),
+    };
+
+    // ── Kiểm tra độc quyền phòng theo ngày và thêm booking ──
+    const roomResult = addNewBooking(roomId, bookingPayload);
+
+    if (roomResult && (roomResult.conflict || roomResult.success === false)) {
+      setIsSubmitting(false);
+      setConflictError(
+        roomResult.message ||
+        `Rất tiếc, trong lúc bạn thao tác, phòng ${roomId} đã được một khách hàng khác đặt trong khoảng thời gian này. Vui lòng quay lại chọn phòng khác hoặc đổi ngày.`
+      );
+      return;
+    }
+
+    // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
+    upsertBooking(bookingPayload);
+
+    // Cập nhật bookingData để Step 5 hiển thị
+    if (updateData) {
+      updateData({
+        bookingId: newId,
+        confirmedBooking: bookingPayload,
+      });
+    }
+
+    setIsSubmitting(false);
     onNext();
   };
 
@@ -181,19 +260,57 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-100 flex justify-between">
+      {/* Conflict Error Alert */}
+      {conflictError && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-left animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle className="w-6 h-6 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+          <div className="flex-1">
+            <h4 className="font-bold text-red-800 text-base">Phòng vừa có khách đặt trước!</h4>
+            <p className="text-red-700 text-sm mt-1 leading-relaxed">{conflictError}</p>
+            <div className="mt-3 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (updateData) updateData({ selectedRoom: null });
+                  if (onBackToStep1) {
+                    onBackToStep1();
+                  } else if (onPrev) {
+                    onPrev();
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm"
+              >
+                Quay về chọn phòng khác
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
         <button 
           onClick={onPrev}
-          className="bg-white border border-gray-200 text-gray-600 font-bold px-8 py-3.5 rounded-xl hover:bg-gray-50 transition-colors"
+          disabled={isSubmitting}
+          className="bg-white border border-gray-200 text-gray-600 font-bold px-8 py-3.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           Quay lại
         </button>
         <button 
           onClick={handleSubmit}
-          className="bg-accent hover:bg-accent-hover text-white font-bold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-accent/30 active:scale-95 flex items-center gap-2"
+          disabled={isSubmitting}
+          className="bg-accent hover:bg-accent-hover text-white font-bold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-accent/30 active:scale-95 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-5 h-5" />
-          <span>GỬI YÊU CẦU ĐẶT LỊCH</span>
+          {isSubmitting ? (
+            <>
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span>ĐANG XÁC NHẬN...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              <span>GỬI YÊU CẦU ĐẶT LỊCH</span>
+            </>
+          )}
         </button>
       </div>
     </div>

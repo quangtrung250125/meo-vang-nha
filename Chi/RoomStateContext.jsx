@@ -38,13 +38,13 @@ export const INITIAL_BOOKINGS = {
     {
       code: 'MVN-2026-8891',
       cats: 1,
-      status: 'check-in',
+      status: 'Đã hoàn tất',
       ownerName: 'Nguyễn Đức An',
       ownerPhone: '0376131531',
       ownerTier: 'Vàng',
       catNames: 'Bé Miu Miu',
-      checkIn: '2026-09-22',
-      checkOut: '2026-09-25',
+      checkIn: '2026-09-15',
+      checkOut: '2026-09-18',
       packages: ['Gói Chăm Sóc Toàn Diện', 'Combo Spa'],
     },
   ],
@@ -52,13 +52,13 @@ export const INITIAL_BOOKINGS = {
     {
       code: 'MVN-2026-8420',
       cats: 2,
-      status: 'check-in',
+      status: 'Đã hoàn tất',
       ownerName: 'Trần Thị Mai',
       ownerPhone: '0912345678',
       ownerTier: 'Bạch_Kim',
       catNames: 'Bánh Bao, Đậu Phộng',
-      checkIn: '2026-09-22',
-      checkOut: '2026-09-26',
+      checkIn: '2026-09-16',
+      checkOut: '2026-09-20',
       packages: ['Gói Cơ Bản', 'Tắm & Vệ Sinh'],
     },
   ],
@@ -70,13 +70,13 @@ export const INITIAL_BOOKINGS = {
     {
       code: 'MVN-2026-7734',
       cats: 2,
-      status: 'check-in',
+      status: 'Đã hoàn tất',
       ownerName: 'Lê Hoàng Long',
       ownerPhone: '0988776655',
       ownerTier: 'Kim_Cương',
       catNames: 'Sữa, Cà Phê',
-      checkIn: '2026-09-23',
-      checkOut: '2026-09-28',
+      checkIn: '2026-09-17',
+      checkOut: '2026-09-21',
       packages: ['Gói VIP Hoàng Gia', 'Khám Sức Khỏe'],
     },
   ],
@@ -176,7 +176,14 @@ const getInitialBookings = () => {
       const cleaned = { ...INITIAL_BOOKINGS };
       let hasAny = false;
       Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
-        const list = (parsed[roomId] || []).filter((b) => !b.code?.includes('BK'));
+        const list = (parsed[roomId] || []).filter((b) => {
+          if (!b || b.code?.includes('BK')) return false;
+          // Bỏ dữ liệu mẫu cũ bị kẹt thời gian lưu trú
+          if (b.code === 'MVN-2026-8891' || b.code === 'MVN-2026-8420' || b.code === 'MVN-2026-7734') {
+            return false;
+          }
+          return true;
+        });
         if (list.length > 0) hasAny = true;
         cleaned[roomId] = list;
       });
@@ -302,9 +309,62 @@ export const RoomStateProvider = ({ children }) => {
 
     loadSupabaseBookings();
 
-    // 2. Lắng nghe thay đổi Realtime từ Supabase
+    // 2. Lắng nghe thay đổi Realtime từ Supabase (hỗ trợ cả Broadcast WebSockets và Postgres Changes)
     const realtimeChannel = supabase
       .channel('mvn_room_state_rt')
+      .on(
+        'broadcast',
+        { event: 'BOOKING_ADDED' },
+        ({ payload }) => {
+          if (payload?.roomId && payload?.booking) {
+            setBookings((prev) => {
+              const current = prev[payload.roomId] || [];
+              if (current.some((b) => b.code === payload.booking.code || b.id === payload.booking.id)) {
+                return prev;
+              }
+              const updated = {
+                ...prev,
+                [payload.roomId]: [...current, payload.booking],
+              };
+              try {
+                localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'BOOKING_UPDATED' },
+        ({ payload }) => {
+          if (payload?.allBookings) {
+            setBookings(payload.allBookings);
+            try {
+              localStorage.setItem('mvn_room_bookings', JSON.stringify(payload.allBookings));
+            } catch (e) {}
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'BOOKING_REMOVED' },
+        ({ payload }) => {
+          if (payload?.roomId && payload?.code) {
+            setBookings((prev) => {
+              const current = prev[payload.roomId] || [];
+              const updated = {
+                ...prev,
+                [payload.roomId]: current.filter((b) => b.code !== payload.code && b.id !== payload.code),
+              };
+              try {
+                localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            });
+          }
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
@@ -396,35 +456,57 @@ export const RoomStateProvider = ({ children }) => {
   const addNewBooking = useCallback((roomId, booking) => {
     const current = bookings[roomId] || [];
 
-    // 1. Kiểm tra trùng lặp nếu cùng 1 khách gửi lại đơn
+    // 1. Kiểm tra nếu cùng 1 khách hàng gửi lại / cập nhật đơn
     const duplicateByCustomer = current.find((existing) => {
-      if (!booking.customerPhone || !existing.customerPhone) return false;
+      if ((booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id)) {
+        return true;
+      }
+      const sameCustomer =
+        (booking.customerId && existing.customerId && booking.customerId === existing.customerId) ||
+        (booking.customerPhone && existing.customerPhone && booking.customerPhone === existing.customerPhone);
       return (
-        existing.customerPhone === booking.customerPhone &&
+        sameCustomer &&
         existing.checkIn === booking.checkIn &&
-        existing.checkOut === booking.checkOut &&
-        (existing.roomId === roomId || existing.code === booking.code || existing.id === booking.id)
+        existing.checkOut === booking.checkOut
       );
     });
 
     if (duplicateByCustomer) {
       const updated = {
         ...bookings,
-        [roomId]: current.map((item) => item.code === duplicateByCustomer.code ? { ...item, ...booking } : item),
+        [roomId]: current.map((item) =>
+          item.code === duplicateByCustomer.code || item.id === duplicateByCustomer.id
+            ? { ...item, ...booking }
+            : item
+        ),
       };
       setBookings(updated);
       try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated });
       }
+      try {
+        supabase.channel('mvn_room_state_rt').send({
+          type: 'broadcast',
+          event: 'BOOKING_UPDATED',
+          payload: { roomId, code: duplicateByCustomer.code, updates: booking, allBookings: updated }
+        });
+      } catch (e) {}
       return { success: true, isDuplicate: true, booking };
     }
 
-    // 2. Kiểm tra xung đột ngày (Exclusive room per date range)
+    // 2. Kiểm tra xung đột ngày (Chỉ xung đột nếu phòng đã có đơn hiệu lực khác đặt trong cùng thời gian)
     const conflict = current.find((existing) => {
       if (!existing.checkIn || !existing.checkOut || !booking.checkIn || !booking.checkOut) return false;
       if (existing.code === booking.code || (booking.id && existing.id === booking.id)) return false;
-      if (existing.status === 'cancelled' || existing.status === 'Đã hủy') return false;
+      // Bỏ qua đơn hủy, đã check-out hoặc đã hoàn tất
+      if (
+        existing.status === 'cancelled' ||
+        existing.status === 'Đã hủy' ||
+        existing.status === 'check-out' ||
+        existing.status === 'Đã hoàn tất' ||
+        existing.status === 'hoàn tất'
+      ) return false;
       return isDateRangeOverlap(existing.checkIn, existing.checkOut, booking.checkIn, booking.checkOut);
     });
 
@@ -451,6 +533,7 @@ export const RoomStateProvider = ({ children }) => {
       console.error('Failed to save bookings to localStorage', e);
     }
 
+    // Phát sóng đa tab qua BroadcastChannel
     if (syncChannel) {
       syncChannel.postMessage({
         type: 'BOOKING_ADDED',
@@ -459,6 +542,19 @@ export const RoomStateProvider = ({ children }) => {
         allBookings: updated,
       });
     }
+
+    // Phát sóng đa trình duyệt / ẩn danh qua Supabase Realtime Broadcast
+    try {
+      supabase.channel('mvn_room_state_rt').send({
+        type: 'broadcast',
+        event: 'BOOKING_ADDED',
+        payload: {
+          roomId,
+          booking,
+          allBookings: updated,
+        }
+      });
+    } catch (e) {}
 
     if (booking?.code) {
       setNewBookingIds((prev) => {
@@ -547,6 +643,13 @@ export const RoomStateProvider = ({ children }) => {
           allBookings: updated,
         });
       }
+      try {
+        supabase.channel('mvn_room_state_rt').send({
+          type: 'broadcast',
+          event: 'BOOKING_REMOVED',
+          payload: { roomId, code, allBookings: updated }
+        });
+      } catch (e) {}
       return updated;
     });
 
@@ -619,6 +722,13 @@ export const RoomStateProvider = ({ children }) => {
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });
       }
+      try {
+        supabase.channel('mvn_room_state_rt').send({
+          type: 'broadcast',
+          event: 'BOOKING_REMOVED',
+          payload: { roomId, code, allBookings: updated }
+        });
+      } catch (e) {}
       return updated;
     });
   }, []);
