@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { triggerCareLogUpdateNotification } from '../services/notificationTriggers';
 
 const CareLogContext = createContext();
 
@@ -29,6 +30,17 @@ export const CareLogProvider = ({ children }) => {
         [key]: [newLog, ...existingLogs] // Prepend new log
       };
     });
+
+    // Tự động kích hoạt Web Push Notification đến điện thoại khách hàng
+    if (newLog) {
+      const targetUser = newLog.userId || newLog.customerId || 'ducan';
+      triggerCareLogUpdateNotification({
+        userId: targetUser,
+        petName: newLog.petName || 'Bé cưng',
+        actionTitle: newLog.action || newLog.title || 'Nhật ký chăm sóc mới',
+        detail: newLog.notes || newLog.detail || newLog.desc || 'Bé đang sinh hoạt và ăn uống rất tốt.',
+      });
+    }
   };
 
   // Lấy danh sách nhật ký của 1 booking và 1 pet

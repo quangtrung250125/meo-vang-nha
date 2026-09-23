@@ -97,13 +97,14 @@ const Header = () => {
 
               {/* Notification Bell with Badge */}
               <div className="relative">
-                <button 
-                  className="hover:text-primary transition-colors p-2 rounded-full hover:bg-orange-50 cursor-pointer" 
-                  title="Thông báo"
+                <Link 
+                  to="/customer-profile?tab=notifications"
+                  className="hover:text-primary transition-colors p-2 rounded-full hover:bg-orange-50 cursor-pointer flex items-center justify-center" 
+                  title="Cài đặt thông báo Web Push"
                 >
                   <Bell className="h-5 w-5 text-gray-600" />
-                </button>
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-orange-400 rounded-full ring-2 ring-white" />
+                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-orange-400 rounded-full ring-2 ring-white animate-pulse" />
+                </Link>
               </div>
 
               {/* Admin CRM Shortcut Badge if logged in as Admin */}
@@ -231,6 +232,20 @@ const Header = () => {
                           </span>
                         </Link>
 
+                        {/* 4. Cài đặt thông báo Web Push */}
+                        <Link
+                          to="/customer-profile?tab=notifications"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="flex items-center gap-3.5 px-3 py-2.5 rounded-2xl text-gray-700 hover:bg-emerald-50/70 hover:text-emerald-800 transition group"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00B16A] flex items-center justify-center group-hover:bg-emerald-100 transition shrink-0">
+                            <Bell className="w-5 h-5" />
+                          </div>
+                          <span className="text-sm font-bold text-gray-800 group-hover:text-emerald-900">
+                            Cài đặt thông báo (Web Push)
+                          </span>
+                        </Link>
+
                         {/* Admin Link (if admin) */}
                         {isAdmin && (
                           <Link
@@ -339,6 +354,7 @@ const Header = () => {
               <Link to="/news" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/news')}`}>Cẩm nang & Tin tức</Link>
               <Link to="/pet-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/pet-profile')}`}>Hồ sơ thú cưng</Link>
               <Link to="/customer-profile" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/customer-profile')}`}>Xem thông tin (Hồ sơ)</Link>
+              <Link to="/customer-profile?tab=notifications" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50">🔔 Cài đặt thông báo (Web Push)</Link>
               <Link to="/my-booking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/my-booking')}`}>Lịch đặt của tôi</Link>
               <Link to="/booking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/booking')}`}>Đặt phòng</Link>
               <Link to="/tracking" onClick={() => setIsMobileMenuOpen(false)} className={`block px-3 py-2 rounded-xl text-sm font-medium ${isActive('/tracking')}`}>Theo dõi lưu trú</Link>

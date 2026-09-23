@@ -1,17 +1,24 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   User, Award, Calendar, Receipt, Edit3, Save, CheckCircle, 
   ShieldCheck, Heart, Sparkles, PawPrint, Eye, ArrowRight, 
   Clock, MapPin, Phone, Mail, Gift, ChevronRight, Download, 
   RefreshCw, Star, Info, AlertCircle, Camera, Check, CreditCard,
-  UserCheck, Crown
+  UserCheck, Crown, Bell, Smartphone, Send, ShieldAlert, Laptop
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import InvoiceModal from '../../components/InvoiceModal';
+import {
+  getPushSubscriptionStatus,
+  subscribeToPush,
+  unsubscribeFromPush,
+  testServerPushNotification,
+  isPushNotificationSupported
+} from '../../services/pushNotificationService';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
@@ -156,9 +163,101 @@ const CustomerProfile = () => {
     avatar: DEFAULT_AVATAR
   };
 
-  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'tier' | 'history' | 'transactions'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'info';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'tier' | 'history' | 'transactions' | 'notifications'
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Web Push Notification State
+  const [pushStatus, setPushStatus] = useState({
+    supported: true,
+    permission: 'default',
+    isSubscribed: false,
+    subscription: null,
+  });
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isTestingPush, setIsTestingPush] = useState(false);
+  const [activeDevices, setActiveDevices] = useState([]);
+
+  // Tải trạng thái Push Notification
+  const refreshPushStatus = async () => {
+    try {
+      const status = await getPushSubscriptionStatus();
+      setPushStatus(status);
+
+      const userId = activeCustomer.id || activeCustomer.phone || 'ducan';
+      const res = await fetch(`/api/notifications/status?userId=${encodeURIComponent(userId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActiveDevices(data.devices || []);
+      }
+    } catch (e) {
+      console.warn('Lỗi kiểm tra trạng thái Push Notification:', e);
+    }
+  };
+
+  useEffect(() => {
+    refreshPushStatus();
+  }, [activeCustomer.id, activeCustomer.phone]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['info', 'tier', 'history', 'transactions', 'notifications'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  // Xử lý bật nhận thông báo
+  const handleEnablePush = async () => {
+    setIsSubscribing(true);
+    try {
+      const userId = activeCustomer.id || activeCustomer.phone || 'ducan';
+      await subscribeToPush(userId);
+      toast.success('🎉 Đã bật Web Push thành công! Bạn sẽ nhận được thông báo ngay cả khi đóng web.', {
+        duration: 5000,
+        icon: '🔔',
+      });
+      await refreshPushStatus();
+    } catch (err) {
+      toast.error(err.message || 'Không thể kích hoạt thông báo đẩy!', { duration: 6000 });
+      await refreshPushStatus();
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  // Xử lý tắt nhận thông báo
+  const handleDisablePush = async () => {
+    setIsSubscribing(true);
+    try {
+      await unsubscribeFromPush();
+      toast.success('Đã tắt nhận thông báo đẩy trên thiết bị này.');
+      await refreshPushStatus();
+    } catch (err) {
+      toast.error('Lỗi khi tắt thông báo: ' + err.message);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  // Xử lý gửi thông báo thử nghiệm thực tế từ máy chủ
+  const handleTestPush = async () => {
+    setIsTestingPush(true);
+    try {
+      const userId = activeCustomer.id || activeCustomer.phone || 'ducan';
+      const firstPetName = petList?.[0]?.name || activeCustomer.pets?.[0]?.name || 'Mimi';
+      await testServerPushNotification(userId, firstPetName);
+      toast.success('🚀 Đã gửi thông báo từ máy chủ! Kiểm tra thanh thông báo trên điện thoại hoặc máy tính của bạn.', {
+        duration: 5000,
+        icon: '🐱',
+      });
+    } catch (err) {
+      toast.error('Gửi thử thất bại: ' + err.message);
+    } finally {
+      setIsTestingPush(false);
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -355,7 +454,10 @@ const CustomerProfile = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('transactions')}
+            onClick={() => {
+              setActiveTab('transactions');
+              setSearchParams({ tab: 'transactions' });
+            }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'transactions'
                 ? 'bg-[#00B16A] text-white shadow-sm'
@@ -364,6 +466,24 @@ const CustomerProfile = () => {
           >
             <Receipt className="w-4 h-4" />
             <span>Lịch sử giao dịch & Hóa đơn</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('notifications');
+              setSearchParams({ tab: 'notifications' });
+            }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              activeTab === 'notifications'
+                ? 'bg-[#00B16A] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            <span>Thông báo đẩy (Web Push)</span>
+            {pushStatus.isSubscribed && (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 ring-2 ring-white animate-pulse" />
+            )}
           </button>
         </div>
       </div>
@@ -702,6 +822,225 @@ const CustomerProfile = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: CÀI ĐẶT THÔNG BÁO ĐẨY (WEB PUSH NOTIFICATION) */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Status & Control Banner Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm relative overflow-hidden">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-gray-100">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+                      pushStatus.isSubscribed
+                        ? 'bg-emerald-100 text-[#00B16A]'
+                        : pushStatus.permission === 'denied'
+                        ? 'bg-rose-100 text-rose-600'
+                        : 'bg-amber-100 text-amber-600'
+                    }`}
+                  >
+                    <Bell className="w-7 h-7" />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h3 className="text-xl sm:text-2xl font-black text-gray-900 font-title">
+                        Thông báo đẩy trực tiếp (Web Push)
+                      </h3>
+
+                      {/* Status Badge */}
+                      {pushStatus.isSubscribed ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>Đã bật thông báo</span>
+                        </span>
+                      ) : pushStatus.permission === 'denied' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200">
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>Đã bị chặn trên trình duyệt</span>
+                        </span>
+                      ) : !pushStatus.supported ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-gray-100 text-gray-800">
+                          <span>Không hỗ trợ Push API</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200">
+                          <span>Chưa bật thông báo</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                      {pushStatus.isSubscribed
+                        ? 'Thiết bị này đã được kết nối với máy chủ Mèo Vắng Nhà. Bạn sẽ nhận thông báo âm thanh và tin nhắn đẩy ngay cả khi đã tắt website hoặc đang dùng ứng dụng khác!'
+                        : pushStatus.permission === 'denied'
+                        ? 'Quyền thông báo đang bị chặn. Vui lòng nhấn vào biểu tượng Ổ khóa trên thanh địa chỉ URL để mở lại quyền cho trang web.'
+                        : 'Bật thông báo đẩy để nhận ngay báo cáo tình hình của bé mèo, ảnh chụp mới nhất và nhắc lịch nhận phòng chu đáo.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Primary Action Buttons */}
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
+                  {pushStatus.isSubscribed ? (
+                    <>
+                      <button
+                        onClick={handleTestPush}
+                        disabled={isTestingPush}
+                        className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#00B16A] hover:bg-[#009458] text-white font-extrabold text-sm shadow-md shadow-emerald-700/20 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>{isTestingPush ? 'Đang gửi...' : 'Gửi thông báo thử'}</span>
+                      </button>
+
+                      <button
+                        onClick={handleDisablePush}
+                        disabled={isSubscribing}
+                        className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+                      >
+                        <span>Tắt thông báo</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleEnablePush}
+                      disabled={isSubscribing || !pushStatus.supported}
+                      className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-[#00B16A] hover:bg-[#009458] text-white font-black text-sm shadow-lg shadow-emerald-700/30 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <Bell className="w-5 h-5 animate-bounce" />
+                      <span>{isSubscribing ? 'Đang kích hoạt...' : 'Bật thông báo ngay'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Active Device Info Summary */}
+              <div className="pt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-600">
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-gray-900">Thiết bị hiện tại</p>
+                    <p className="text-gray-500 truncate max-w-xs">{navigator.userAgent.slice(0, 32)}...</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <Laptop className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-gray-900">Số thiết bị liên kết</p>
+                    <p className="text-gray-500">{activeDevices.length || (pushStatus.isSubscribed ? 1 : 0)} thiết bị đang nhận</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-gray-900">Chuẩn bảo mật VAPID</p>
+                    <p className="text-gray-500">Mã hóa đầu cuối End-to-End</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notification Scenarios Grid */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-4">
+              <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <span>🐱 Các thông báo bạn sẽ nhận được</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-sm">
+                    <span>🎉 Xác nhận đặt phòng</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Ngay khi phòng được xếp và duyệt thành công, máy bạn sẽ nhận thông báo tức thời.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-blue-800 font-extrabold text-sm">
+                    <span>⏰ Nhắc lịch nhận phòng</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Nhắc trước giờ đưa bé đến để ba mẹ chủ động sắp xếp thời gian tiện lợi.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-amber-800 font-extrabold text-sm">
+                    <span>🍽️ Nhật ký ăn uống & Chăm sóc</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Nhân viên cập nhật khi bé ăn pate, vui chơi hoặc được vệ sinh chải lông.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-purple-800 font-extrabold text-sm">
+                    <span>📸 Ảnh & Video mới của bé</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Bấm vào thông báo để xem trực tiếp các khoảnh khắc đáng yêu của bé tại phòng.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-rose-800 font-extrabold text-sm">
+                    <span>🏠 Hoàn tất lưu trú (Check-out)</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Thông báo tổng kết kỳ nghỉ dưỡng và hóa đơn thanh toán điện tử.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-cyan-50/50 border border-cyan-100/70 space-y-1.5">
+                  <div className="flex items-center gap-2 text-cyan-800 font-extrabold text-sm">
+                    <span>🎁 Ưu đãi & Quà tặng Thứ Tư</span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Nhận thông báo tặng Pate miễn phí định kỳ vào mỗi Thứ Tư hàng tuần.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Guidelines for Android & iOS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Android Instructions */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-3">
+                <div className="flex items-center gap-2.5 text-gray-900 font-black text-base">
+                  <span className="text-xl">🤖</span>
+                  <span>Hướng dẫn trên điện thoại Android</span>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Android hỗ trợ Web Push Notification trực tiếp trên <strong>Google Chrome, Cốc Cốc, Brave, Samsung Internet</strong>.
+                </p>
+                <ul className="text-xs text-gray-600 space-y-2 list-disc list-inside">
+                  <li>Chỉ cần bấm nút <strong>"Bật thông báo ngay"</strong> ở trên.</li>
+                  <li>Khi hộp thoại hiện ra, chọn <strong>"Cho phép" (Allow)</strong>.</li>
+                  <li>Có thể cài đặt ứng dụng vào màn hình chính bằng cách bấm <strong>"Thêm vào Màn hình chính"</strong> trong menu trình duyệt.</li>
+                </ul>
+              </div>
+
+              {/* iOS Instructions */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-3">
+                <div className="flex items-center gap-2.5 text-gray-900 font-black text-base">
+                  <span className="text-xl">🍎</span>
+                  <span>Hướng dẫn trên iPhone & iPad (iOS 16.4+)</span>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Apple hỗ trợ Web Push cho PWA từ iOS 16.4 trở lên theo các bước chuẩn:
+                </p>
+                <ol className="text-xs text-gray-600 space-y-2 list-decimal list-inside">
+                  <li>Mở website bằng trình duyệt <strong>Safari</strong>.</li>
+                  <li>Bấm vào biểu tượng <strong>Chia sẻ (Share 📤)</strong> ở thanh dưới cùng của Safari.</li>
+                  <li>Cuộn xuống và chọn <strong>"Thêm vào MH chính" (Add to Home Screen ➕)</strong>.</li>
+                  <li>Mở icon <strong>Mèo Vắng Nhà</strong> vừa xuất hiện trên màn hình chính và bấm nút <strong>"Bật thông báo"</strong>.</li>
+                </ol>
+              </div>
             </div>
           </div>
         )}

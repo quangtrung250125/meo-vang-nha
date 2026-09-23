@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { triggerBookingConfirmedNotification, triggerBookingCompletedNotification } from '../services/notificationTriggers';
 
 const BookingHistoryContext = createContext();
 
@@ -173,6 +174,17 @@ export const BookingHistoryProvider = ({ children }) => {
       return newList;
     });
 
+    // Gửi thông báo Web Push xác nhận đơn đặt phòng
+    if (bookingData) {
+      triggerBookingConfirmedNotification({
+        userId: bookingData.customerId || bookingData.customerPhone || 'ducan',
+        bookingCode: bookingData.code || bookingData.id || 'MVN-NEW',
+        petNames: bookingData.catNames || bookingData.petName || 'Bé mèo',
+        roomName: bookingData.selectedRoom?.name || bookingData.roomType || 'Phòng Khách Sạn',
+        checkIn: bookingData.checkIn || bookingData.checkInDate || 'hôm nay',
+      });
+    }
+
     // Lưu vào Supabase nền
     (async () => {
       try {
@@ -267,6 +279,15 @@ export const BookingHistoryProvider = ({ children }) => {
       window.dispatchEvent(new Event('mvn_booking_sync'));
       return newList;
     });
+
+    // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
+    if (updatedData?.status === 'Đã hoàn tất' || updatedData?.status === 'check-out') {
+      triggerBookingCompletedNotification({
+        userId: updatedData.customerId || updatedData.customerPhone || 'ducan',
+        bookingCode: bookingId,
+        petNames: updatedData.catNames || updatedData.petName || 'Bé mèo',
+      });
+    }
 
     // Cập nhật Supabase nền
     (async () => {

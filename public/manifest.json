@@ -1,0 +1,24 @@
+{
+  "name": "Mèo Vắng Nhà — Khách Sạn & Spa Mèo",
+  "short_name": "Mèo Vắng Nhà",
+  "description": "Dịch vụ khách sạn, spa chăm sóc, đưa đón và camera theo dõi mèo 24/7",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#004d40",
+  "theme_color": "#004d40",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/LogoMeoVangNha/813939190_1681772440267304_6167511068586325652_n.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/LogoMeoVangNha/813939190_1681772440267304_6167511068586325652_n.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
