@@ -34,21 +34,35 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   };
 
   const days = calculateDays();
-  const discountedPackagePrice = data.selectedPackage?.price || 0;
-  const originalPackagePrice = data.selectedPackage?.originalPrice || Math.round(discountedPackagePrice / 0.9);
-  const cameraPrice = 10000; // Giá camera mỗi ngày
 
-  // Subtotal without discount
-  const originalPackageTotal = originalPackagePrice * days;
+  // ── Gói lưu trú (bắt buộc) ──
+  const lodging = data.selectedLodging || data.selectedPackage;
+  const discountedLodgingPrice  = lodging?.price         || 0;
+  const originalLodgingPrice    = lodging?.originalPrice || Math.round(discountedLodgingPrice / 0.9);
+  const originalLodgingTotal    = originalLodgingPrice * days;
+  const discountedLodgingTotal  = discountedLodgingPrice * days;
+  const lodgingDiscount         = originalLodgingTotal - discountedLodgingTotal;
+
+  // ── Gói spa (tùy chọn, tính theo lần, không nhân ngày) ──
+  const spa = data.selectedSpa || null;
+  const spaDiscountedPrice  = spa?.price         || 0;
+  const spaOriginalPrice    = spa?.originalPrice || Math.round(spaDiscountedPrice / 0.9);
+  const spaDiscount         = spaOriginalPrice - spaDiscountedPrice;
+
+  // ── Dịch vụ khác (tùy chọn, tính theo lần/chuyến) ──
+  const extra = data.selectedExtra || null;
+  const extraDiscountedPrice = extra?.price         || 0;
+  const extraOriginalPrice   = extra?.originalPrice || Math.round(extraDiscountedPrice / 0.9);
+  const extraDiscount        = extraOriginalPrice - extraDiscountedPrice;
+
+  // ── Camera (cố định theo gói lưu trú) ──
+  const cameraPrice = 10000;
   const cameraTotal = cameraPrice * days;
-  const grossTotal = originalPackageTotal + cameraTotal;
 
-  // Discount calculation
-  const discountAmount = isCouponApplied 
-    ? (originalPackageTotal - (discountedPackagePrice * days)) 
-    : 0;
-
-  const total = grossTotal - discountAmount;
+  // ── Tổng cộng ──
+  const originalGrossTotal = originalLodgingTotal + spaOriginalPrice + extraOriginalPrice + cameraTotal;
+  const totalDiscountAmount = isCouponApplied ? (lodgingDiscount + spaDiscount + extraDiscount) : 0;
+  const total = originalGrossTotal - totalDiscountAmount;
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -82,9 +96,14 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     const catNames = data.petProfiles && data.petProfiles.length > 0
       ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
       : 'Bé Miu Miu';
-    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const packageName = data.selectedLodging?.name || data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
     const catCount = data.catCount || data.petProfiles?.length || 1;
     const bookingStatus = determineBookingStatus(data.checkIn);
+    const packageNames = [
+      packageName,
+      data.selectedSpa?.name,
+      data.selectedExtra?.name,
+    ].filter(Boolean);
 
     const bookingPayload = {
       id: newId,
@@ -96,8 +115,11 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       cats: catCount,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
-      packages: [packageName],
-      selectedPackage: data.selectedPackage,
+      packages: packageNames,
+      selectedPackage: data.selectedLodging || data.selectedPackage,
+      selectedLodging: data.selectedLodging,
+      selectedSpa: data.selectedSpa,
+      selectedExtra: data.selectedExtra,
       selectedRoom: data.selectedRoom,
       roomId,
       petIds: data.petProfiles?.map(p => p.id) || [],
@@ -171,9 +193,19 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             <span className="text-gray-400 block text-xs font-semibold uppercase">Số lượng mèo</span>
             <span className="font-bold text-text-dark">{data.catCount} bé</span>
           </div>
-          <div>
-            <span className="text-gray-400 block text-xs font-semibold uppercase">Phòng & Gói dịch vụ</span>
-            <span className="font-bold text-primary">{data.selectedRoom?.name} • {data.selectedPackage?.name}</span>
+          <div className="sm:col-span-2">
+            <span className="text-gray-400 block text-xs font-semibold uppercase mb-1">Phòng & Gói dịch vụ</span>
+            <div className="space-y-1">
+              <span className="font-bold text-primary block">
+                {data.selectedRoom?.id} — {lodging?.name || 'Chưa chọn gói'}
+              </span>
+              {spa && (
+                <span className="font-semibold text-purple-600 block text-xs">+ {spa.name}</span>
+              )}
+              {extra && (
+                <span className="font-semibold text-sky-600 block text-xs">+ {extra.name}</span>
+              )}
+            </div>
           </div>
           <div>
             <span className="text-gray-400 block text-xs font-semibold uppercase">Tên các bé</span>
@@ -214,30 +246,71 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           Chi tiết chi phí
         </h3>
         
-        <div className="space-y-3 text-gray-700 mb-6 text-sm">
-          <div className="flex justify-between">
-            <span>Tiền dịch vụ ({days} ngày x {originalPackagePrice.toLocaleString()}đ):</span>
-            <span className="font-medium text-gray-500 line-through">
-              {originalPackageTotal.toLocaleString()}đ
-            </span>
+        <div className="space-y-2.5 text-gray-700 mb-6 text-sm">
+
+          {/* ── Gói lưu trú ── */}
+          <div className="bg-white border border-gray-100 rounded-xl p-3">
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-semibold text-text-dark">🏠 {lodging?.name || 'Gói lưu trú'}</span>
+              <span className="font-medium text-gray-400 line-through text-xs">{originalLodgingTotal.toLocaleString()}đ</span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-gray-500">
+              <span>{days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
+              <span className="font-bold text-text-dark">{discountedLodgingTotal.toLocaleString()}đ</span>
+            </div>
           </div>
 
-          {isCouponApplied && discountAmount > 0 && (
-            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
-              <span className="flex items-center gap-1">
-                <Percent className="w-4 h-4" />
-                Ưu đãi giảm giá 10% ({promotionInfo.code}):
-              </span>
-              <span>- {discountAmount.toLocaleString()}đ</span>
+          {/* ── Gói Spa ── */}
+          {spa && (
+            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-semibold text-purple-800">💆 {spa.name}</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalPrice.toLocaleString()}đ</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-purple-700">
+                <span>1 lần</span>
+                <span className="font-bold">{spaDiscountedPrice.toLocaleString()}đ</span>
+              </div>
             </div>
           )}
 
-          {/* Thứ 5 pate gift */}
+          {/* ── Dịch vụ khác ── */}
+          {extra && (
+            <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-semibold text-sky-800">🚗 {extra.name}</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{extraOriginalPrice.toLocaleString()}đ</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-sky-700">
+                <span>1 {extra.period?.replace('/', '') || 'lần'}</span>
+                <span className="font-bold">{extraDiscountedPrice.toLocaleString()}đ</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Camera ── */}
+          <div className="flex justify-between items-center py-1.5 border-t border-dashed border-gray-200">
+            <span className="text-gray-500">📷 Camera 24/7 ({days} ngày × {cameraPrice.toLocaleString()}đ)</span>
+            <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
+          </div>
+
+          {/* ── Giảm giá ── */}
+          {isCouponApplied && totalDiscountAmount > 0 && (
+            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+              <span className="flex items-center gap-1">
+                <Percent className="w-4 h-4" />
+                Ưu đãi -10% ({promotionInfo.code}):
+              </span>
+              <span>- {totalDiscountAmount.toLocaleString()}đ</span>
+            </div>
+          )}
+
+          {/* ── Thứ 5 quà tặng ── */}
           {isThursday && (
             <div className="flex justify-between items-start bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
               <span className="flex items-center gap-1.5 text-amber-800 font-bold">
                 <Gift className="w-4 h-4 text-amber-500" />
-                Quà tặng Thứ 5 — Pate theo sở thích:
+                Quà Thứ 5 — Pate theo sở thích:
               </span>
               <div className="text-right">
                 <span className="font-black text-amber-700">Miễn phí 🎉</span>
@@ -253,19 +326,14 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               </div>
             </div>
           )}
-
-          <div className="flex justify-between">
-            <span>Dịch vụ Camera 24/7 ({days} ngày x {cameraPrice.toLocaleString()}đ):</span>
-            <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
-          </div>
         </div>
 
         <div className="flex justify-between items-center pt-5 border-t-2 border-gray-200/80">
           <div>
             <span className="text-sm font-bold text-gray-400 uppercase block">Tổng thanh toán dự kiến</span>
-            <span className="text-xs text-emerald-600 font-bold">
-              {isCouponApplied ? `Đã tiết kiệm ${discountAmount.toLocaleString()}đ` : ''}
-            </span>
+            {isCouponApplied && totalDiscountAmount > 0 && (
+              <span className="text-xs text-emerald-600 font-bold">Đã tiết kiệm {totalDiscountAmount.toLocaleString()}đ</span>
+            )}
           </div>
           <span className="text-3xl font-black text-accent">{total.toLocaleString()}đ</span>
         </div>
