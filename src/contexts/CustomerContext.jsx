@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents } from '../services/crossDeviceSync';
 
 const CustomerContext = createContext();
 
@@ -169,6 +170,25 @@ export const CustomerProvider = ({ children }) => {
 
         initializeAuth();
 
+        // Đồng bộ hồ sơ từ server API khi load app
+        (async () => {
+            try {
+                const serverData = await fetchServerSync();
+                if (serverData && Array.isArray(serverData.profiles) && serverData.profiles.length > 0 && isMounted) {
+                    const latest = serverData.profiles[0];
+                    if (latest) {
+                        setCustomerProfile(prev => {
+                            if (!prev || !prev.fullName) {
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+                                return latest;
+                            }
+                            return prev;
+                        });
+                    }
+                }
+            } catch (e) {}
+        })();
+
         // Lắng nghe sự kiện thay đổi trạng thái Auth của Supabase
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (!isMounted) return;
@@ -188,9 +208,19 @@ export const CustomerProvider = ({ children }) => {
             setAuthLoading(false);
         });
 
+        // Lắng nghe sync event từ thiết bị khác
+        const unsubSync = subscribeSyncEvents(({ type, payload }) => {
+            if (type === 'PROFILE_UPDATED' && payload?.profile && isMounted) {
+                const prof = payload.profile;
+                setCustomerProfile(prof);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(prof));
+            }
+        });
+
         return () => {
             isMounted = false;
             subscription?.unsubscribe();
+            unsubSync();
         };
     }, [mapSupabaseUserToCustomer]);
 
@@ -376,6 +406,10 @@ export const CustomerProvider = ({ children }) => {
         };
         setCustomerProfile(normalized);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+
+        // Đồng bộ lên Server API và phát broadcast tức thì qua Supabase Cloud
+        pushServerSync({ profiles: [normalized] });
+        broadcastEvent('PROFILE_UPDATED', { profile: normalized });
 
         if (normalized.id) {
             try {

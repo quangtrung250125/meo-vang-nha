@@ -801,9 +801,11 @@ const TrackingPage = () => {
     toast.success(`Chào mừng ${formData.fullName || 'bạn'}! 🐾`);
   };
 
-  // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin)
-  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
-  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú');
+  // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin, hoặc nếu chưa đăng nhập thì xem các đơn đã đồng bộ)
+  const myBookings = activeCustomer
+    ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
+    : globalBookingList;
+  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú') || myBookings[0];
 
   const resolvedPets = activeBooking
     ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)

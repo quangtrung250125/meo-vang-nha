@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings')) {
+        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync')) {
           return next();
         }
 
@@ -40,6 +40,13 @@ function apiDevPlugin() {
         const urlPath = req.url.split('?')[0];
 
         try {
+          if (urlPath === '/api/sync') {
+            if (req.method === 'POST') {
+              req.body = await parseBody();
+            }
+            const { handleSync } = await import('./api/lib/syncService.js');
+            return handleSync(req, res);
+          }
           if (urlPath === '/api/bookings') {
             if (req.method === 'GET') {
               const { handleGetBookings } = await import('./api/lib/bookingsService.js');

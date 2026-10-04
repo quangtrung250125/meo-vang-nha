@@ -61,10 +61,10 @@ const MyBooking = () => {
 
   const activeCustomer = authenticatedCustomer || customerProfile;
 
-  // Lọc chỉ hiển thị đơn của tài khoản đang đăng nhập (Admin thấy tất cả)
-  const myBookings = globalBookingList.filter((booking) =>
-    isBookingOfCustomer(booking, activeCustomer, isAdmin)
-  );
+  // Lọc chỉ hiển thị đơn của tài khoản đang đăng nhập (Admin thấy tất cả; nếu chưa đăng nhập thì hiển thị danh sách đơn đã đồng bộ)
+  const myBookings = activeCustomer
+    ? globalBookingList.filter((booking) => isBookingOfCustomer(booking, activeCustomer, isAdmin))
+    : globalBookingList;
 
   const tabs = ['Tất cả', 'Đang lưu trú', 'Sắp tới', 'Đã hoàn tất'];
 

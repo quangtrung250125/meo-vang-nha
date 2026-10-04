@@ -1,6 +1,12 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { triggerBookingConfirmedNotification, triggerBookingCompletedNotification } from '../services/notificationTriggers';
+import {
+  fetchServerSync,
+  pushServerSync,
+  broadcastEvent,
+  subscribeSyncEvents,
+} from '../services/crossDeviceSync';
 
 const BookingHistoryContext = createContext();
 
@@ -18,7 +24,10 @@ export const BookingHistoryProvider = ({ children }) => {
     return [];
   });
 
-  // Lắng nghe thay đổi từ các tab và trong cùng tab (khi admin bấm check-in)
+  const bookingListRef = useRef(globalBookingList);
+  bookingListRef.current = globalBookingList;
+
+  // Lắng nghe thay đổi từ các tab trong cùng trình duyệt
   useEffect(() => {
     const handleSync = () => {
       try {
@@ -58,15 +67,41 @@ export const BookingHistoryProvider = ({ children }) => {
     };
   }, []);
 
-  // Đồng bộ Realtime với bảng bookings trong Supabase
+  // ── 1. Tải đơn đặt phòng từ Server API và Supabase DB ──
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Tải danh sách đơn đặt từ Supabase
-    const fetchSupabaseBookings = async () => {
+    const syncInitialBookings = async () => {
+      // 1.1 Tải từ server sync store (Đồng bộ đa thiết bị Desktop <-> Mobile)
+      try {
+        const serverData = await fetchServerSync();
+        if (serverData && Array.isArray(serverData.bookings) && serverData.bookings.length > 0 && isMounted) {
+          setGlobalBookingList((prev) => {
+            const merged = [...prev];
+            serverData.bookings.forEach((sb) => {
+              const idx = merged.findIndex(
+                (b) => (b.id && b.id === sb.id) || (b.code && b.code === sb.code)
+              );
+              if (idx >= 0) {
+                merged[idx] = { ...merged[idx], ...sb };
+              } else {
+                merged.push(sb);
+              }
+            });
+            try {
+              localStorage.setItem('bookingHistory', JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.warn('Lỗi lấy bookings từ server sync:', err);
+      }
+
+      // 1.2 Tải danh sách đơn đặt từ Supabase DB
       try {
         const { data, error } = await supabase.from('bookings').select('*');
-        if (!error && Array.isArray(data) && isMounted) {
+        if (!error && Array.isArray(data) && isMounted && data.length > 0) {
           const dbBookings = data.map((row) => ({
             id: row.id,
             code: row.code,
@@ -98,7 +133,7 @@ export const BookingHistoryProvider = ({ children }) => {
       }
     };
 
-    fetchSupabaseBookings();
+    syncInitialBookings();
 
     // 2. Kênh Realtime lắng nghe mọi sự kiện INSERT, UPDATE, DELETE từ bảng bookings
     const realtimeChannel = supabase
@@ -166,13 +201,61 @@ export const BookingHistoryProvider = ({ children }) => {
     };
   }, []);
 
-  const addBooking = (bookingData) => {
-    setGlobalBookingList(prev => {
-      const newList = [bookingData, ...prev];
-      localStorage.setItem('bookingHistory', JSON.stringify(newList));
-      window.dispatchEvent(new Event('mvn_booking_sync'));
-      return newList;
+  // ── 2. Lắng nghe Đồng Bộ Realtime Đa Thiết Bị (Supabase Broadcast Channel) ──
+  useEffect(() => {
+    const unsubscribe = subscribeSyncEvents(({ type, payload }) => {
+      if (type === 'BOOKINGS_UPDATED' || type === 'FULL_SYNC_RESPONSE') {
+        const incomingBookings = payload?.bookings;
+        if (Array.isArray(incomingBookings) && incomingBookings.length > 0) {
+          setGlobalBookingList((prev) => {
+            const merged = [...prev];
+            incomingBookings.forEach((ib) => {
+              const idx = merged.findIndex(
+                (b) => (b.id && b.id === ib.id) || (b.code && b.code === ib.code)
+              );
+              if (idx >= 0) {
+                merged[idx] = { ...merged[idx], ...ib };
+              } else {
+                merged.unshift(ib);
+              }
+            });
+            try {
+              localStorage.setItem('bookingHistory', JSON.stringify(merged));
+            } catch (e) {}
+            window.dispatchEvent(new Event('mvn_booking_sync'));
+            return merged;
+          });
+        }
+      } else if (type === 'REQUEST_SYNC') {
+        // Thiết bị khác vừa mở và yêu cầu dữ liệu
+        if (bookingListRef.current && bookingListRef.current.length > 0) {
+          broadcastEvent('FULL_SYNC_RESPONSE', {
+            bookings: bookingListRef.current,
+          });
+        }
+      }
     });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // ── 3. Thêm booking mới ──
+  const addBooking = (bookingData) => {
+    let updatedList = [];
+    setGlobalBookingList(prev => {
+      updatedList = [bookingData, ...prev];
+      localStorage.setItem('bookingHistory', JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('mvn_booking_sync'));
+      return updatedList;
+    });
+
+    // A. Đồng bộ Server API
+    pushServerSync({ bookings: updatedList });
+
+    // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
+    broadcastEvent('BOOKINGS_UPDATED', { bookings: updatedList });
 
     // Gửi thông báo Web Push xác nhận đơn đặt phòng
     if (bookingData) {
@@ -185,7 +268,7 @@ export const BookingHistoryProvider = ({ children }) => {
       });
     }
 
-    // Lưu vào Supabase nền
+    // C. Lưu vào Supabase nền nếu có session
     (async () => {
       try {
         const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -214,7 +297,9 @@ export const BookingHistoryProvider = ({ children }) => {
     })();
   };
 
+  // ── 4. Upsert booking ──
   const upsertBooking = (bookingData) => {
+    let updatedList = [];
     setGlobalBookingList(prev => {
       const safeBooking = { ...bookingData };
       const index = prev.findIndex((booking) => {
@@ -228,20 +313,24 @@ export const BookingHistoryProvider = ({ children }) => {
       });
 
       if (index >= 0) {
-        const updatedList = [...prev];
+        updatedList = [...prev];
         updatedList[index] = { ...updatedList[index], ...safeBooking };
-        localStorage.setItem('bookingHistory', JSON.stringify(updatedList));
-        window.dispatchEvent(new Event('mvn_booking_sync'));
-        return updatedList;
+      } else {
+        updatedList = [safeBooking, ...prev];
       }
 
-      const newList = [safeBooking, ...prev];
-      localStorage.setItem('bookingHistory', JSON.stringify(newList));
+      localStorage.setItem('bookingHistory', JSON.stringify(updatedList));
       window.dispatchEvent(new Event('mvn_booking_sync'));
-      return newList;
+      return updatedList;
     });
 
-    // Lưu vào Supabase nền
+    // A. Đồng bộ Server API
+    pushServerSync({ bookings: updatedList });
+
+    // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
+    broadcastEvent('BOOKINGS_UPDATED', { bookings: updatedList });
+
+    // C. Lưu vào Supabase nền nếu có session
     (async () => {
       try {
         const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -270,15 +359,23 @@ export const BookingHistoryProvider = ({ children }) => {
     })();
   };
 
+  // ── 5. Cập nhật booking theo ID ──
   const updateBooking = (bookingId, updatedData) => {
+    let updatedList = [];
     setGlobalBookingList(prev => {
-      const newList = prev.map(booking => 
+      updatedList = prev.map(booking => 
         (booking.id === bookingId || booking.code === bookingId) ? { ...booking, ...updatedData } : booking
       );
-      localStorage.setItem('bookingHistory', JSON.stringify(newList));
+      localStorage.setItem('bookingHistory', JSON.stringify(updatedList));
       window.dispatchEvent(new Event('mvn_booking_sync'));
-      return newList;
+      return updatedList;
     });
+
+    // A. Đồng bộ Server API
+    pushServerSync({ bookings: updatedList });
+
+    // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
+    broadcastEvent('BOOKINGS_UPDATED', { bookings: updatedList });
 
     // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
     if (updatedData?.status === 'Đã hoàn tất' || updatedData?.status === 'check-out') {
@@ -289,7 +386,7 @@ export const BookingHistoryProvider = ({ children }) => {
       });
     }
 
-    // Cập nhật Supabase nền
+    // C. Cập nhật Supabase nền
     (async () => {
       try {
         const { data: existingRows } = await supabase
