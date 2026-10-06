@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
-  PawPrint, CalendarDays, Clock, Camera, CheckCircle2,
+  PawPrint, CalendarDays, Clock, CheckCircle2,
   AlertTriangle, ChevronRight, MessageCircle,
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
-  Loader2, ArrowRight, Home, Phone, Video,
+  ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
   Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2,
   CalendarCheck, StickyNote, PhoneCall
@@ -129,40 +129,7 @@ const ConfirmModal = ({ addon, selectedOption, onConfirm, onClose }) => {
   );
 };
 
-// ─── Camera QR Modal ─────────────────────────────────────────────────────────
-
-const CameraModal = ({ onClose, onConfirm, isVerifying }) => (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm" onClick={onClose}>
-    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-      <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
-        <X className="w-4 h-4 text-gray-500" />
-      </button>
-      <h3 className="text-xl font-bold text-text-dark text-center mb-2">Thanh toán phí xem Camera</h3>
-      <p className="text-gray-500 text-center mb-6 text-sm">Quét mã QR bên dưới để thanh toán và xem camera trực tiếp.</p>
-      <div className="bg-gray-50 rounded-2xl p-4 flex justify-center mb-6 border border-gray-100">
-        <img
-          src="https://img.vietqr.io/image/mbbank-111122223333-compact2.png?amount=10000&addInfo=Thanh%20toan%20Camera%20Miu&accountName=MEO%20VANG%20NHA"
-          alt="QR Code"
-          className="w-48 h-48 object-contain"
-        />
-      </div>
-      <p className="text-center font-bold text-accent text-2xl mb-8">10.000 VNĐ / ngày</p>
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={onConfirm}
-          disabled={isVerifying}
-          className={`w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-secondary transition-colors shadow-lg shadow-primary/30 flex items-center justify-center gap-2 ${isVerifying ? 'opacity-80 cursor-wait' : ''}`}
-        >
-          {isVerifying && <Loader2 className="w-5 h-5 animate-spin" />}
-          {isVerifying ? 'Đang kiểm tra giao dịch...' : 'Tôi đã chuyển khoản'}
-        </button>
-        <button onClick={onClose} disabled={isVerifying} className="w-full bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl hover:bg-gray-200 transition-colors">
-          Hủy
-        </button>
-      </div>
-    </div>
-  </div>
-);
+// Camera QR Modal removed — camera is included in the booking package
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
@@ -759,9 +726,7 @@ const TrackingPage = () => {
     toast.success(`Đã gửi yêu cầu gia hạn ${days} ngày! Nhân viên sẽ xác nhận sớm.`, { duration: 4000 });
   };
 
-  const [isCameraUnlocked, setIsCameraUnlocked] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  // Camera is always included in the booking — no unlock needed
   const [confirmModal, setConfirmModal] = useState({ open: false, addon: null, option: null });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState(() => getPermissionStatus());
@@ -815,15 +780,7 @@ const TrackingPage = () => {
   const daysRemaining = activeBooking ? getDaysRemaining(activeBooking.checkOut) : 0;
   const firstPet = resolvedPets[0];
 
-  const handleCameraConfirm = () => {
-    setIsVerifying(true);
-    setTimeout(() => {
-      toast.success('Thanh toán thành công! Camera đã được mở 🎉');
-      setIsCameraUnlocked(true);
-      setShowCameraModal(false);
-      setIsVerifying(false);
-    }, 2000);
-  };
+
 
   const handleAddonRequest = (addonKey, option) => {
     setConfirmModal({ open: true, addon: addonKey, option });
@@ -884,13 +841,7 @@ const TrackingPage = () => {
   return (
     <div className="w-full min-h-screen bg-bg-cream pb-16">
       {/* Modals */}
-      {showCameraModal && (
-        <CameraModal
-          onClose={() => !isVerifying && setShowCameraModal(false)}
-          onConfirm={handleCameraConfirm}
-          isVerifying={isVerifying}
-        />
-      )}
+
       {confirmModal.open && (
         <ConfirmModal
           addon={confirmModal.addon}
@@ -1104,50 +1055,24 @@ const TrackingPage = () => {
                     Camera trực tiếp
                   </h3>
 
-                  {/* Status */}
-                  <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium ${isCameraUnlocked ? 'bg-primary-light text-primary' : 'bg-gray-50 text-gray-500 border border-gray-100'}`}>
-                    <div className={`w-2 h-2 rounded-full ${isCameraUnlocked ? 'bg-primary animate-pulse' : 'bg-gray-300'}`} />
-                    {isCameraUnlocked
-                      ? 'Camera đang hoạt động (đã bật)'
-                      : 'Cần mua thêm: 10.000đ/ngày'}
+                  {/* Status — always live */}
+                  <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium bg-primary-light text-primary">
+                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    Camera đang hoạt động
                   </div>
 
-                  {/* Feed */}
+                  {/* Feed — always visible */}
                   <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-100 aspect-video flex items-center justify-center border border-gray-200">
-                    {isCameraUnlocked ? (
-                      <>
-                        <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
-                          <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                          LIVE
-                        </div>
-                        <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />
-                      </>
-                    ) : (
-                      <>
-                        <img src={cameraFeed} alt="Camera preview" className="w-full h-full object-cover blur-sm opacity-40" />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30">
-                          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
-                            <Camera className="w-5 h-5 text-white" />
-                          </div>
-                          <span className="text-white text-xs font-bold">Chưa mở khoá</span>
-                        </div>
-                      </>
-                    )}
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                      LIVE
+                    </div>
+                    <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />
                   </div>
 
-                  {!isCameraUnlocked ? (
-                    <button
-                      onClick={() => setShowCameraModal(true)}
-                      className="w-full bg-accent text-white font-bold py-3 rounded-xl hover:bg-accent-hover transition-colors shadow-md shadow-accent/25 flex items-center justify-center gap-2 cursor-pointer text-sm"
-                    >
-                      <Camera className="w-4 h-4" />
-                      Xem camera (10.000đ/ngày)
-                    </button>
-                  ) : (
-                    <div className="text-center text-xs text-gray-500 font-medium">
-                      ✅ Camera đã bao gồm trong gói của bé
-                    </div>
-                  )}
+                  <div className="text-center text-xs text-gray-500 font-medium">
+                    ✅ Camera đã bao gồm trong gói dịch vụ
+                  </div>
                 </div>
 
                 {/* Package & Addon Management */}

@@ -1,6 +1,195 @@
 {
-  "bookings": [],
-  "pets": [],
-  "profiles": [],
-  "updatedAt": "2026-10-04T13:38:06.976Z"
+  "bookings": [
+    {
+      "id": "MVN-82490",
+      "code": "MVN-82490",
+      "ownerName": "Quản trị viên",
+      "ownerPhone": "0962606249",
+      "ownerTier": "Vàng",
+      "catNames": "Mochi",
+      "cats": 1,
+      "checkIn": "2026-10-06",
+      "checkOut": "2026-10-08",
+      "packages": [
+        "Gói Mèo Sang Chảnh"
+      ],
+      "selectedPackage": {
+        "id": "p2",
+        "category": "Lưu trú",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "baseOriginalPrice": 150000,
+        "basePrice": 135000,
+        "name": "Gói Mèo Sang Chảnh",
+        "originalPrice": 160000,
+        "price": 144000,
+        "originalPriceString": "160.000đ",
+        "priceString": "144.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "16.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "3 bữa/ngày full pate hoặc mix hạt, camera riêng 24/24 theo dõi bé.",
+        "image": "/images/rooms/vip.png",
+        "features": [
+          "Ăn 3 bữa/ngày: full pate hoặc mix 1 bữa hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Camera trong phòng riêng 24/24",
+          "Tắm miễn phí khi gửi từ 7 ngày",
+          "Free đón trả trong vòng 6km"
+        ],
+        "isPromo": true,
+        "isPopular": true,
+        "surcharge": 10000
+      },
+      "selectedLodging": {
+        "id": "p2",
+        "category": "Lưu trú",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "baseOriginalPrice": 150000,
+        "basePrice": 135000,
+        "name": "Gói Mèo Sang Chảnh",
+        "originalPrice": 160000,
+        "price": 144000,
+        "originalPriceString": "160.000đ",
+        "priceString": "144.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "16.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "3 bữa/ngày full pate hoặc mix hạt, camera riêng 24/24 theo dõi bé.",
+        "image": "/images/rooms/vip.png",
+        "features": [
+          "Ăn 3 bữa/ngày: full pate hoặc mix 1 bữa hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Camera trong phòng riêng 24/24",
+          "Tắm miễn phí khi gửi từ 7 ngày",
+          "Free đón trả trong vòng 6km"
+        ],
+        "isPromo": true,
+        "isPopular": true,
+        "surcharge": 10000
+      },
+      "selectedRoom": {
+        "id": "VVIP-01",
+        "type": "VVIP",
+        "capacity": 4,
+        "occupied": 0,
+        "remaining": 4,
+        "isBooked": false,
+        "isFull": false,
+        "conflictingBooking": null,
+        "status": "available"
+      },
+      "roomId": "VVIP-01",
+      "petIds": [
+        "crm-pet-1791246908831"
+      ],
+      "petProfiles": [
+        {
+          "id": "crm-pet-1791246908831",
+          "name": "Mochi",
+          "age": "",
+          "gender": "Đực",
+          "breed": "Mèo",
+          "spayed": "Chưa",
+          "vaccineType": "",
+          "health": {
+            "vaccinated": "Chưa",
+            "medicalCondition": "",
+            "medicalHistory": "",
+            "allergy": ""
+          },
+          "habits": "",
+          "personality": {
+            "friendly": false,
+            "shy": false,
+            "stress": false,
+            "hardToReach": false,
+            "other": false,
+            "otherDetail": ""
+          },
+          "toys": "",
+          "specialRequests": "",
+          "createdFromWelcome": true,
+          "source": "Google",
+          "imagePreview": "",
+          "updatedAt": "2026-10-06T00:35:08.850Z",
+          "weight": "",
+          "patePreference": ""
+        }
+      ],
+      "customerPhone": "0962606249",
+      "customerName": "Quản trị viên",
+      "customerId": "admin-0962606249",
+      "status": "check-in",
+      "totalPrice": 308000,
+      "createdAt": "2026-10-06T00:54:05.940Z"
+    }
+  ],
+  "pets": [
+    {
+      "id": "crm-pet-1791246908831",
+      "name": "Mochi",
+      "age": "",
+      "gender": "Đực",
+      "breed": "",
+      "spayed": "Chưa",
+      "vaccineType": "",
+      "health": {
+        "vaccinated": "Chưa",
+        "medicalCondition": "",
+        "medicalHistory": "",
+        "allergy": ""
+      },
+      "habits": "",
+      "personality": "",
+      "toys": "",
+      "specialRequests": "",
+      "createdFromWelcome": true,
+      "source": "Google",
+      "imagePreview": "",
+      "updatedAt": "2026-10-06T00:35:08.850Z"
+    }
+  ],
+  "profiles": [
+    {
+      "fullName": "Nguyen Van A",
+      "phone": "0901234567",
+      "email": "",
+      "source": "Google",
+      "petName": "Mochi",
+      "breed": "",
+      "age": "",
+      "gender": "Đực",
+      "spayed": "Chưa",
+      "vaccinated": "Chưa",
+      "vaccineType": "",
+      "allergies": "",
+      "medicalHistory": "",
+      "feeding": "",
+      "personality": "",
+      "toys": "",
+      "specialCare": "",
+      "password": "123456",
+      "confirmPassword": "123456",
+      "labels": [
+        "Khách hàng mới"
+      ],
+      "createdAt": "2026-10-06T00:41:25.097Z",
+      "updatedAt": "2026-10-06T00:41:25.097Z"
+    }
+  ],
+  "updatedAt": "2026-10-06T00:54:05.972Z"
 }
