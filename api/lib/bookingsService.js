@@ -34,24 +34,89 @@ const INITIAL_BOOKINGS = {
 };
 
 const STORE_PATH = path.resolve(process.cwd(), 'api/lib/bookings_store.json');
+const SYNC_STORE_PATH = path.resolve(process.cwd(), 'api/lib/sync_store.json');
 
-// In-memory cache
-let globalBookings = { ...INITIAL_BOOKINGS };
+// Khởi tạo globalBookings sạch từ cấu hình phòng
+let globalBookings = {};
+ROOM_CONFIG.forEach((r) => {
+  globalBookings[r.id] = [];
+});
 
-// Load persisted bookings from file if available
-try {
+// Hàm nạp tất cả booking đã lưu từ bookings_store.json và sync_store.json
+function loadPersistedBookings() {
+  const result = {};
+  ROOM_CONFIG.forEach((r) => {
+    result[r.id] = [];
+  });
+
+  // 1. Nạp từ bookings_store.json
   if (fs.existsSync(STORE_PATH)) {
-    const raw = fs.readFileSync(STORE_PATH, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') {
-      ROOM_CONFIG.forEach((r) => {
-        globalBookings[r.id] = Array.isArray(parsed[r.id]) ? parsed[r.id] : [];
-      });
+    try {
+      const raw = fs.readFileSync(STORE_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        ROOM_CONFIG.forEach((r) => {
+          if (Array.isArray(parsed[r.id])) {
+            parsed[r.id].forEach((b) => {
+              if (b && (b.code || b.id)) {
+                const isFinished =
+                  b.status === 'check-out' ||
+                  b.status === 'Đã hoàn tất' ||
+                  b.status === 'hoàn tất' ||
+                  b.status === 'cancelled' ||
+                  b.status === 'Đã hủy';
+                if (!isFinished) {
+                  result[r.id].push(b);
+                }
+              }
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[BookingsService] Không thể đọc bookings_store.json:', e.message);
     }
   }
-} catch (e) {
-  console.warn('[BookingsService] Không thể đọc bookings_store.json, khởi tạo mặc định:', e.message);
+
+  // 2. Hợp nhất từ sync_store.json (nguồn đồng bộ toàn hệ thống)
+  if (fs.existsSync(SYNC_STORE_PATH)) {
+    try {
+      const raw = fs.readFileSync(SYNC_STORE_PATH, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.bookings)) {
+        parsed.bookings.forEach((b) => {
+          const roomId = b.roomId || b.selectedRoom?.id;
+          const code = b.code || b.id;
+          if (roomId && result[roomId] && code && !code.includes('BK')) {
+            const isFinished =
+              b.status === 'check-out' ||
+              b.status === 'Đã hoàn tất' ||
+              b.status === 'hoàn tất' ||
+              b.status === 'cancelled' ||
+              b.status === 'Đã hủy';
+            if (!isFinished) {
+              const exists = result[roomId].some((item) => item.code === code || item.id === code);
+              if (!exists) {
+                result[roomId].push({
+                  ...b,
+                  code,
+                  id: b.id || code,
+                  roomId,
+                });
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[BookingsService] Không thể đọc sync_store.json:', e.message);
+    }
+  }
+
+  return result;
 }
+
+globalBookings = loadPersistedBookings();
 
 function persistBookings() {
   try {
@@ -172,24 +237,15 @@ export async function addBookingAtomic({ roomId, booking }) {
         const newCats = Number(booking.cats) || 1;
         const currentList = globalBookings[roomId] || [];
 
-        // 1. Kiểm tra nếu cùng khách hàng cập nhật đơn
+        // 1. Chỉ cập nhật nếu trùng chính xác mã booking (không ghi đè các đơn khác của cùng khách)
         const duplicateIndex = currentList.findIndex((existing) => {
-          if ((booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id)) {
-            return true;
-          }
-          const sameCustomer =
-            (booking.customerId && existing.customerId && booking.customerId === existing.customerId) ||
-            (booking.customerPhone && existing.customerPhone && booking.customerPhone === existing.customerPhone);
-          return (
-            sameCustomer &&
-            existing.checkIn === booking.checkIn &&
-            existing.checkOut === booking.checkOut
-          );
+          return (booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id);
         });
 
         if (duplicateIndex >= 0) {
           currentList[duplicateIndex] = { ...currentList[duplicateIndex], ...booking };
           persistBookings();
+          syncToSyncStore(currentList[duplicateIndex]);
           return resolve({
             success: true,
             isDuplicate: true,
@@ -245,6 +301,7 @@ export async function addBookingAtomic({ roomId, booking }) {
 
         globalBookings[roomId] = [...currentList, updatedBooking];
         persistBookings();
+        syncToSyncStore(updatedBooking);
 
         return resolve({
           success: true,
@@ -257,6 +314,96 @@ export async function addBookingAtomic({ roomId, booking }) {
       }
     });
   });
+}
+
+function syncToSyncStore(booking) {
+  try {
+    if (!fs.existsSync(SYNC_STORE_PATH)) return;
+    const raw = fs.readFileSync(SYNC_STORE_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.bookings)) return;
+
+    const idx = parsed.bookings.findIndex(
+      (b) => (b.id && b.id === booking.id) || (b.code && b.code === booking.code)
+    );
+    if (idx >= 0) {
+      parsed.bookings[idx] = { ...parsed.bookings[idx], ...booking };
+    } else {
+      parsed.bookings.unshift(booking);
+    }
+    parsed.updatedAt = new Date().toISOString();
+    fs.writeFileSync(SYNC_STORE_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[BookingsService] Lỗi đồng bộ sang sync_store.json:', e.message);
+  }
+}
+
+/**
+ * Cập nhật thông tin hoặc trạng thái của một booking (Check-in, Check-out, Hủy)
+ */
+export async function updateBookingAtomic({ roomId, code, updates }) {
+  return new Promise((resolve) => {
+    bookingLock = bookingLock.then(async () => {
+      try {
+        let found = false;
+        const targetRooms = roomId ? [roomId] : Object.keys(globalBookings);
+        const isFinished =
+          updates?.status === 'check-out' ||
+          updates?.status === 'Đã hoàn tất' ||
+          updates?.status === 'hoàn tất' ||
+          updates?.status === 'cancelled' ||
+          updates?.status === 'Đã hủy';
+
+        targetRooms.forEach((rId) => {
+          const list = globalBookings[rId] || [];
+          const idx = list.findIndex((b) => b.code === code || b.id === code);
+          if (idx >= 0) {
+            found = true;
+            if (isFinished) {
+              list.splice(idx, 1);
+            } else {
+              list[idx] = { ...list[idx], ...updates };
+            }
+            globalBookings[rId] = list;
+          }
+        });
+
+        // Cập nhật cả trong sync_store.json
+        try {
+          if (fs.existsSync(SYNC_STORE_PATH)) {
+            const raw = fs.readFileSync(SYNC_STORE_PATH, 'utf-8');
+            const parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.bookings)) {
+              let syncChanged = false;
+              parsed.bookings = parsed.bookings.map((b) => {
+                if (b.code === code || b.id === code) {
+                  syncChanged = true;
+                  return { ...b, ...updates };
+                }
+                return b;
+              });
+              if (syncChanged) {
+                parsed.updatedAt = new Date().toISOString();
+                fs.writeFileSync(SYNC_STORE_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
+              }
+            }
+          }
+        } catch (e) {}
+
+        persistBookings();
+        return resolve({ success: true, allBookings: globalBookings, found });
+      } catch (err) {
+        return resolve({ success: false, error: err.message });
+      }
+    });
+  });
+}
+
+/**
+ * Xóa hoặc hủy booking khỏi hệ thống
+ */
+export async function removeBookingAtomic({ roomId, code }) {
+  return updateBookingAtomic({ roomId, code, updates: { status: 'cancelled' } });
 }
 
 export function handleGetBookings(req, res) {
@@ -275,5 +422,25 @@ export async function handleAddBooking(req, res) {
   if (result.conflict) {
     return res.status(409).json(result);
   }
+  return res.status(200).json(result);
+}
+
+export async function handleUpdateBooking(req, res) {
+  const { roomId, code, updates } = req.body || {};
+  const targetCode = code || req.body?.code;
+  if (!targetCode) {
+    return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
+  }
+  const result = await updateBookingAtomic({ roomId, code: targetCode, updates: updates || req.body });
+  return res.status(200).json(result);
+}
+
+export async function handleRemoveBooking(req, res) {
+  const { roomId, code } = req.body || req.query || {};
+  const targetCode = code || req.query?.code;
+  if (!targetCode) {
+    return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
+  }
+  const result = await removeBookingAtomic({ roomId, code: targetCode });
   return res.status(200).json(result);
 }

@@ -235,7 +235,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
     return selectedDateStr >= b.checkIn && selectedDateStr <= b.checkOut;
   });
 
-  const totalCats = bks.reduce((s, b) => s + (b.cats || 1), 0);
+  const totalCats = bks.reduce((s, b) => s + (Number(b.cats) || 1), 0);
   const remaining = Math.max(0, room.capacity - totalCats);
   const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
 
@@ -419,7 +419,22 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
 // ─────────────────────────────────────────────
 const RoomStatusPage = () => {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('mvn_admin_room_selected_date');
+      if (saved) {
+        const parsed = new Date(saved);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    } catch (e) {}
+    return new Date();
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('mvn_admin_room_selected_date', selectedDate.toISOString());
+    } catch (e) {}
+  }, [selectedDate]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [filterType, setFilterType] = useState('Tất cả');
   const [filterStatus, setFilterStatus] = useState('Tất cả');

@@ -57,6 +57,16 @@ function apiDevPlugin() {
               const { handleAddBooking } = await import('./api/lib/bookingsService.js');
               return handleAddBooking(req, res);
             }
+            if (req.method === 'PUT' || req.method === 'PATCH') {
+              req.body = await parseBody();
+              const { handleUpdateBooking } = await import('./api/lib/bookingsService.js');
+              return handleUpdateBooking(req, res);
+            }
+            if (req.method === 'DELETE') {
+              req.body = await parseBody();
+              const { handleRemoveBooking } = await import('./api/lib/bookingsService.js');
+              return handleRemoveBooking(req, res);
+            }
           }
           if (urlPath === '/api/notifications/vapid-public-key') {
             const { default: handler } = await import('./api/notifications/vapid-public-key.js');

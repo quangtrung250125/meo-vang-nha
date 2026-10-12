@@ -123,7 +123,7 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
     return true;
   });
 
-  const total = bks.reduce((s, b) => s + (b.cats || 1), 0);
+  const total = bks.reduce((s, b) => s + (Number(b.cats) || 1), 0);
   if (total === 0) return 'empty';
   if (total < room.capacity) return 'available';
   return 'full';
@@ -259,32 +259,74 @@ const getInitialMaintenance = () => {
 };
 
 const getInitialBookings = () => {
+  const result = {};
+  ROOM_CONFIG.forEach((r) => {
+    result[r.id] = [];
+  });
+
+  // 1. Tải từ localStorage 'mvn_room_bookings'
   try {
     const saved = localStorage.getItem('mvn_room_bookings');
     if (saved) {
       const parsed = JSON.parse(saved);
-      const cleaned = { ...INITIAL_BOOKINGS };
-      let hasAny = false;
-      Object.keys(INITIAL_BOOKINGS).forEach((roomId) => {
-        const list = (parsed[roomId] || []).filter((b) => {
-          if (!b || b.code?.includes('BK')) return false;
-          // Bỏ dữ liệu mẫu cũ bị kẹt thời gian lưu trú
-          if (b.code === 'MVN-2026-8891' || b.code === 'MVN-2026-8420' || b.code === 'MVN-2026-7734') {
-            return false;
+      if (parsed && typeof parsed === 'object') {
+        ROOM_CONFIG.forEach((r) => {
+          if (Array.isArray(parsed[r.id])) {
+            parsed[r.id].forEach((b) => {
+              if (b && (b.code || b.id) && !b.code?.includes('BK')) {
+                const isFinished =
+                  b.status === 'check-out' ||
+                  b.status === 'Đã hoàn tất' ||
+                  b.status === 'hoàn tất' ||
+                  b.status === 'cancelled' ||
+                  b.status === 'Đã hủy';
+                if (!isFinished) {
+                  result[r.id].push(b);
+                }
+              }
+            });
           }
-          return true;
         });
-        if (list.length > 0) hasAny = true;
-        cleaned[roomId] = list;
-      });
-      if (hasAny) {
-        return cleaned;
       }
     }
   } catch (e) {
     console.error('Failed to load bookings from storage', e);
   }
-  return INITIAL_BOOKINGS;
+
+  // 2. Đồng thời hợp nhất từ localStorage 'bookingHistory' (nguồn đơn đặt phòng)
+  try {
+    const savedHist = localStorage.getItem('bookingHistory');
+    if (savedHist) {
+      const list = JSON.parse(savedHist);
+      if (Array.isArray(list)) {
+        list.forEach((b) => {
+          const roomId = b.roomId || b.selectedRoom?.id;
+          const code = b.code || b.id;
+          if (roomId && result[roomId] && code && !code.includes('BK')) {
+            const isFinished =
+              b.status === 'check-out' ||
+              b.status === 'Đã hoàn tất' ||
+              b.status === 'hoàn tất' ||
+              b.status === 'cancelled' ||
+              b.status === 'Đã hủy';
+            if (!isFinished) {
+              const exists = result[roomId].some((item) => item.code === code || item.id === code);
+              if (!exists) {
+                result[roomId].push({
+                  ...b,
+                  code,
+                  id: b.id || code,
+                  roomId,
+                });
+              }
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  return result;
 };
 
 export const RoomStateProvider = ({ children }) => {
@@ -360,14 +402,51 @@ export const RoomStateProvider = ({ children }) => {
           const json = await res.json();
           if (json.success && json.bookings && isMounted) {
             setBookings((prev) => {
-              // Chỉ cập nhật nếu có thay đổi để tránh re-render thừa
-              const prevStr = JSON.stringify(prev);
-              const nextStr = JSON.stringify(json.bookings);
-              if (prevStr !== nextStr) {
+              let changed = false;
+              const next = { ...prev };
+
+              Object.keys(json.bookings).forEach((roomId) => {
+                const serverList = json.bookings[roomId] || [];
+                const localList = [...(next[roomId] || [])];
+
+                // Cập nhật hoặc thêm đơn từ server
+                serverList.forEach((sBk) => {
+                  if (!sBk || (!sBk.code && !sBk.id)) return;
+                  const code = sBk.code || sBk.id;
+                  const isFinished =
+                    sBk.status === 'check-out' ||
+                    sBk.status === 'Đã hoàn tất' ||
+                    sBk.status === 'hoàn tất' ||
+                    sBk.status === 'cancelled' ||
+                    sBk.status === 'Đã hủy';
+                  const localIdx = localList.findIndex((l) => l.code === code || l.id === code);
+
+                  if (isFinished) {
+                    if (localIdx >= 0) {
+                      localList.splice(localIdx, 1);
+                      changed = true;
+                    }
+                  } else {
+                    if (localIdx >= 0) {
+                      if (JSON.stringify(localList[localIdx]) !== JSON.stringify(sBk)) {
+                        localList[localIdx] = { ...localList[localIdx], ...sBk };
+                        changed = true;
+                      }
+                    } else {
+                      localList.push(sBk);
+                      changed = true;
+                    }
+                  }
+                });
+
+                next[roomId] = localList;
+              });
+
+              if (changed) {
                 try {
-                  localStorage.setItem('mvn_room_bookings', nextStr);
+                  localStorage.setItem('mvn_room_bookings', JSON.stringify(next));
                 } catch (e) {}
-                return json.bookings;
+                return next;
               }
               return prev;
             });
@@ -395,7 +474,7 @@ export const RoomStateProvider = ({ children }) => {
     const loadSupabaseBookings = async () => {
       try {
         const { data, error } = await supabase.from('bookings').select('*');
-        if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
+        if (!error && Array.isArray(data) && isMounted) {
           setBookings((prev) => {
             const next = { ...prev };
             let changed = false;
@@ -403,20 +482,40 @@ export const RoomStateProvider = ({ children }) => {
             data.forEach((row) => {
               const bData = row.data || {};
               const roomId = bData.roomId || bData.selectedRoom?.id;
-              if (roomId && next[roomId]) {
-                const existingList = next[roomId];
-                const exists = existingList.some(
-                  (b) => b.code === row.code || b.id === row.id || (bData.code && b.code === bData.code)
-                );
-                if (!exists) {
+              const code = row.code || bData.code;
+              const status = bData.status;
+              const isFinished =
+                status === 'check-out' ||
+                status === 'Đã hoàn tất' ||
+                status === 'hoàn tất' ||
+                status === 'cancelled' ||
+                status === 'Đã hủy';
+
+              if (roomId && next[roomId] && code) {
+                const currentList = next[roomId];
+                const idx = currentList.findIndex((b) => b.code === code || b.id === row.id || b.id === code);
+
+                if (isFinished) {
+                  if (idx >= 0) {
+                    next[roomId] = currentList.filter((_, i) => i !== idx);
+                    changed = true;
+                  }
+                } else {
                   const bookingItem = {
                     ...bData,
-                    id: row.id,
-                    code: row.code || bData.code,
+                    id: row.id || code,
+                    code: code,
                     customerId: row.customer_id,
                   };
-                  next[roomId] = [...existingList, bookingItem];
-                  changed = true;
+                  if (idx >= 0) {
+                    if (JSON.stringify(currentList[idx]) !== JSON.stringify(bookingItem)) {
+                      currentList[idx] = bookingItem;
+                      changed = true;
+                    }
+                  } else {
+                    next[roomId] = [...currentList, bookingItem];
+                    changed = true;
+                  }
                 }
               }
             });
@@ -496,37 +595,61 @@ export const RoomStateProvider = ({ children }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
-          if (payload.eventType === 'INSERT' && payload.new) {
+          if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
             const row = payload.new;
             const bData = row.data || {};
             const roomId = bData.roomId || bData.selectedRoom?.id;
+            const code = row.code || bData.code;
+            const status = bData.status;
+            const isFinished =
+              status === 'check-out' ||
+              status === 'Đã hoàn tất' ||
+              status === 'hoàn tất' ||
+              status === 'cancelled' ||
+              status === 'Đã hủy';
+
             if (roomId) {
               setBookings((prev) => {
                 const current = prev[roomId] || [];
-                if (current.some((b) => b.code === row.code || b.id === row.id)) return prev;
+                const idx = current.findIndex((b) => b.code === code || b.id === row.id || b.id === code);
+
+                if (isFinished) {
+                  if (idx >= 0) {
+                    const filtered = current.filter((_, i) => i !== idx);
+                    const updated = { ...prev, [roomId]: filtered };
+                    try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
+                    return updated;
+                  }
+                  return prev;
+                }
+
                 const nextBooking = {
                   ...bData,
-                  id: row.id,
-                  code: row.code || bData.code,
+                  id: row.id || code,
+                  code: code,
                   customerId: row.customer_id,
                 };
-                const updated = {
-                  ...prev,
-                  [roomId]: [...current, nextBooking],
-                };
-                try {
-                  localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
-                } catch (e) {}
+
+                let updatedList;
+                if (idx >= 0) {
+                  updatedList = current.map((item, i) => (i === idx ? nextBooking : item));
+                } else {
+                  updatedList = [...current, nextBooking];
+                }
+
+                const updated = { ...prev, [roomId]: updatedList };
+                try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
                 return updated;
               });
             }
           } else if (payload.eventType === 'DELETE' && payload.old) {
             const deletedId = payload.old.id;
+            const deletedCode = payload.old.code;
             setBookings((prev) => {
               let changed = false;
               const next = { ...prev };
               Object.keys(next).forEach((roomId) => {
-                const filtered = next[roomId].filter((b) => b.id !== deletedId && b.code !== deletedId);
+                const filtered = next[roomId].filter((b) => b.id !== deletedId && b.code !== deletedId && b.code !== deletedCode);
                 if (filtered.length !== next[roomId].length) {
                   next[roomId] = filtered;
                   changed = true;
@@ -658,26 +781,16 @@ export const RoomStateProvider = ({ children }) => {
     // 2. Fallback kiểm tra bộ nhớ local (nếu offline)
     const current = bookings[roomId] || [];
 
-    // Kiểm tra nếu cùng 1 khách hàng gửi lại / cập nhật đơn
-    const duplicateByCustomer = current.find((existing) => {
-      if ((booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id)) {
-        return true;
-      }
-      const sameCustomer =
-        (booking.customerId && existing.customerId && booking.customerId === existing.customerId) ||
-        (booking.customerPhone && existing.customerPhone && booking.customerPhone === existing.customerPhone);
-      return (
-        sameCustomer &&
-        existing.checkIn === booking.checkIn &&
-        existing.checkOut === booking.checkOut
-      );
+    // Kiểm tra nếu cùng mã booking gửi lại -> cập nhật đúng đơn đó
+    const duplicateByCode = current.find((existing) => {
+      return (booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id);
     });
 
-    if (duplicateByCustomer) {
+    if (duplicateByCode) {
       const updated = {
         ...bookings,
         [roomId]: current.map((item) =>
-          item.code === duplicateByCustomer.code || item.id === duplicateByCustomer.id
+          item.code === duplicateByCode.code || item.id === duplicateByCode.id
             ? { ...item, ...booking }
             : item
         ),
@@ -746,7 +859,7 @@ export const RoomStateProvider = ({ children }) => {
       const current = prev[roomId] || [];
       const updated = {
         ...prev,
-        [roomId]: current.map((b) => b.code === code ? { ...b, ...updates } : b),
+        [roomId]: current.map((b) => (b.code === code || b.id === code ? { ...b, ...updates } : b)),
       };
       try {
         localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
@@ -764,6 +877,13 @@ export const RoomStateProvider = ({ children }) => {
           }
         }
       } catch (e) {}
+
+      // Đồng bộ Server API
+      fetch('/api/bookings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, code, updates }),
+      }).catch(() => {});
 
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code, updates, allBookings: updated });
@@ -831,6 +951,13 @@ export const RoomStateProvider = ({ children }) => {
       }
     } catch (e) {}
 
+    // Đồng bộ trạng thái check-out lên Server API trung tâm
+    fetch('/api/bookings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, code, updates: { status: 'check-out' } }),
+    }).catch(() => {});
+
     // Cập nhật lên Supabase Database realtime
     (async () => {
       try {
@@ -861,7 +988,7 @@ export const RoomStateProvider = ({ children }) => {
     setBookings((prev) => {
       const updated = {
         ...prev,
-        [roomId]: (prev[roomId] || []).filter((b) => b.code !== code),
+        [roomId]: (prev[roomId] || []).filter((b) => b.code !== code && b.id !== code),
       };
       try {
         localStorage.setItem('mvn_room_bookings', JSON.stringify(updated));
@@ -873,12 +1000,45 @@ export const RoomStateProvider = ({ children }) => {
         if (savedHist) {
           const list = JSON.parse(savedHist);
           if (Array.isArray(list)) {
-            const nextList = list.filter(item => item.id !== code && item.code !== code);
+            const nextList = list.map(item =>
+              item.id === code || item.code === code
+                ? { ...item, status: 'cancelled' }
+                : item
+            );
             localStorage.setItem('bookingHistory', JSON.stringify(nextList));
             window.dispatchEvent(new Event('mvn_booking_sync'));
           }
         }
       } catch (e) {}
+
+      // Đồng bộ xóa/hủy đơn lên Server API trung tâm
+      fetch('/api/bookings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, code }),
+      }).catch(() => {});
+
+      // Cập nhật trạng thái hủy lên Supabase Database realtime
+      (async () => {
+        try {
+          const { data: existingRows } = await supabase
+            .from('bookings')
+            .select('id, data')
+            .or(`id.eq.${code},code.eq.${code}`);
+
+          if (existingRows && existingRows.length > 0) {
+            const target = existingRows[0];
+            await supabase
+              .from('bookings')
+              .update({
+                data: { ...(target.data || {}), status: 'cancelled' },
+              })
+              .eq('id', target.id);
+          }
+        } catch (err) {
+          console.warn('Lỗi cập nhật hủy đơn lên Supabase:', err);
+        }
+      })();
 
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });

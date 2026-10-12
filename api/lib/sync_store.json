@@ -1,6 +1,326 @@
 {
   "bookings": [
     {
+      "id": "MVN-65412",
+      "customerName": "Trần Minh Hoàng",
+      "customerPhone": "0988776655",
+      "checkIn": "2026-09-22",
+      "checkOut": "2026-09-28",
+      "catCount": 1,
+      "selectedPackage": {
+        "id": "p2",
+        "name": "Gói Tiêu Chuẩn",
+        "price": 250000,
+        "priceString": "250.000đ"
+      },
+      "selectedRoom": {
+        "id": "r1",
+        "name": "Phòng Deluxe"
+      },
+      "petIds": [
+        "pet_02"
+      ],
+      "petProfiles": [
+        {
+          "id": "pet_02",
+          "name": "Mochi",
+          "breed": "Mèo Ba Tư trắng"
+        }
+      ],
+      "totalPrice": 1560000,
+      "paymentStatus": "Chờ thanh toán khi nhận phòng",
+      "createdAt": "2026-09-19T14:15:00Z",
+      "notes": "Bé cần nhỏ mắt vệ sinh mỗi sáng."
+    },
+    {
+      "id": "MVN-82914",
+      "customerName": "Nguyễn Thùy Linh",
+      "customerPhone": "0912345678",
+      "checkIn": "2026-09-18",
+      "checkOut": "2026-09-25",
+      "catCount": 1,
+      "selectedPackage": {
+        "id": "p3",
+        "name": "Gói Cao Cấp",
+        "price": 350000,
+        "priceString": "350.000đ"
+      },
+      "selectedRoom": {
+        "id": "r2",
+        "name": "Phòng VIP 2 (View Cửa Sổ)"
+      },
+      "petIds": [
+        "pet_01"
+      ],
+      "petProfiles": [
+        {
+          "id": "pet_01",
+          "name": "Bơ Vàng",
+          "breed": "Mèo Anh Lông Ngắn"
+        }
+      ],
+      "totalPrice": 2520000,
+      "paymentStatus": "Đã thanh toán cọc",
+      "createdAt": "2026-09-17T09:30:00Z",
+      "notes": "Bé hơi nhát người lạ, nhờ các bạn cho ăn pate buổi tối."
+    },
+    {
+      "id": "MVN-27817",
+      "checkIn": "2026-09-21",
+      "checkOut": "2026-09-21",
+      "selectedPackage": {
+        "id": "p3",
+        "category": "Lưu trú",
+        "name": "Gói Mèo Thượng Đế",
+        "originalPrice": 120000,
+        "price": 108000,
+        "originalPriceString": "120.000đ",
+        "priceString": "108.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "12.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "Phòng VIP, ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "image": "/images/service_hotel.png",
+        "features": [
+          "Phòng VIP (nâng Deluxe +20k, nâng VVIP +10k)",
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isPromo": true
+      },
+      "selectedRoom": {
+        "id": "VIP-01",
+        "type": "VIP",
+        "capacity": 2,
+        "used": 0,
+        "remaining": 2,
+        "status": "empty"
+      },
+      "petIds": [
+        "pet_01"
+      ],
+      "petProfiles": [
+        {
+          "id": "pet_01",
+          "name": "Bơ Vàng",
+          "age": "2",
+          "breed": "Mèo Anh Lông Ngắn (Golden)",
+          "gender": "Đực",
+          "weight": "4.5",
+          "vaccinated": true,
+          "neutered": true,
+          "diet": "Hạt Royal Canin + Pate cá hồi buổi tối",
+          "personality": "Thân thiện, thích được gãi cằm, hơi nhút nhát ngày đầu",
+          "healthNotes": "Không có tiền sử bệnh, dị ứng với hạt ngũ cốc giá rẻ",
+          "imagePreview": "/images/hero_banner.png",
+          "createdAt": "2026-09-01T08:00:00Z",
+          "ownerPhone": "0912345678",
+          "ownerName": "Nguyễn Thùy Linh"
+        }
+      ],
+      "createdAt": "2026-09-20T14:53:13.053Z",
+      "status": "cancelled"
+    },
+    {
+      "id": "MVN-58650",
+      "checkIn": "2026-09-20",
+      "checkOut": "2026-09-20",
+      "selectedPackage": {
+        "id": "p3",
+        "category": "Lưu trú",
+        "name": "Gói Mèo Thượng Đế",
+        "originalPrice": 120000,
+        "price": 108000,
+        "originalPriceString": "120.000đ",
+        "priceString": "108.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "12.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "Phòng VIP, ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "image": "/images/service_hotel.png",
+        "features": [
+          "Phòng VIP (nâng Deluxe +20k, nâng VVIP +10k)",
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isPromo": true
+      },
+      "selectedRoom": {
+        "id": "VIP-01",
+        "type": "VIP",
+        "capacity": 2,
+        "used": 0,
+        "remaining": 2,
+        "status": "empty"
+      },
+      "petIds": [
+        "pet_01"
+      ],
+      "petProfiles": [
+        {
+          "id": "pet_01",
+          "name": "Bơ Vàng",
+          "age": "2",
+          "breed": "Mèo Anh Lông Ngắn (Golden)",
+          "gender": "Đực",
+          "weight": "4.5",
+          "vaccinated": true,
+          "neutered": true,
+          "diet": "Hạt Royal Canin + Pate cá hồi buổi tối",
+          "personality": "Thân thiện, thích được gãi cằm, hơi nhút nhát ngày đầu",
+          "healthNotes": "Không có tiền sử bệnh, dị ứng với hạt ngũ cốc giá rẻ",
+          "imagePreview": "/images/hero_banner.png",
+          "createdAt": "2026-09-01T08:00:00Z",
+          "ownerPhone": "0912345678",
+          "ownerName": "Nguyễn Thùy Linh"
+        }
+      ],
+      "createdAt": "2026-09-20T15:56:23.921Z",
+      "status": "check-out"
+    },
+    {
+      "id": "MVN-22381",
+      "code": "MVN-22381",
+      "ownerName": "Quản trị viên",
+      "ownerPhone": "0962606249",
+      "ownerTier": "Vàng",
+      "catNames": "Bơ Vàng",
+      "cats": 1,
+      "checkIn": "2026-10-12",
+      "checkOut": "2026-10-13",
+      "packages": [
+        "Gói Mèo Thượng Đế"
+      ],
+      "selectedPackage": {
+        "id": "p3",
+        "category": "Lưu trú",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "baseOriginalPrice": 120000,
+        "basePrice": 108000,
+        "name": "Gói Mèo Thượng Đế",
+        "originalPrice": 120000,
+        "price": 108000,
+        "originalPriceString": "120.000đ",
+        "priceString": "108.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "12.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "image": "/images/rooms/vip.png",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isPromo": true,
+        "surcharge": 0
+      },
+      "selectedLodging": {
+        "id": "p3",
+        "category": "Lưu trú",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "baseOriginalPrice": 120000,
+        "basePrice": 108000,
+        "name": "Gói Mèo Thượng Đế",
+        "originalPrice": 120000,
+        "price": 108000,
+        "originalPriceString": "120.000đ",
+        "priceString": "108.000đ",
+        "discountPercent": 10,
+        "discountBadge": "Lần 2: -10%",
+        "savingsString": "12.000đ",
+        "period": "/ngày",
+        "bg": "bg-primary-light",
+        "border": "border-green-100",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "image": "/images/rooms/vip.png",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isPromo": true,
+        "surcharge": 0
+      },
+      "selectedRoom": {
+        "id": "VVIP-03",
+        "type": "VVIP",
+        "capacity": 4,
+        "occupied": 0,
+        "remaining": 4,
+        "isBooked": false,
+        "isFull": false,
+        "conflictingBooking": null,
+        "status": "available"
+      },
+      "roomId": "VVIP-03",
+      "petIds": [
+        "pet_01"
+      ],
+      "petProfiles": [
+        {
+          "id": "pet_01",
+          "name": "Bơ Vàng",
+          "age": "2",
+          "breed": "Mèo Anh Lông Ngắn (Golden)",
+          "gender": "Đực",
+          "weight": "4.5",
+          "vaccinated": true,
+          "neutered": true,
+          "diet": "Hạt Royal Canin + Pate cá hồi buổi tối",
+          "personality": "Thân thiện, thích được gãi cằm, hơi nhút nhát ngày đầu",
+          "healthNotes": "Không có tiền sử bệnh, dị ứng với hạt ngũ cốc giá rẻ",
+          "imagePreview": "/images/hero_banner.png",
+          "createdAt": "2026-09-01T08:00:00Z",
+          "ownerPhone": "0912345678",
+          "ownerName": "Nguyễn Thùy Linh",
+          "health": {
+            "vaccinated": "Rồi",
+            "medicalCondition": "",
+            "medicalHistory": "",
+            "medication": "",
+            "allergy": ""
+          },
+          "habits": "",
+          "patePreference": "",
+          "specialRequests": ""
+        }
+      ],
+      "customerPhone": "0962606249",
+      "customerName": "Quản trị viên",
+      "customerId": null,
+      "status": "cancelled",
+      "totalPrice": 118000,
+      "createdAt": "2026-10-12T07:38:31.331Z"
+    },
+    {
       "id": "MVN-82490",
       "code": "MVN-82490",
       "ownerName": "Quản trị viên",
@@ -191,5 +511,5 @@
       "updatedAt": "2026-10-06T00:41:25.097Z"
     }
   ],
-  "updatedAt": "2026-10-06T00:54:05.972Z"
+  "updatedAt": "2026-10-12T10:12:59.491Z"
 }
