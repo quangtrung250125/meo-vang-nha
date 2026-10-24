@@ -4,6 +4,8 @@ import MainLayout from './layouts/MainLayout';
 import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminReviews from './pages/AdminReviews';
+import AdminSettings from './pages/AdminSettings';
 import Services from './pages/Services';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
@@ -39,6 +41,8 @@ function AppRoutes() {
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
       <Route path="room-status" element={<RoomStatusPage />} />
+      <Route path="reviews" element={<AdminReviews />} />
+      <Route path="settings" element={<AdminSettings />} />
     </>
   );
 
