@@ -12,6 +12,7 @@ import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
+import { getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
 
 // ─────────────────────────────────────────────
 // Tạo nhật ký lưu trú mock theo ngày
@@ -86,7 +87,8 @@ const BookingCard = ({ booking, petList }) => {
   const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
   const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
   const firstPetImage = resolvedPets[0]?.imagePreview;
-  const status = calculateStatus(booking.checkIn, booking.checkOut);
+  const normalizedStatus = getBookingStatus(booking);
+  const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
   const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
 
   return (
@@ -102,8 +104,8 @@ const BookingCard = ({ booking, petList }) => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="text-lg font-bold text-text-dark">{petsName}</h3>
-            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${getStatusBadge(status)}`}>
-              {status}
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${statusConfig.badgeClass}`}>
+              {statusConfig.label}
             </span>
           </div>
           <p className="text-sm text-gray-500 font-medium">
@@ -288,7 +290,7 @@ const PetProfile = () => {
   const displayName = customerProfile?.fullName || customerProfile?.name || 'bạn';
   const bookings = globalBookingList.map(b => ({
     ...b,
-    dynamicStatus: calculateStatus(b.checkIn, b.checkOut),
+    dynamicStatus: getBookingStatus(b),
   }));
 
   return (

@@ -15,6 +15,7 @@ import PetDashboardNav from '../../components/PetDashboardNav';
 import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
 import { toast } from 'react-hot-toast';
 import cameraFeed from '../../assets/images/camera_feed.png';
+import { BOOKING_STATUS, getBookingStatus } from '../../utils/bookingStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -469,7 +470,8 @@ const TrackingPage = () => {
   };
 
   // Find active booking
-  const activeBooking = globalBookingList.find(b => calculateStatus(b.checkIn, b.checkOut) === 'Đang lưu trú');
+  const activeBooking = globalBookingList.find(b => getBookingStatus(b) === BOOKING_STATUS.IN_HOUSE)
+    || globalBookingList.find(b => getBookingStatus(b) === BOOKING_STATUS.UPCOMING);
 
   const resolvedPets = activeBooking
     ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)

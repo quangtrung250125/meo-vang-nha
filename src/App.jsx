@@ -8,6 +8,7 @@ import PetProfile from './pages/PetProfile';
 import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
+import Admin from './pages/Admin';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider } from './contexts/CustomerContext';
 import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
@@ -32,6 +33,7 @@ function App() {
                   <Route path="tracking" element={<Tracking />} />
                   <Route path="checkout" element={<Checkout />} />
                 </Route>
+                <Route path="/admin" element={<Admin />} />
               </Routes>
             </BrowserRouter>
           </BookingHistoryProvider>

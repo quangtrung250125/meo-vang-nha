@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle, Download, Home, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
-
+import { BOOKING_STATUS } from '../../utils/bookingStatus';
 
 const Step5Success = ({ data }) => {
   const [bookingId, setBookingId] = useState('');
@@ -36,6 +36,9 @@ const Step5Success = ({ data }) => {
       petProfiles: data.petProfiles,
       totalAmount: data.totalAmount || 0,
       paymentStatus: 'Chưa thanh toán',
+      status: BOOKING_STATUS.UPCOMING,
+      pending_changes: null,
+      previous_status: null,
       createdAt: new Date().toISOString()
     });
   }, [addBooking, data]);

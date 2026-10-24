@@ -11,7 +11,7 @@ import {
   Clock, 
   Phone, 
   Gift, 
-  DoorOpen, 
+  ShieldCheck, 
   Sparkles, 
   CalendarCheck, 
   CheckCheck
@@ -30,7 +30,8 @@ const Header = () => {
     unreadCount, 
     markAllNotificationsRead, 
     openPolicy,
-    openAuth
+    openAuth,
+    openApprovalModal
   } = useUI();
 
   const [showDropdown, setShowDropdown] = useState(false);
@@ -120,6 +121,10 @@ const Header = () => {
               <span>Tích Điểm VIP</span>
             </button>
             <Link to="/booking" className={isActive('/booking')}>Đặt phòng</Link>
+            <Link to="/admin" className="text-slate-600 hover:text-indigo-600 font-semibold flex items-center gap-1 transition-colors">
+              <ShieldCheck className="w-4 h-4 text-indigo-500" />
+              <span>Quản trị</span>
+            </Link>
           </nav>
 
           {/* ACTION BUTTONS (Search, Notifications, Booking CTA, User) */}
@@ -206,17 +211,26 @@ const Header = () => {
                         key={item.id}
                         onClick={() => {
                           setShowNotifPopover(false);
-                          if (item.type === 'gift') openPolicy('membership');
-                          else navigate('/services');
+                          if (item.type === 'booking_proposal') {
+                            if (item.bookingId) openApprovalModal(item.bookingId);
+                            navigate('/my-booking');
+                          } else if (item.type === 'admin_feedback') {
+                            navigate('/admin');
+                          } else if (item.type === 'gift') {
+                            openPolicy('membership');
+                          } else {
+                            navigate('/services');
+                          }
                         }}
                         className={`p-4 hover:bg-emerald-50/40 transition-colors cursor-pointer flex gap-3 ${
-                          item.unread ? 'bg-emerald-50/20' : 'opacity-60'
+                          item.unread ? 'bg-purple-50/40 border-l-4 border-purple-500' : 'opacity-60'
                         }`}
                       >
                         <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${item.iconColor}`}>
                           {item.type === 'gift' && <Gift className="w-4 h-4" />}
-                          {item.type === 'room' && <DoorOpen className="w-4 h-4" />}
-                          {item.type === 'spa' && <Sparkles className="w-4 h-4" />}
+                          {item.type === 'booking_proposal' && <AlertTriangle className="w-4 h-4 text-purple-600" />}
+                          {item.type === 'admin_feedback' && <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+                          {item.type !== 'gift' && item.type !== 'booking_proposal' && item.type !== 'admin_feedback' && <Sparkles className="w-4 h-4" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-gray-800 leading-snug">
@@ -288,6 +302,12 @@ const Header = () => {
                     >
                       Hồ sơ thú cưng
                     </Link>
+                    <Link
+                      to="/admin"
+                      className="block px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 font-semibold border-t border-gray-100"
+                    >
+                      Quản trị Admin 🛠️
+                    </Link>
                   </div>
                 )}
               </div>
@@ -352,6 +372,13 @@ const Header = () => {
               className="block text-center bg-accent text-white font-bold py-3 rounded-2xl shadow-md text-sm mt-3"
             >
               Đặt lịch cho bé ngay
+            </Link>
+            <Link
+              to="/admin"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-center bg-slate-900 text-white font-bold py-2.5 rounded-2xl shadow-sm text-xs mt-2"
+            >
+              Quản trị Admin 🛠️
             </Link>
           </div>
         )}
