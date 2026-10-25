@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Zap, RefreshCw, Activity, Send, Users, DollarSign, BarChart3, MessageSquare, Clock, Calendar, Shield } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -39,12 +39,12 @@ const AdminMarketing = () => {
   const currentTab = searchParams.get('tab');
   const activeTab  = MARKETING_TABS.some(t => t.id === currentTab) ? currentTab : 'scenarios';
 
-  // State tu localStorage
+  // State từ localStorage
   const [scenarios,  setScenarios]  = useState(() => loadFromStorage(MKT_STORAGE_KEYS.SCENARIOS,  initialScenarios));
   const [templates,  setTemplates]  = useState(() => loadFromStorage(MKT_STORAGE_KEYS.TEMPLATES,  initialTemplates));
   const [frequency,  setFrequency]  = useState(() => loadFromStorage(MKT_STORAGE_KEYS.FREQUENCY,  initialFrequency));
 
-  // Du lieu mau (CANH BAO: chua noi API that)
+  // Dữ liệu mẫu (CẢNH BÁO: chưa nối API thật)
   const scheduleItems   = initialScheduleItems;
   const recipients      = initialRecipients;
   const results         = initialResults;
@@ -66,7 +66,7 @@ const AdminMarketing = () => {
       setFrequency(loadFromStorage(MKT_STORAGE_KEYS.FREQUENCY, initialFrequency));
       setLastUpdated(new Date());
       setIsRefreshing(false);
-      toast.success('Da lam moi du lieu Marketing tu dong!');
+      toast.success('Đã làm mới dữ liệu Marketing tự động!');
     }, 400);
   };
 
@@ -95,38 +95,38 @@ const AdminMarketing = () => {
           <div>
             <h1 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
               <Zap className="h-5 w-5 text-orange-500" />
-              Marketing tu dong
+              Marketing tự động
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Tu dong hoa viec gui thong bao Zalo, Email, SMS va Web Push dua tren hanh vi khach hang
+              Tự động hóa việc gửi thông báo Zalo, Email, SMS và Web Push dựa trên hành vi khách hàng
             </p>
 
-            {/* Badges tom tat */}
+            {/* Badges tóm tắt */}
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Dang bat: {enabledCount} kich ban
+                Đang bật: {enabledCount} kịch bản
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                Da gui (30 ngay): {totalSent30.toLocaleString()} tin
+                Đã gửi (30 ngày): {totalSent30.toLocaleString()} tin
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                Doi tuong cho gui: {pendingRecipients} khach
+                Đối tượng chờ gửi: {pendingRecipients} khách
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-600 border border-orange-200">
-                Doanh thu tu chien dich: {formatCurrency(campaignRevenue)}
+                Doanh thu từ chiến dịch: {formatCurrency(campaignRevenue)}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400 font-medium hidden sm:inline">
-              Cap nhat luc {lastUpdated.toLocaleTimeString('vi-VN')}
+              Cập nhật lúc {lastUpdated.toLocaleTimeString('vi-VN')}
             </span>
             <button onClick={handleRefresh}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              title="Lam moi du lieu">
+              title="Làm mới dữ liệu">
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-orange-500' : ''}`} />
-              <span>Lam moi</span>
+              <span>Làm mới</span>
             </button>
           </div>
         </div>
@@ -158,7 +158,7 @@ const AdminMarketing = () => {
           </div>
         </div>
 
-        {/* 3. Noi dung tab */}
+        {/* 3. Nội dung tab */}
         <div className="transition-all duration-300">
           {renderTabContent()}
         </div>

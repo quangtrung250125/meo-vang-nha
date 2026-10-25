@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { MessageSquare, Send, AlertCircle } from 'lucide-react';
 
 const PLATFORM_COLORS = {
@@ -14,25 +14,25 @@ const Tab5Inbox = ({ conversations }) => {
 
   const handleSend = () => {
     if (!reply.trim()) return;
-    alert('CHE DO MO PHONG: Tin nhan "' + reply + '" se duoc gui qua ' + (conv?.platform || '') + ' khi da ket noi API that.');
+    alert('CHẾ ĐỘ MÔ PHỎNG: Tin nhắn "' + reply + '" sẽ được gửi qua ' + (conv?.platform || '') + ' khi đã kết nối API thật.');
     setReply('');
   };
 
   return (
     <div className="space-y-4">
-      {/* CANH BAO: Chua ket noi API */}
+      {/* CẢNH BÁO: Chưa kết nối API */}
       <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
         <p className="text-xs text-amber-700 font-medium">
-          ⚠️ Hop thu tap trung chua ket noi API Zalo OA / Messenger that. Giao dien duoi day su dung du lieu mau. Khi ket noi xong, lich su hoi thoai va tinh nang tra loi se hoat dong day du.
+          ⚠️ Hộp thư tập trung chưa kết nối API Zalo OA / Messenger thật. Giao diện dưới đây sử dụng dữ liệu mẫu. Khi kết nối xong, lịch sử hội thoại và tính năng trả lời sẽ hoạt động đầy đủ.
         </p>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden flex h-[600px]">
-        {/* Danh sach hoi thoai */}
+        {/* Danh sách hội thoại */}
         <div className="w-64 shrink-0 border-r border-gray-100 flex flex-col">
           <div className="px-4 py-3.5 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-800">Hoi thoai</h3>
+            <h3 className="text-sm font-bold text-gray-800">Hội thoại</h3>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {conversations.map(c => {
@@ -60,7 +60,7 @@ const Tab5Inbox = ({ conversations }) => {
           </div>
         </div>
 
-        {/* Khung hoi thoai */}
+        {/* Khung hội thoại */}
         <div className="flex-1 flex flex-col min-w-0">
           {conv ? (
             <>
@@ -70,7 +70,7 @@ const Tab5Inbox = ({ conversations }) => {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-gray-800">{conv.customer}</p>
-                  <p className="text-xs text-gray-400">Meo: {conv.catName} · {PLATFORM_COLORS[conv.platform]?.label}</p>
+                  <p className="text-xs text-gray-400">Mèo: {conv.catName} · {PLATFORM_COLORS[conv.platform]?.label}</p>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50/30">
@@ -84,14 +84,14 @@ const Tab5Inbox = ({ conversations }) => {
                 ))}
               </div>
               <div className="px-5 py-3 border-t border-gray-100 flex gap-3 items-end">
-                <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} placeholder="Nhap tin nhan tra loi... (che do mo phong)" className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-300" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} />
+                <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} placeholder="Nhập tin nhắn trả lời... (chế độ mô phỏng)" className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-300" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} />
                 <button onClick={handleSend} className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors cursor-pointer shrink-0">
                   <Send className="h-4 w-4" />
                 </button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Chon mot hoi thoai de xem.</div>
+            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Chọn một hội thoại để xem.</div>
           )}
         </div>
       </div>

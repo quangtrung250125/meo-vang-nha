@@ -1,9 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Plus, Eye, Mail, MessageSquare, Phone, Bell, Edit2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { CHANNELS, MKT_STORAGE_KEYS, saveToStorage } from './marketingStore';
 
-const SAMPLE_DATA = { ten_chu: 'Nguyen Lan Anh', ten_meo: 'Bo', ngay_nhan: '30/10/2026', ma_uu_dai: 'BOSS20', hang: 'Vang' };
+const SAMPLE_DATA = { ten_chu: 'Nguyễn Lan Anh', ten_meo: 'Bơ', ngay_nhan: '30/10/2026', ma_uu_dai: 'BOSS20', hang: 'Vàng' };
 
 const fillVariables = (body) => {
   return body
@@ -45,11 +45,11 @@ const TemplateCard = ({ tpl, onEdit }) => {
       <button onClick={() => setShowPreview(!showPreview)}
         className="inline-flex items-center gap-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer">
         <Eye className="h-3.5 w-3.5" />
-        {showPreview ? 'An xem truoc' : 'Xem truoc voi du lieu mau'}
+        {showPreview ? 'Ẩn xem trước' : 'Xem trước với dữ liệu mẫu'}
       </button>
       {showPreview && (
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-          <p className="text-[11px] font-bold text-emerald-700 mb-1.5">Xem truoc (du lieu mau):</p>
+          <p className="text-[11px] font-bold text-emerald-700 mb-1.5">Xem trước (dữ liệu mẫu):</p>
           <p className="text-sm text-gray-700 leading-relaxed">{fillVariables(tpl.body)}</p>
         </div>
       )}
@@ -62,7 +62,7 @@ const TemplateModal = ({ template, onClose, onSave }) => {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.body.trim()) { toast.error('Vui long dien day du thong tin!'); return; }
+    if (!form.name.trim() || !form.body.trim()) { toast.error('Vui lòng điền đầy đủ thông tin!'); return; }
     const vars = [...form.body.matchAll(/\{[^}]+\}/g)].map(m => m[0]);
     onSave({ ...form, id: form.id || `tpl-${Date.now()}`, variables: [...new Set(vars)] });
   };
@@ -70,33 +70,33 @@ const TemplateModal = ({ template, onClose, onSave }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-gray-800">{template ? 'Sua mau tin nhan' : 'Tao mau tin nhan moi'}</h3>
+          <h3 className="text-lg font-bold text-gray-800">{template ? 'Sửa mẫu tin nhắn' : 'Tạo mẫu tin nhắn mới'}</h3>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Ten mau *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Vi du: Nhac lich truoc ngay gui meo" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Tên mẫu *</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Ví dụ: Nhắc lịch trước ngày gửi mèo" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kenh gui</label>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kênh gửi</label>
             <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
               {CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Noi dung tin *</label>
-            <p className="text-[11px] text-gray-400 mb-1.5">Bien ca nhan hoa: {'{ten_chu}'}, {'{ten_meo}'}, {'{ngay_nhan}'}, {'{ma_uu_dai}'}, {'{hang}'}</p>
-            <textarea value={form.body} onChange={e => set('body', e.target.value)} rows={5} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none" placeholder="Noi dung tin nhan... Dung {ten_chu} de ca nhan hoa" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Nội dung tin *</label>
+            <p className="text-[11px] text-gray-400 mb-1.5">Biến cá nhân hóa: {'{ten_chu}'}, {'{ten_meo}'}, {'{ngay_nhan}'}, {'{ma_uu_dai}'}, {'{hang}'}</p>
+            <textarea value={form.body} onChange={e => set('body', e.target.value)} rows={5} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none" placeholder="Nội dung tin nhắn... Dùng {ten_chu} để cá nhân hóa" />
           </div>
           {form.body && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-              <p className="text-[11px] font-bold text-emerald-700 mb-1">Xem truoc:</p>
+              <p className="text-[11px] font-bold text-emerald-700 mb-1">Xem trước:</p>
               <p className="text-sm text-gray-700">{fillVariables(form.body)}</p>
             </div>
           )}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Huy</button>
-            <button type="submit" className="flex-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors cursor-pointer">Luu mau</button>
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Hủy</button>
+            <button type="submit" className="flex-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors cursor-pointer">Lưu mẫu</button>
           </div>
         </form>
       </div>
@@ -115,7 +115,7 @@ const Tab2Templates = ({ templates, setTemplates }) => {
     const next = editingTemplate ? templates.map(t => t.id === tpl.id ? tpl : t) : [...templates, tpl];
     setTemplates(next);
     saveToStorage(MKT_STORAGE_KEYS.TEMPLATES, next);
-    toast.success(editingTemplate ? 'Da cap nhat mau tin nhan!' : 'Da tao mau tin nhan moi!');
+    toast.success(editingTemplate ? 'Đã cập nhật mẫu tin nhắn!' : 'Đã tạo mẫu tin nhắn mới!');
     setModalOpen(false);
     setEditingTemplate(null);
   };
@@ -126,27 +126,27 @@ const Tab2Templates = ({ templates, setTemplates }) => {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-gray-800">Mau tin nhan theo kenh</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Bien ca nhan hoa: ten chu, ten meo, ngay nhan, ma uu dai, hang</p>
+            <h3 className="text-sm font-bold text-gray-800">Mẫu tin nhắn theo kênh</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Biến cá nhân hóa: tên chủ, tên mèo, ngày nhận, mã ưu đãi, hạng</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Channel filter pills */}
-            <button onClick={() => setChannelFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${channelFilter === 'all' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>Tat ca</button>
+            <button onClick={() => setChannelFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${channelFilter === 'all' ? 'bg-emerald-500 text-white border-emerald-500' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>Tất cả</button>
             {CHANNELS.map(c => (
               <button key={c.id} onClick={() => setChannelFilter(c.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${channelFilter === c.id ? 'bg-emerald-500 text-white border-emerald-500' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>{c.label}</button>
             ))}
             <button onClick={() => { setEditingTemplate(null); setModalOpen(true); }}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-all hover:scale-[1.02] cursor-pointer">
               <Plus className="h-3.5 w-3.5" />
-              Mau moi
+              Mẫu mới
             </button>
           </div>
         </div>
       </div>
 
-      {/* Grid mau tin nhan */}
+      {/* Grid mẫu tin nhắn */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-12 text-center text-gray-400 text-sm">Chua co mau tin nhan nao.</div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-12 text-center text-gray-400 text-sm">Chưa có mẫu tin nhắn nào.</div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(tpl => (

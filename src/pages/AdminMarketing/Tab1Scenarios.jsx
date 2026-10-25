@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Play, Search, Filter, Plus, Edit2, Zap, Users, Mail, MessageSquare, Phone, Bell, ToggleLeft, ToggleRight, TrendingUp, MousePointerClick, ShoppingCart, Activity } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { CUSTOMER_SEGMENTS, CHANNELS, SEGMENT_COLORS, MKT_STORAGE_KEYS, saveToStorage, formatPercent } from './marketingStore';
@@ -6,7 +6,7 @@ import { CUSTOMER_SEGMENTS, CHANNELS, SEGMENT_COLORS, MKT_STORAGE_KEYS, saveToSt
 const CHANNEL_ICONS = { zalo: MessageSquare, email: Mail, sms: Phone, webpush: Bell, call: Phone };
 const CHANNEL_COLORS = { zalo: 'bg-sky-100 text-sky-700', email: 'bg-purple-100 text-purple-700', sms: 'bg-emerald-100 text-emerald-700', webpush: 'bg-orange-100 text-orange-700', call: 'bg-rose-100 text-rose-700' };
 
-// Form modal kich ban
+// Form modal kịch bản
 const ScenarioModal = ({ scenario, onClose, onSave }) => {
   const [form, setForm] = useState(scenario ? { ...scenario } : {
     name: '', trigger: '', delay: '', channels: ['zalo'], segment: 'potential', templateId: '', action: '', enabled: true,
@@ -14,65 +14,65 @@ const ScenarioModal = ({ scenario, onClose, onSave }) => {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const toggleChannel = (ch) => {
     const next = form.channels.includes(ch) ? form.channels.filter(c => c !== ch) : [...form.channels, ch];
-    if (next.length === 0) { toast.error('Phai chon it nhat 1 kenh!'); return; }
+    if (next.length === 0) { toast.error('Phải chọn ít nhất 1 kênh!'); return; }
     set('channels', next);
   };
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name.trim()) { toast.error('Vui long nhap ten kich ban!'); return; }
+    if (!form.name.trim()) { toast.error('Vui lòng nhập tên kịch bản!'); return; }
     onSave({ ...form, id: form.id || `sc-${Date.now()}`, weekSent: form.weekSent || 0 });
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-gray-800">{scenario ? 'Sua kich ban' : 'Tao kich ban moi'}</h3>
+          <h3 className="text-lg font-bold text-gray-800">{scenario ? 'Sửa kịch bản' : 'Tạo kịch bản mới'}</h3>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Ten kich ban *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Vi du: Nhac lich truoc ngay gui meo" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Tên kịch bản *</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Ví dụ: Nhắc lịch trước ngày gửi mèo" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kich hoat (trigger)</label>
-            <input value={form.trigger} onChange={e => set('trigger', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Vi du: 2 ngay truoc check-in" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kích hoạt (trigger)</label>
+            <input value={form.trigger} onChange={e => set('trigger', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Ví dụ: 2 ngày trước check-in" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Do tre</label>
-            <input value={form.delay} onChange={e => set('delay', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Vi du: 2 gio sau bo do" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Độ trễ</label>
+            <input value={form.delay} onChange={e => set('delay', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Ví dụ: 2 giờ sau bỏ dở" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Doi tuong (phan khuc)</label>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Đối tượng (phân khúc)</label>
             <select value={form.segment} onChange={e => set('segment', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
               {CUSTOMER_SEGMENTS.filter(s => s.id !== 'all').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kenh gui</label>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Kênh gửi</label>
             <div className="flex flex-wrap gap-2">
               {CHANNELS.map(ch => (
                 <button key={ch.id} type="button" onClick={() => toggleChannel(ch.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${form.channels.includes(ch.id) ? 'bg-emerald-500 text-white border-emerald-500' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${form.channels.includes(ch.id) ? 'bg-emerald-500 text-white border-emerald-500' : 'border-gray-200 text-gray-500 hover:border-emerald-300'}`}>
                   {ch.label}
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1.5">Hanh dong mo ta</label>
-            <input value={form.action} onChange={e => set('action', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Mo ta hanh dong kich ban" />
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Hành động mô tả</label>
+            <input value={form.action} onChange={e => set('action', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Mô tả hành động kịch bản" />
           </div>
           <div className="flex items-center gap-3 pt-1">
-            <span className="text-xs font-bold text-gray-600">Trang thai</span>
+            <span className="text-xs font-bold text-gray-600">Trạng thái</span>
             <button type="button" onClick={() => set('enabled', !form.enabled)}
-              className={`relative inline-flex w-11 h-6 rounded-full transition-colors ${form.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+              className={`relative inline-flex w-11 h-6 rounded-full transition-colors cursor-pointer ${form.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
-            <span className={`text-xs font-bold ${form.enabled ? 'text-emerald-600' : 'text-gray-400'}`}>{form.enabled ? 'Bat' : 'Tat'}</span>
+            <span className={`text-xs font-bold ${form.enabled ? 'text-emerald-600' : 'text-gray-400'}`}>{form.enabled ? 'Bật' : 'Tắt'}</span>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Huy</button>
-            <button type="submit" className="flex-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors cursor-pointer">Luu kich ban</button>
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">Hủy</button>
+            <button type="submit" className="flex-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors cursor-pointer">Lưu kịch bản</button>
           </div>
         </form>
       </div>
@@ -108,14 +108,14 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
     setScenarios(next);
     saveToStorage(MKT_STORAGE_KEYS.SCENARIOS, next);
     const sc = next.find(s => s.id === id);
-    toast.success(`Kich ban "${sc.name.substring(0, 30)}..." da ${sc.enabled ? 'bat' : 'tat'}`);
+    toast.success(`Kịch bản "${sc.name.substring(0, 30)}..." đã ${sc.enabled ? 'bật' : 'tắt'}`);
   };
 
   const handleSave = (sc) => {
     const next = editingScenario ? scenarios.map(s => s.id === sc.id ? sc : s) : [...scenarios, sc];
     setScenarios(next);
     saveToStorage(MKT_STORAGE_KEYS.SCENARIOS, next);
-    toast.success(editingScenario ? 'Da cap nhat kich ban!' : 'Da tao kich ban moi!');
+    toast.success(editingScenario ? 'Đã cập nhật kịch bản!' : 'Đã tạo kịch bản mới!');
     setModalOpen(false);
     setEditingScenario(null);
   };
@@ -123,10 +123,10 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
   const segmentLabel = (id) => CUSTOMER_SEGMENTS.find(s => s.id === id)?.label || id;
 
   const statCards = [
-    { label: 'Dang chay', value: stats.running, unit: 'kich ban', icon: Activity, color: 'bg-emerald-50 text-emerald-600' },
-    { label: 'Ti le mo', value: formatPercent(stats.openRate), unit: 'trung binh', icon: TrendingUp, color: 'bg-sky-50 text-sky-600' },
-    { label: 'Ti le bam', value: formatPercent(stats.clickRate), unit: 'trung binh', icon: MousePointerClick, color: 'bg-purple-50 text-purple-600' },
-    { label: 'Don chuyen doi (30 ngay)', value: stats.converted, unit: 'don', icon: ShoppingCart, color: 'bg-orange-50 text-orange-600' },
+    { label: 'Đang chạy', value: stats.running, unit: 'kịch bản', icon: Activity, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Tỉ lệ mở', value: formatPercent(stats.openRate), unit: 'trung bình', icon: TrendingUp, color: 'bg-sky-50 text-sky-600' },
+    { label: 'Tỉ lệ bấm', value: formatPercent(stats.clickRate), unit: 'trung bình', icon: MousePointerClick, color: 'bg-purple-50 text-purple-600' },
+    { label: 'Đơn chuyển đổi (30 ngày)', value: stats.converted, unit: 'đơn', icon: ShoppingCart, color: 'bg-orange-50 text-orange-600' },
   ];
 
   return (
@@ -151,46 +151,46 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tim theo ten kich ban..." className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên kịch bản..." className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300" />
           </div>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
-            <option value="all">Trang thai: Tat ca</option>
-            <option value="on">Dang bat</option>
-            <option value="off">Dang tat</option>
+            <option value="all">Trạng thái: Tất cả</option>
+            <option value="on">Đang bật</option>
+            <option value="off">Đang tắt</option>
           </select>
           <select value={filterChannel} onChange={e => setFilterChannel(e.target.value)} className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
-            <option value="all">Kenh: Tat ca</option>
+            <option value="all">Kênh: Tất cả</option>
             {CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <select value={filterSegment} onChange={e => setFilterSegment(e.target.value)} className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
-            <option value="all">Doi tuong: Tat ca</option>
+            <option value="all">Đối tượng: Tất cả</option>
             {CUSTOMER_SEGMENTS.filter(s => s.id !== 'all').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
           <button onClick={() => { setEditingScenario(null); setModalOpen(true); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0">
             <Plus className="h-4 w-4" />
-            Tao kich ban
+            Tạo kịch bản
           </button>
         </div>
       </div>
 
-      {/* Bang kich ban */}
+      {/* Bảng kịch bản */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left px-5 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kich hoat / Hanh dong</th>
-                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kenh</th>
-                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Doi tuong</th>
-                <th className="text-right px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Gui/tuan</th>
-                <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Bat/Tat</th>
-                <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Thao tac</th>
+                <th className="text-left px-5 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kích hoạt / Hành động</th>
+                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kênh</th>
+                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Đối tượng</th>
+                <th className="text-right px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Gửi/tuần</th>
+                <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Bật/Tắt</th>
+                <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Khong tim thay kich ban nao.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Không tìm thấy kịch bản nào.</td></tr>
               ) : filtered.map(sc => (
                 <tr key={sc.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-5 py-4">
@@ -213,7 +213,7 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
                     <span className="text-xs text-gray-400 ml-1">tin</span>
                   </td>
                   <td className="px-4 py-4 text-center">
-                    <button onClick={() => handleToggle(sc.id)} title={sc.enabled ? 'Tat kich ban' : 'Bat kich ban'}
+                    <button onClick={() => handleToggle(sc.id)} title={sc.enabled ? 'Tắt kịch bản' : 'Bật kịch bản'}
                       className={`relative inline-flex w-11 h-6 rounded-full transition-colors cursor-pointer ${sc.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
                       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${sc.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
@@ -222,7 +222,7 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
                     <button onClick={() => { setEditingScenario(sc); setModalOpen(true); }}
                       className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:border-emerald-300 hover:text-emerald-700 transition-all cursor-pointer">
                       <Edit2 className="h-3.5 w-3.5" />
-                      Sua
+                      Sửa
                     </button>
                   </td>
                 </tr>
