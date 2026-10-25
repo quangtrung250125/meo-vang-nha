@@ -10,6 +10,17 @@ const supabaseKey = (rawKey && rawKey !== 'REPLACE_ME')
   ? rawKey
   : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlamNhaW96dGdwcWt2bWJhdWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNzU3NTcsImV4cCI6MjEwNTY1MTc1N30.yZgRl-qV5mOn4JmSwt0sulfIMXIX3MDIEzS2DxSI3yc';
 
+// Có service role key thì server đọc được danh sách tài khoản (cần cho đăng nhập bằng SĐT trên mọi thiết bị)
+export const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY !== 'REPLACE_ME');
+
+const rawAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const anonKey = (rawAnonKey && rawAnonKey !== 'REPLACE_ME') ? rawAnonKey : supabaseKey;
+
+// Client dùng quyền khách (anon) để đăng nhập thay người dùng, không giữ phiên trên server
+export const createAnonClient = () => createClient(supabaseUrl, anonKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 export const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: false,

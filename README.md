@@ -26,6 +26,12 @@
 
  Mỗi Pull Request trên GitHub sẽ tự chạy lint, build và toàn bộ test (`.github/workflows/ci.yml`). PR bị ❌ nghĩa là có tính năng đang lỗi, bấm vào **Details** để xem test nào hỏng. Khi thêm tính năng mới, hãy thêm test tương ứng vào `tests/unit` hoặc `tests/e2e`.
 
+ ## Đăng nhập bằng số điện thoại hoặc email
+
+ Khách đăng nhập được bằng **cả SĐT lẫn email** đã đăng ký, trên mọi thiết bị. Khi đăng nhập bằng SĐT, server (`/api/auth/phone`) tìm tài khoản gắn với số đó rồi đăng nhập hộ, và không bao giờ trả email ra ngoài. Mỗi SĐT chỉ đăng ký được một tài khoản.
+
+ Để server tìm được cả các tài khoản cũ, hãy thêm biến **`SUPABASE_SERVICE_ROLE_KEY`** trên Vercel (Supabase Dashboard > Project Settings > API Keys > `service_role`). **Không** đặt tên biến bắt đầu bằng `VITE_`, vì làm vậy khoá sẽ lộ ra trình duyệt. Nếu không có khoá này, server chỉ tìm được qua bảng `customer_profiles` (tài khoản cũ sẽ được ghi vào bảng này sau lần đăng nhập đầu tiên bằng email).
+
  ## Tài khoản Admin
 
  Không còn tài khoản admin viết cứng trong code. Admin là tài khoản Supabase bình thường (đăng ký trên web), được cấp quyền theo một trong hai cách:

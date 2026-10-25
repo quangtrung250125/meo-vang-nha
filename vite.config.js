@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync')) {
+        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth')) {
           return next();
         }
 
@@ -85,6 +85,11 @@ function apiDevPlugin() {
           if (urlPath === '/api/notifications/send') {
             req.body = await parseBody();
             const { default: handler } = await import('./api/notifications/send.js');
+            return handler(req, res);
+          }
+          if (urlPath === '/api/auth/phone') {
+            req.body = await parseBody();
+            const { default: handler } = await import('./api/auth/phone.js');
             return handler(req, res);
           }
           if (urlPath === '/api/notifications/status') {
