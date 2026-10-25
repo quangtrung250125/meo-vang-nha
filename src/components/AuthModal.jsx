@@ -89,10 +89,6 @@ const AuthModal = ({ isOpen, onClose }) => {
         toast.error('Vui lòng nhập số điện thoại!');
         return;
       }
-      if (!formData.email.trim()) {
-        toast.error('Vui lòng nhập email!');
-        return;
-      }
       if (!formData.password || !formData.confirmPassword) {
         toast.error('Vui lòng nhập đầy đủ mật khẩu và xác nhận mật khẩu!');
         return;
@@ -298,11 +294,10 @@ const AuthModal = ({ isOpen, onClose }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Email <span className="font-normal text-gray-400">(không bắt buộc)</span></label>
                       <input
                         type="email"
                         name="email"
-                        required
                         value={formData.email}
                         onChange={handleChange}
                         placeholder="customer@gmail.com"
