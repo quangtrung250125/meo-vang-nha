@@ -17,11 +17,19 @@ export const test = base.extend({
     const errors = [];
     page.on('pageerror', (err) => errors.push(err.message));
     await page.route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+    // Chặn cả WebSocket Supabase Realtime: không thì các test chạy song song nhận dữ liệu của nhau
+    await page.routeWebSocket(/^wss?:\/\/(?!localhost)/, (ws) => ws.close());
     await use(errors);
   },
 });
 
-export const loginAs = async (page, customer = TEST_CUSTOMER) => {
+// Mỗi lần gọi tạo một khách riêng để các test không dùng chung hồ sơ mèo, đơn đặt phòng
+export const newTestCustomer = () => {
+  const id = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return { ...TEST_CUSTOMER, id, customerId: id };
+};
+
+export const loginAs = async (page, customer = newTestCustomer()) => {
   await page.addInitScript(([key, value]) => {
     try {
       window.localStorage.setItem(key, value);
