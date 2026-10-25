@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminReviews from './pages/AdminReviews';
 import AdminSettings from './pages/AdminSettings';
+import AdminCustomers from './pages/AdminCustomers';
 import Services from './pages/Services';
 import Booking from './pages/Booking';
 import PetProfile from './pages/PetProfile';
@@ -22,6 +23,7 @@ import { CareLogProvider } from './contexts/CareLogContext';
 import { UIProvider } from './contexts/UIContext';
 import { RoomStateProvider } from './contexts/RoomStateContext';
 import { Toaster } from 'react-hot-toast';
+import CustomerSyncBridge from './components/CustomerSyncBridge';
 
 // Chỉ tài khoản admin đã xác thực mới vào được trang quản trị
 function RequireAdmin({ children }) {
@@ -64,6 +66,7 @@ function AppRoutes() {
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
       <Route path="room-status" element={adminOnly(<RoomStatusPage />)} />
+      <Route path="customers" element={adminOnly(<AdminCustomers />)} />
       <Route path="reviews" element={adminOnly(<AdminReviews />)} />
       <Route path="settings" element={adminOnly(<AdminSettings />)} />
       <Route path="*" element={<NotFound />} />
@@ -96,6 +99,7 @@ function App() {
             <CareLogProvider>
               <RoomStateProvider>
                 <Toaster position="top-center" reverseOrder={false} />
+                <CustomerSyncBridge />
                 <BrowserRouter>
                   <AppRoutes />
                 </BrowserRouter>
