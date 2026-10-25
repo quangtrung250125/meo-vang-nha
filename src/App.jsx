@@ -15,6 +15,7 @@ import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
 import Promotions from './pages/Promotions';
+import AdminPromotions from './pages/AdminPromotions';
 import News from './pages/News';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider, useCustomerProfile } from './contexts/CustomerContext';
@@ -56,7 +57,7 @@ function AppRoutes() {
     <>
       <Route path="services" element={<Services />} />
       <Route path="pricing" element={<Navigate to="/services" replace />} />
-      <Route path="promotions" element={<Promotions />} />
+      <Route path="promotions" element={isAdmin ? adminOnly(<AdminPromotions />) : <Promotions />} />
       <Route path="news" element={<News />} />
       <Route path="booking" element={<Booking />} />
       <Route path="pet-profile" element={<PetProfile />} />
