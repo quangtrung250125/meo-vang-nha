@@ -3,7 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-// Dùng thư mục tạm để test không đụng tới dữ liệu thật trong api/lib
+// Dùng thư mục tạm để test không đụng tới dữ liệu thật trong api/_lib
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mvn-api-'));
 process.env.MVN_DATA_DIR = dataDir;
 process.env.ADMIN_EMAILS = 'admin@test.vn';
@@ -55,10 +55,10 @@ const newBooking = (overrides = {}) => {
 };
 
 beforeAll(async () => {
-  auth = await import('../../api/lib/auth.js');
+  auth = await import('../../api/_lib/auth.js');
   auth.setTokenVerifier(async (token) => USERS[token] || null);
-  api = await import('../../api/lib/bookingsService.js');
-  sync = await import('../../api/lib/syncService.js');
+  api = await import('../../api/_lib/bookingsService.js');
+  sync = await import('../../api/_lib/syncService.js');
 });
 
 beforeEach(() => {

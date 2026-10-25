@@ -21,7 +21,9 @@ describe('Nhận diện tài khoản admin', () => {
     expect(isAdminUser({ email: 'khac@gmail.com', user_metadata: { phone: '0962606249' } }, admins)).toBe(false);
   });
 
-  it('không có danh sách admin thì không ai là admin', () => {
+  it('không có danh sách admin thì chỉ email admin chung của nhóm là admin', () => {
     expect(isAdminUser({ email: '0962606249@meovangnha.vn' }, getAdminEmails())).toBe(false);
+    expect(isAdminUser({ email: 'khach@gmail.com' }, getAdminEmails())).toBe(false);
+    expect(isAdminUser({ email: 'MeoVangNha@gmail.com' }, getAdminEmails())).toBe(true);
   });
 });
