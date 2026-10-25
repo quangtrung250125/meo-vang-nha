@@ -1,5 +1,6 @@
 import { test, expect, loginAs, TEST_CUSTOMER } from './helpers';
 
+const ME = { ...TEST_CUSTOMER, id: 'e2e-customer', customerId: 'e2e-customer' };
 const OTHER = { ...TEST_CUSTOMER, id: 'e2e-other', customerId: 'e2e-other', fullName: 'Khách Khác', phone: '0900000088' };
 
 const seedPets = async (page) => {
@@ -19,7 +20,7 @@ const seedPets = async (page) => {
 test.describe('Hồ sơ mèo tách riêng theo tài khoản', () => {
   test('khách chỉ thấy mèo của mình', async ({ page, pageErrors }) => {
     await seedPets(page);
-    await loginAs(page);
+    await loginAs(page, ME);
     await page.goto('/pet-profile');
     await expect(page.getByText('BeCuaToi').first()).toBeVisible();
     await expect(page.getByText('BeNhaKhac')).toHaveCount(0);
