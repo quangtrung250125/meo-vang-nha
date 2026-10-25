@@ -34,23 +34,29 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
   // ── Gói spa (tùy chọn, tính theo lần, không nhân ngày) ──
   const spa = data.selectedSpa || null;
-  const spaDiscountedPrice = spa?.price || 0;
-  const spaOriginalPrice   = spa?.originalPrice || Math.round(spaDiscountedPrice / 0.9);
 
   // ── Dịch vụ khác (tùy chọn, tính theo lần/chuyến) ──
   const extra = data.selectedExtra || null;
   const extraDiscountedPrice = extra?.price || 0;
   const extraOriginalPrice   = extra?.originalPrice || Math.round(extraDiscountedPrice / 0.9);
 
-  // ── Tổng cộng (camera chỉ tính khi gói chưa có sẵn camera và khách chọn thêm) ──
+  // ── Tổng cộng: gói lưu trú & spa nhân theo số mèo; camera chỉ tính khi gói chưa có sẵn camera và khách tích chọn ──
   const {
+    catCount,
+    spaOriginalTotal,
+    spaTotal,
     originalLodgingTotal,
     discountedLodgingTotal,
     cameraIncluded,
     cameraTotal,
     discount: totalDiscountAmount,
     total,
-  } = calculateBookingPrice({ lodging, spa, extra, days, couponApplied: isCouponApplied, addCamera });
+  } = calculateBookingPrice({
+    lodging, spa, extra, days,
+    cats: data.catCount || data.petProfiles?.length || 1,
+    couponApplied: isCouponApplied,
+    addCamera,
+  });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -85,7 +91,6 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
       : 'Bé Miu Miu';
     const packageName = data.selectedLodging?.name || data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
-    const catCount = data.catCount || data.petProfiles?.length || 1;
     const bookingStatus = determineBookingStatus(data.checkIn);
     const packageNames = [
       packageName,
@@ -110,6 +115,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       selectedExtra: data.selectedExtra,
       selectedRoom: data.selectedRoom,
       hasCamera: cameraIncluded || addCamera,
+      addCamera: !cameraIncluded && addCamera,
       roomId,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
@@ -184,7 +190,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           </div>
           <div>
             <span className="text-gray-400 block text-xs font-semibold uppercase">Số lượng mèo</span>
-            <span className="font-bold text-text-dark">{data.catCount} bé</span>
+            <span className="font-bold text-text-dark">{catCount} bé</span>
           </div>
           <div className="sm:col-span-2">
             <span className="text-gray-400 block text-xs font-semibold uppercase mb-1">Phòng & Gói dịch vụ</span>
@@ -248,7 +254,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               <span className="font-medium text-gray-400 line-through text-xs">{originalLodgingTotal.toLocaleString()}đ</span>
             </div>
             <div className="flex justify-between items-center text-xs text-gray-500">
-              <span>{days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
+              <span>{catCount} bé × {days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
               <span className="font-bold text-text-dark">{discountedLodgingTotal.toLocaleString()}đ</span>
             </div>
           </div>
@@ -258,11 +264,11 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
               <div className="flex justify-between items-center mb-1">
                 <span className="font-semibold text-purple-800">💆 {spa.name}</span>
-                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalPrice.toLocaleString()}đ</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalTotal.toLocaleString()}đ</span>
               </div>
               <div className="flex justify-between items-center text-xs text-purple-700">
-                <span>1 lần</span>
-                <span className="font-bold">{spaDiscountedPrice.toLocaleString()}đ</span>
+                <span>{catCount} bé × {(spa.originalPrice || Math.round((spa.price || 0) / 0.9)).toLocaleString()}đ/lần</span>
+                <span className="font-bold">{spaTotal.toLocaleString()}đ</span>
               </div>
             </div>
           )}
