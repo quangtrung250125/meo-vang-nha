@@ -24,9 +24,11 @@ export const parseAdminPhones = (raw = '') =>
     .map(phoneToAccountEmail)
     .filter(Boolean);
 
+// Email admin chung của nhóm, luôn được coi là admin kể cả khi Vercel chưa đặt VITE_ADMIN_EMAILS
+export const DEFAULT_ADMIN_EMAILS = ['meovangnha@gmail.com'];
+
 export const getAdminEmails = ({ emails = '', phones = '' } = {}) => [
-  ...parseAdminEmails(emails),
-  ...parseAdminPhones(phones),
+  ...new Set([...DEFAULT_ADMIN_EMAILS, ...parseAdminEmails(emails), ...parseAdminPhones(phones)]),
 ];
 
 export const isAdminUser = (user, adminEmails = []) => {
