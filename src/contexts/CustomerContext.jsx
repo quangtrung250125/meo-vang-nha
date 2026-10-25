@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents } from '../services/crossDeviceSync';
+import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, setSyncIdentity } from '../services/crossDeviceSync';
+import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
 
 const CustomerContext = createContext();
 
@@ -10,6 +11,11 @@ const SESSION_KEY = 'meo-vang-nha-authenticated-customer';
 const PHONE_MAP_KEY = 'meo-vang-nha-phone-email-map';
 
 const normalizePhone = (phone = '') => phone.replace(/\D/g, '');
+
+const ADMIN_EMAILS = getAdminEmails({
+    emails: import.meta.env?.VITE_ADMIN_EMAILS,
+    phones: import.meta.env?.VITE_ADMIN_PHONES,
+});
 
 const getFriendlyErrorMessage = (error) => {
     if (!error) return 'Đã xảy ra lỗi không xác định!';
@@ -58,6 +64,13 @@ export const CustomerProvider = ({ children }) => {
         if (typeof window === 'undefined') return null;
         try {
             const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+            // Phiên admin đăng nhập cứng kiểu cũ (không qua Supabase) không còn hợp lệ
+            if (saved?.id === 'admin-0962606249') {
+                localStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(STORAGE_KEY);
+                return null;
+            }
+            setSyncIdentity({ userId: saved?.id || null, isAdmin: false });
             if (saved && normalizePhone(saved.phone) === '0962606249') {
                 if (!saved.fullName || saved.fullName.includes('(Chi)')) {
                     saved.fullName = 'Quản trị viên';
@@ -87,10 +100,13 @@ export const CustomerProvider = ({ children }) => {
     });
 
     const [authLoading, setAuthLoading] = useState(true);
+    // Quyền admin chỉ được bật sau khi Supabase xác thực phiên đăng nhập, không đọc từ localStorage
+    const [verifiedAdmin, setVerifiedAdmin] = useState(false);
 
     // Chuyển đổi Supabase User sang Customer object chuẩn của app
     const mapSupabaseUserToCustomer = useCallback(async (user) => {
         if (!user) return null;
+        setVerifiedAdmin(isAdminUser(user, ADMIN_EMAILS));
         const meta = user.user_metadata || {};
         let fullName = meta.full_name || meta.fullName || user.email?.split('@')[0] || 'Khách hàng';
         const phone = meta.phone || '';
@@ -175,7 +191,9 @@ export const CustomerProvider = ({ children }) => {
             try {
                 const serverData = await fetchServerSync();
                 if (serverData && Array.isArray(serverData.profiles) && serverData.profiles.length > 0 && isMounted) {
-                    const latest = serverData.profiles[0];
+                    // Chỉ nhận hồ sơ của chính tài khoản đang đăng nhập
+                    const sessionId = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.id;
+                    const latest = sessionId ? serverData.profiles.find((p) => p.id === sessionId) : null;
                     if (latest) {
                         setCustomerProfile(prev => {
                             if (!prev || !prev.fullName) {
@@ -200,6 +218,7 @@ export const CustomerProvider = ({ children }) => {
                 localStorage.setItem(SESSION_KEY, JSON.stringify(customer));
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(customer));
             } else if (event === 'SIGNED_OUT') {
+                setVerifiedAdmin(false);
                 setAuthenticatedCustomer(null);
                 setCustomerProfile(null);
                 localStorage.removeItem(SESSION_KEY);
@@ -212,6 +231,8 @@ export const CustomerProvider = ({ children }) => {
         const unsubSync = subscribeSyncEvents(({ type, payload }) => {
             if (type === 'PROFILE_UPDATED' && payload?.profile && isMounted) {
                 const prof = payload.profile;
+                const sessionId = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.id;
+                if (!sessionId || prof.id !== sessionId) return;
                 setCustomerProfile(prof);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(prof));
             }
@@ -335,7 +356,7 @@ export const CustomerProvider = ({ children }) => {
         return customer;
     };
 
-    // Đăng nhập bằng Email hoặc Số điện thoại qua Supabase (kèm hỗ trợ Admin bypass nếu cần)
+    // Đăng nhập bằng Email hoặc Số điện thoại qua Supabase
     const authenticateCustomer = async (identifier, password) => {
         if (!identifier || !password) {
             throw new Error('Vui lòng nhập tài khoản và mật khẩu!');
@@ -343,26 +364,6 @@ export const CustomerProvider = ({ children }) => {
 
         const trimmed = identifier.trim();
         const normalized = normalizePhone(trimmed);
-
-        // Hỗ trợ đăng nhập nhanh tài khoản Admin 0962606249
-        if (normalized === '0962606249' && password === 'admin') {
-            const adminCustomer = {
-                id: 'admin-0962606249',
-                customerId: 'admin-0962606249',
-                fullName: 'Quản trị viên',
-                phone: '0962606249',
-                email: 'admin@meovangnha.vn',
-                role: 'admin',
-                labels: ['Quản trị viên'],
-                pets: [],
-                createdAt: new Date().toISOString(),
-            };
-            setAuthenticatedCustomer(adminCustomer);
-            setCustomerProfile(adminCustomer);
-            localStorage.setItem(SESSION_KEY, JSON.stringify(adminCustomer));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(adminCustomer));
-            return adminCustomer;
-        }
 
         let targetEmail = '';
 
@@ -433,6 +434,7 @@ export const CustomerProvider = ({ children }) => {
         } catch (err) {
             console.warn('Supabase signOut error:', err);
         } finally {
+            setVerifiedAdmin(false);
             setAuthenticatedCustomer(null);
             setCustomerProfile(null);
             localStorage.removeItem(SESSION_KEY);
@@ -440,9 +442,11 @@ export const CustomerProvider = ({ children }) => {
         }
     };
 
-    const isAdmin = useMemo(() => {
-        return normalizePhone(authenticatedCustomer?.phone) === '0962606249';
-    }, [authenticatedCustomer]);
+    const isAdmin = verifiedAdmin && Boolean(authenticatedCustomer);
+
+    useEffect(() => {
+        setSyncIdentity({ userId: authenticatedCustomer?.id || null, isAdmin });
+    }, [authenticatedCustomer, isAdmin]);
 
     const value = useMemo(() => ({
         customerProfile,

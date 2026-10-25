@@ -3,6 +3,13 @@ import { Plus, Gift, Search, CheckCircle2, RefreshCw, AlertTriangle } from 'luci
 import { useRoomState } from '../../contexts/RoomStateContext';
 import { sendWebNotification } from '../../utils/notificationService';
 
+// Ngày hôm nay (giờ máy khách) dạng YYYY-MM-DD, dùng cho ô chọn ngày
+const getTodayStr = () => {
+  const now = new Date();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+};
 
 /* ------------------------------------------------
    Paw Icon SVG
@@ -82,7 +89,9 @@ const CatCountPicker = ({ value, onChange }) => {
           +
         </button>
       </div>
-      <p className="mt-2 text-xs text-gray-500">Bạn gửi trên 3 bé, hãy nhập số lượng bé muốn gửi vào ô nhé!</p>
+      {safeValue >= 3 && (
+        <p className="mt-2 text-xs text-gray-500">Bạn gửi trên 3 bé, hãy nhập số lượng bé muốn gửi vào ô nhé!</p>
+      )}
     </div>
   );
 };
@@ -176,6 +185,11 @@ const Step1Dates = ({ data, updateData, onNext }) => {
       return;
     }
 
+    if (data.checkIn < getTodayStr()) {
+      setError('Ngày gửi bé không được trước hôm nay.');
+      return;
+    }
+
     setError('');
     setIsChecking(true);
 
@@ -203,6 +217,11 @@ const Step1Dates = ({ data, updateData, onNext }) => {
 
     if (parseDateOnly(data.checkOut) <= parseDateOnly(data.checkIn)) {
       setError('Ngày đón bé phải sau ngày gửi bé.');
+      return;
+    }
+
+    if (data.checkIn < getTodayStr()) {
+      setError('Ngày gửi bé không được trước hôm nay.');
       return;
     }
 
@@ -263,6 +282,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
           <label className="block text-sm font-semibold text-text-dark mb-2">Ngày gửi bé</label>
           <input
             type="date"
+            min={getTodayStr()}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
             value={data.checkIn}
             onChange={(e) => {
@@ -281,6 +301,7 @@ const Step1Dates = ({ data, updateData, onNext }) => {
           <label className="block text-sm font-semibold text-text-dark mb-2">Ngày đón bé</label>
           <input
             type="date"
+            min={data.checkIn || getTodayStr()}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
             value={data.checkOut}
             onChange={(e) => {

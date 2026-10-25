@@ -15,6 +15,32 @@
 
  Mở URL Vite hiển thị trong terminal, thường là `http://localhost:5173`.
 
+ ## Test tự động
+
+ ```bash
+ npm run test:unit   # test logic: tính tiền, API đặt phòng, đồng bộ dữ liệu
+ npx playwright install chromium   # chỉ cần chạy lần đầu
+ npm run test:e2e    # mở web thật trên trình duyệt: mọi trang, luồng đặt phòng 5 bước, chặn trang admin
+ npm test            # chạy cả hai
+ ```
+
+ Mỗi Pull Request trên GitHub sẽ tự chạy lint, build và toàn bộ test (`.github/workflows/ci.yml`). PR bị ❌ nghĩa là có tính năng đang lỗi, bấm vào **Details** để xem test nào hỏng. Khi thêm tính năng mới, hãy thêm test tương ứng vào `tests/unit` hoặc `tests/e2e`.
+
+ ## Tài khoản Admin
+
+ Không còn tài khoản admin viết cứng trong code. Admin là tài khoản Supabase bình thường (đăng ký trên web), được cấp quyền theo một trong hai cách:
+
+ 1. Thêm số điện thoại vào biến môi trường `VITE_ADMIN_PHONES` (ví dụ `VITE_ADMIN_PHONES=0962606249`, nhiều số cách nhau bằng dấu phẩy) trên Vercel và trong `.env` khi chạy local, rồi deploy lại. Tài khoản đó phải được đăng ký trên web bằng số điện thoại và **để trống ô email**. Nếu Supabase đang bật xác nhận email (Authentication > Sign In / Providers > Confirm email), hãy vào Authentication > Users và xác nhận thủ công tài khoản này, vì email `...@meovangnha.vn` không nhận được thư.
+ 2. Hoặc thêm email của tài khoản vào biến `VITE_ADMIN_EMAILS` (nhiều email cách nhau bằng dấu phẩy).
+ 3. Hoặc trong Supabase Dashboard > SQL Editor chạy:
+    ```sql
+    update auth.users
+    set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'
+    where email = 'email-admin@cua-ban.vn';
+    ```
+
+ Tài khoản đăng ký bằng số điện thoại (không nhập email) có email dạng `<số điện thoại>@meovangnha.vn`, nên `VITE_ADMIN_PHONES=0962606249` tương đương `VITE_ADMIN_EMAILS=0962606249@meovangnha.vn`.
+
  ## Đẩy lên GitHub
 
  ```bash

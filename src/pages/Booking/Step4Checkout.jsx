@@ -5,6 +5,7 @@ import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateCo
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
+import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -12,6 +13,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
   const [conflictError, setConflictError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addCamera, setAddCamera] = useState(Boolean(data.addCamera));
 
   const { addNewBooking } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
@@ -24,45 +26,31 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   })();
 
   // Tính số ngày lưu trú
-  const calculateDays = () => {
-    if (!data.checkIn || !data.checkOut) return 0;
-    const start = new Date(data.checkIn);
-    const end = new Date(data.checkOut);
-    const diffTime = Math.abs(end - start);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    return diffDays > 0 ? diffDays : 1; // Mặc định ít nhất 1 ngày
-  };
-
-  const days = calculateDays();
+  const days = countStayDays(data.checkIn, data.checkOut);
 
   // ── Gói lưu trú (bắt buộc) ──
   const lodging = data.selectedLodging || data.selectedPackage;
-  const discountedLodgingPrice  = lodging?.price         || 0;
-  const originalLodgingPrice    = lodging?.originalPrice || Math.round(discountedLodgingPrice / 0.9);
-  const originalLodgingTotal    = originalLodgingPrice * days;
-  const discountedLodgingTotal  = discountedLodgingPrice * days;
-  const lodgingDiscount         = originalLodgingTotal - discountedLodgingTotal;
+  const originalLodgingPrice = lodging?.originalPrice || Math.round((lodging?.price || 0) / 0.9);
 
   // ── Gói spa (tùy chọn, tính theo lần, không nhân ngày) ──
   const spa = data.selectedSpa || null;
-  const spaDiscountedPrice  = spa?.price         || 0;
-  const spaOriginalPrice    = spa?.originalPrice || Math.round(spaDiscountedPrice / 0.9);
-  const spaDiscount         = spaOriginalPrice - spaDiscountedPrice;
+  const spaDiscountedPrice = spa?.price || 0;
+  const spaOriginalPrice   = spa?.originalPrice || Math.round(spaDiscountedPrice / 0.9);
 
   // ── Dịch vụ khác (tùy chọn, tính theo lần/chuyến) ──
   const extra = data.selectedExtra || null;
-  const extraDiscountedPrice = extra?.price         || 0;
+  const extraDiscountedPrice = extra?.price || 0;
   const extraOriginalPrice   = extra?.originalPrice || Math.round(extraDiscountedPrice / 0.9);
-  const extraDiscount        = extraOriginalPrice - extraDiscountedPrice;
 
-  // ── Camera (cố định theo gói lưu trú) ──
-  const cameraPrice = 10000;
-  const cameraTotal = cameraPrice * days;
-
-  // ── Tổng cộng ──
-  const originalGrossTotal = originalLodgingTotal + spaOriginalPrice + extraOriginalPrice + cameraTotal;
-  const totalDiscountAmount = isCouponApplied ? (lodgingDiscount + spaDiscount + extraDiscount) : 0;
-  const total = originalGrossTotal - totalDiscountAmount;
+  // ── Tổng cộng (camera chỉ tính khi gói chưa có sẵn camera và khách chọn thêm) ──
+  const {
+    originalLodgingTotal,
+    discountedLodgingTotal,
+    cameraIncluded,
+    cameraTotal,
+    discount: totalDiscountAmount,
+    total,
+  } = calculateBookingPrice({ lodging, spa, extra, days, couponApplied: isCouponApplied, addCamera });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -121,6 +109,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       selectedSpa: data.selectedSpa,
       selectedExtra: data.selectedExtra,
       selectedRoom: data.selectedRoom,
+      hasCamera: cameraIncluded || addCamera,
       roomId,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
@@ -144,25 +133,29 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
         body: msg,
       });
-      if (updateData) {
+      if (updateData && !roomResult.invalid) {
         updateData({ conflictedRoomId: roomResult.conflictedRoomId || roomId });
       }
       return;
     }
 
+    // Server có thể cấp mã mới nếu mã tạo ở trình duyệt bị trùng
+    const confirmedCode = roomResult?.booking?.code || newId;
+    const confirmedBooking = { ...bookingPayload, id: confirmedCode, code: confirmedCode };
+
     // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
-    upsertBooking(bookingPayload);
+    upsertBooking(confirmedBooking);
 
     // Cập nhật bookingData để Step 5 hiển thị
     if (updateData) {
       updateData({
-        bookingId: newId,
-        confirmedBooking: bookingPayload,
+        bookingId: confirmedCode,
+        confirmedBooking,
       });
     }
 
     sendWebNotification('🎉 Đặt phòng thành công!', {
-      body: `Mã đặt phòng của bạn là ${newId}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
+      body: `Mã đặt phòng của bạn là ${confirmedCode}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
     });
 
     setIsSubmitting(false);
@@ -289,10 +282,25 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           )}
 
           {/* ── Camera ── */}
-          <div className="flex justify-between items-center py-1.5 border-t border-dashed border-gray-200">
-            <span className="text-gray-500">📷 Camera 24/7 ({days} ngày × {cameraPrice.toLocaleString()}đ)</span>
-            <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
-          </div>
+          {cameraIncluded ? (
+            <div className="flex justify-between items-center py-1.5 border-t border-dashed border-gray-200">
+              <span className="text-gray-500">📷 Camera 24/7</span>
+              <span className="font-medium text-emerald-700">Đã gồm trong gói</span>
+            </div>
+          ) : (
+            <label className="flex justify-between items-center gap-3 py-1.5 border-t border-dashed border-gray-200 cursor-pointer">
+              <span className="flex items-center gap-2 text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={addCamera}
+                  onChange={(e) => setAddCamera(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+                📷 Thêm camera 24/7 ({days} ngày × {CAMERA_PRICE_PER_DAY.toLocaleString()}đ)
+              </span>
+              <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
+            </label>
+          )}
 
           {/* ── Giảm giá ── */}
           {isCouponApplied && totalDiscountAmount > 0 && (

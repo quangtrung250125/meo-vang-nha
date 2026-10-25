@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getRequestUser } from './auth.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -33,8 +34,82 @@ const INITIAL_BOOKINGS = {
   'DELUXE-02': [],
 };
 
-const STORE_PATH = path.resolve(process.cwd(), 'api/lib/bookings_store.json');
-const SYNC_STORE_PATH = path.resolve(process.cwd(), 'api/lib/sync_store.json');
+const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/lib');
+const STORE_PATH = path.join(DATA_DIR, 'bookings_store.json');
+const SYNC_STORE_PATH = path.join(DATA_DIR, 'sync_store.json');
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Ngày hôm nay theo giờ Việt Nam, dạng YYYY-MM-DD
+export function getTodayStr(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+const isValidDateStr = (value) => {
+  if (typeof value !== 'string' || !DATE_RE.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+};
+
+/**
+ * Kiểm tra dữ liệu đơn đặt phòng mới. Trả về chuỗi lỗi, hoặc null nếu hợp lệ.
+ */
+export function validateNewBooking(booking, room, todayStr = getTodayStr()) {
+  if (!isValidDateStr(booking.checkIn) || !isValidDateStr(booking.checkOut)) {
+    return 'Ngày gửi hoặc ngày đón không hợp lệ.';
+  }
+  if (booking.checkOut <= booking.checkIn) {
+    return 'Ngày đón bé phải sau ngày gửi bé.';
+  }
+  if (booking.checkIn < todayStr) {
+    return 'Không thể đặt phòng cho ngày đã qua.';
+  }
+  const cats = Number(booking.cats);
+  if (!Number.isInteger(cats) || cats < 1) {
+    return 'Số lượng mèo phải là số nguyên từ 1 trở lên.';
+  }
+  if (cats > room.capacity) {
+    return `Phòng ${room.id} chỉ chứa tối đa ${room.capacity} bé.`;
+  }
+  return null;
+}
+
+const isCodeTaken = (code) =>
+  Object.values(globalBookings).some((list) =>
+    (list || []).some((b) => b.code === code || b.id === code)
+  );
+
+function generateUniqueCode() {
+  let code;
+  do {
+    code = `MVN-${Math.floor(10000 + Math.random() * 90000)}`;
+  } while (isCodeTaken(code));
+  return code;
+}
+
+// Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân)
+const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId'];
+
+export function toPublicBookings(bookingsByRoom, viewerId = null) {
+  const result = {};
+  Object.entries(bookingsByRoom).forEach(([roomId, list]) => {
+    result[roomId] = (list || []).map((b) => {
+      if (viewerId && b.customerId === viewerId) return b;
+      const pub = {};
+      PUBLIC_BOOKING_FIELDS.forEach((key) => {
+        if (b[key] !== undefined && key !== 'customerId') pub[key] = b[key];
+      });
+      return pub;
+    });
+  });
+  return result;
+}
 
 // Khởi tạo globalBookings sạch từ cấu hình phòng
 let globalBookings = {};
@@ -233,25 +308,20 @@ export async function addBookingAtomic({ roomId, booking }) {
           return resolve({ success: false, message: `Không tìm thấy phòng ${roomId}` });
         }
 
+        const validationError = validateNewBooking(booking, room);
+        if (validationError) {
+          return resolve({ success: false, invalid: true, message: validationError });
+        }
+
         const capacity = room.capacity;
-        const newCats = Number(booking.cats) || 1;
+        const newCats = Number(booking.cats);
         const currentList = globalBookings[roomId] || [];
 
-        // 1. Chỉ cập nhật nếu trùng chính xác mã booking (không ghi đè các đơn khác của cùng khách)
-        const duplicateIndex = currentList.findIndex((existing) => {
-          return (booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id);
-        });
-
-        if (duplicateIndex >= 0) {
-          currentList[duplicateIndex] = { ...currentList[duplicateIndex], ...booking };
-          persistBookings();
-          syncToSyncStore(currentList[duplicateIndex]);
-          return resolve({
-            success: true,
-            isDuplicate: true,
-            booking: currentList[duplicateIndex],
-            allBookings: globalBookings,
-          });
+        // 1. Không bao giờ ghi đè đơn đã có: nếu mã bị trùng thì cấp mã mới
+        const requestedCode = booking.code || booking.id;
+        if (!requestedCode || isCodeTaken(requestedCode) || (booking.id && booking.code && booking.id !== booking.code)) {
+          const freshCode = generateUniqueCode();
+          booking = { ...booking, id: freshCode, code: freshCode };
         }
 
         // 2. Tính số chỗ đang bị chiếm dụng cao điểm trong thời gian khách đặt
@@ -295,6 +365,7 @@ export async function addBookingAtomic({ roomId, booking }) {
         // 4. Còn đủ chỗ -> GHI NHẬN ĐẶT PHÒNG THÀNH CÔNG VÀO BỘ NHỚ TRUNG TÂM
         const updatedBooking = {
           ...booking,
+          cats: newCats,
           roomId,
           createdAt: booking.createdAt || new Date().toISOString(),
         };
@@ -406,19 +477,50 @@ export async function removeBookingAtomic({ roomId, code }) {
   return updateBookingAtomic({ roomId, code, updates: { status: 'cancelled' } });
 }
 
-export function handleGetBookings(req, res) {
+export async function handleGetBookings(req, res) {
+  const user = await getRequestUser(req);
+  const all = getAllBookings();
+  const bookings = user?.isAdmin ? all : toPublicBookings(all, user?.id || null);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.end(JSON.stringify({ success: true, bookings: getAllBookings() }));
+  return res.end(JSON.stringify({ success: true, bookings }));
+}
+
+// Chỉ trả danh sách đầy đủ cho admin, khách chỉ thấy bản rút gọn
+async function scopeResult(req, result) {
+  if (!result?.allBookings) return result;
+  const user = await getRequestUser(req);
+  if (user?.isAdmin) return result;
+  return { ...result, allBookings: toPublicBookings(result.allBookings, user?.id || null), conflictBooking: undefined };
+}
+
+async function requireAdmin(req, res) {
+  const user = await getRequestUser(req);
+  if (!user) {
+    res.status(401).json({ success: false, message: 'Vui lòng đăng nhập tài khoản quản trị.' });
+    return null;
+  }
+  if (!user.isAdmin) {
+    res.status(403).json({ success: false, message: 'Chỉ quản trị viên mới được thực hiện thao tác này.' });
+    return null;
+  }
+  return user;
 }
 
 export async function handleAddBooking(req, res) {
   const { roomId, booking } = req.body || {};
-  if (!roomId || !booking) {
+  if (!roomId || !booking || typeof booking !== 'object') {
     return res.status(400).json({ success: false, message: 'Thiếu roomId hoặc booking payload' });
   }
 
-  const result = await addBookingAtomic({ roomId, booking });
+  // Gắn đơn với tài khoản đang đăng nhập (nếu có) thay vì tin customerId do trình duyệt gửi lên
+  const user = await getRequestUser(req);
+  const payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+
+  const result = await scopeResult(req, await addBookingAtomic({ roomId, booking: payload }));
+  if (result.invalid) {
+    return res.status(400).json(result);
+  }
   if (result.conflict) {
     return res.status(409).json(result);
   }
@@ -426,6 +528,7 @@ export async function handleAddBooking(req, res) {
 }
 
 export async function handleUpdateBooking(req, res) {
+  if (!(await requireAdmin(req, res))) return;
   const { roomId, code, updates } = req.body || {};
   const targetCode = code || req.body?.code;
   if (!targetCode) {
@@ -436,6 +539,7 @@ export async function handleUpdateBooking(req, res) {
 }
 
 export async function handleRemoveBooking(req, res) {
+  if (!(await requireAdmin(req, res))) return;
   const { roomId, code } = req.body || req.query || {};
   const targetCode = code || req.query?.code;
   if (!targetCode) {
