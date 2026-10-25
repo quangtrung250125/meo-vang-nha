@@ -74,7 +74,9 @@ test.describe('Đặt phòng', () => {
     await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
     await page.waitForTimeout(1500);
     await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
-    await expect(card.getByText(/MVN-\d{5}/)).toBeVisible();
+    await expect(card.getByText(/MVN-\d{5}/).first()).toBeVisible();
+    // QR thanh toán hiện số tiền và nội dung chuyển khoản là mã đặt phòng
+    await expect(card.getByText('QUÉT MÃ ĐỂ THANH TOÁN')).toBeVisible();
     expect(pageErrors).toEqual([]);
 
     // Đơn xuất hiện ở "Lịch của tôi"
