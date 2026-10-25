@@ -3,6 +3,8 @@
 // hoặc có email nằm trong danh sách ADMIN_EMAILS / VITE_ADMIN_EMAILS (phân tách bằng dấu phẩy),
 // hoặc đăng ký bằng số điện thoại nằm trong ADMIN_PHONES / VITE_ADMIN_PHONES.
 
+import { normalizeVnPhone } from './phone.js';
+
 export const parseAdminEmails = (raw = '') =>
   String(raw || '')
     .split(',')
@@ -12,7 +14,7 @@ export const parseAdminEmails = (raw = '') =>
 // Tài khoản đăng ký bằng số điện thoại có email dạng <số điện thoại>@meovangnha.vn,
 // email này là duy nhất trên Supabase nên dùng được để nhận diện admin theo SĐT
 export const phoneToAccountEmail = (phone = '') => {
-  const digits = String(phone).replace(/\D/g, '');
+  const digits = normalizeVnPhone(phone);
   return digits ? `${digits}@meovangnha.vn` : '';
 };
 
@@ -22,9 +24,11 @@ export const parseAdminPhones = (raw = '') =>
     .map(phoneToAccountEmail)
     .filter(Boolean);
 
+// Email admin chung của nhóm, luôn được coi là admin kể cả khi Vercel chưa đặt VITE_ADMIN_EMAILS
+export const DEFAULT_ADMIN_EMAILS = ['meovangnha@gmail.com'];
+
 export const getAdminEmails = ({ emails = '', phones = '' } = {}) => [
-  ...parseAdminEmails(emails),
-  ...parseAdminPhones(phones),
+  ...new Set([...DEFAULT_ADMIN_EMAILS, ...parseAdminEmails(emails), ...parseAdminPhones(phones)]),
 ];
 
 export const isAdminUser = (user, adminEmails = []) => {

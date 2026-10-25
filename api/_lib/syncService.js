@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
 
-const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/lib');
+const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/_lib');
 const SYNC_STORE_PATH = path.join(DATA_DIR, 'sync_store.json');
 
 const INITIAL_STORE = {

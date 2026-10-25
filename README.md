@@ -26,12 +26,18 @@
 
  Mỗi Pull Request trên GitHub sẽ tự chạy lint, build và toàn bộ test (`.github/workflows/ci.yml`). PR bị ❌ nghĩa là có tính năng đang lỗi, bấm vào **Details** để xem test nào hỏng. Khi thêm tính năng mới, hãy thêm test tương ứng vào `tests/unit` hoặc `tests/e2e`.
 
+ ## Đăng nhập bằng số điện thoại hoặc email
+
+ Khách đăng nhập được bằng **cả SĐT lẫn email** đã đăng ký, trên mọi thiết bị. Khi đăng nhập bằng SĐT, server (`/api/auth/phone`) tìm tài khoản gắn với số đó rồi đăng nhập hộ, và không bao giờ trả email ra ngoài. Mỗi SĐT chỉ đăng ký được một tài khoản.
+
+ Để server tìm được cả các tài khoản cũ, hãy thêm biến **`SUPABASE_SERVICE_ROLE_KEY`** trên Vercel (Supabase Dashboard > Project Settings > API Keys > `service_role`). **Không** đặt tên biến bắt đầu bằng `VITE_`, vì làm vậy khoá sẽ lộ ra trình duyệt. Nếu không có khoá này, server chỉ tìm được qua bảng `customer_profiles` (tài khoản cũ sẽ được ghi vào bảng này sau lần đăng nhập đầu tiên bằng email).
+
  ## Tài khoản Admin
 
  Không còn tài khoản admin viết cứng trong code. Admin là tài khoản Supabase bình thường (đăng ký trên web), được cấp quyền theo một trong hai cách:
 
  1. Thêm số điện thoại vào biến môi trường `VITE_ADMIN_PHONES` (ví dụ `VITE_ADMIN_PHONES=0962606249`, nhiều số cách nhau bằng dấu phẩy) trên Vercel và trong `.env` khi chạy local, rồi deploy lại. Tài khoản đó phải được đăng ký trên web bằng số điện thoại và **để trống ô email**. Nếu Supabase đang bật xác nhận email (Authentication > Sign In / Providers > Confirm email), hãy vào Authentication > Users và xác nhận thủ công tài khoản này, vì email `...@meovangnha.vn` không nhận được thư.
- 2. Hoặc thêm email của tài khoản vào biến `VITE_ADMIN_EMAILS` (nhiều email cách nhau bằng dấu phẩy).
+ 2. Hoặc thêm email của tài khoản vào biến `VITE_ADMIN_EMAILS` (nhiều email cách nhau bằng dấu phẩy). Email chung `meovangnha@gmail.com` luôn là admin, không cần đặt biến.
  3. Hoặc trong Supabase Dashboard > SQL Editor chạy:
     ```sql
     update auth.users

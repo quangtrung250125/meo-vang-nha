@@ -34,7 +34,7 @@ const INITIAL_BOOKINGS = {
   'DELUXE-02': [],
 };
 
-const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/lib');
+const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/_lib');
 const STORE_PATH = path.join(DATA_DIR, 'bookings_store.json');
 const SYNC_STORE_PATH = path.join(DATA_DIR, 'sync_store.json');
 

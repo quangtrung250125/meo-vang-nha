@@ -5,7 +5,7 @@ node_modules
 .env.*
 !.env.example
 dist
-api/lib/bookings_store.json
+api/_lib/bookings_store.json
 repomix-output.*
 test-results
 playwright-report
