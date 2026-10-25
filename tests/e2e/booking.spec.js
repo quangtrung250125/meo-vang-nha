@@ -86,4 +86,44 @@ test.describe('Đặt phòng', () => {
     await expect(page.getByText('Sắp tới', { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/Còn \d+ ngày đến ngày gửi bé/)).toBeVisible();
   });
+
+  test('hóa đơn nhân giá gói theo số bé và chỉ tính camera khi khách tích chọn', async ({ page, pageErrors }, testInfo) => {
+    await loginAs(page);
+    await page.goto('/booking');
+    const card = bookingCard(page);
+    const offset = testInfo.project.name === 'mobile' ? 130 : 120;
+
+    await fillStep1(page, { checkIn: isoDate(offset), checkOut: isoDate(offset + 3), cats: 2 });
+    await card.locator('button:has-text("Còn")').first().click();
+    await page.getByRole('button', { name: 'Tiếp tục' }).click();
+
+    // Gói Thượng Đế chưa có camera: camera là ô tuỳ chọn
+    await card.getByText('Gói Mèo Thượng Đế').first().click();
+    await page.getByRole('button', { name: 'Tiếp tục' }).click();
+
+    for (const [i, name] of ['Bé Một', 'Bé Hai'].entries()) {
+      // Bé đầu: form mở sẵn; bé sau: bấm ô "Thêm bé mèo mới"
+      if (i > 0) await card.getByText('Thêm bé mèo mới').click();
+      await expect(card.getByRole('heading', { name: 'Thêm hồ sơ bé mèo mới' })).toBeVisible();
+      const textInputs = card.locator('input[type=text]');
+      await textInputs.nth(0).fill(name);
+      await textInputs.nth(1).fill('2 tuổi');
+      await card.getByRole('button', { name: 'Lưu thông tin' }).click();
+    }
+    await expect(card.getByText('(Đã chọn 2/2)')).toBeVisible();
+    await page.getByRole('button', { name: 'Tiếp tục' }).click();
+
+    // 2 bé × 3 ngày × 108.000đ = 648.000đ; camera chưa tích thì không tính
+    await expect(card.getByText(/2 bé × 3 ngày/)).toBeVisible();
+    await expect(card.getByText('648,000đ').last()).toBeVisible();
+    const camera = card.getByRole('checkbox');
+    await expect(camera).not.toBeChecked();
+
+    // Tích camera: + 3 ngày × 10.000đ
+    await camera.check();
+    await expect(card.getByText('678,000đ').last()).toBeVisible();
+    await camera.uncheck();
+    await expect(card.getByText('648,000đ').last()).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  });
 });

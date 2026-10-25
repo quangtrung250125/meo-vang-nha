@@ -14,13 +14,16 @@ export const countStayDays = (checkIn, checkOut) => {
 // Giá gốc trước ưu đãi: lấy originalPrice, nếu thiếu thì suy ra từ giá đã giảm 10%
 const originalOf = (pkg) => pkg?.originalPrice || Math.round((pkg?.price || 0) / 0.9);
 
-export function calculateBookingPrice({ lodging, spa, extra, days, couponApplied = true, addCamera = false }) {
+// Gói lưu trú và gói spa tính theo từng bé: gửi bao nhiêu bé thì nhân bấy nhiêu gói.
+// Dịch vụ khác (đưa đón) tính theo chuyến, camera tính theo phòng mỗi ngày.
+export function calculateBookingPrice({ lodging, spa, extra, days, cats = 1, couponApplied = true, addCamera = false }) {
+  const catCount = Math.max(1, Number(cats) || 1);
   const lodgingPrice = lodging?.price || 0;
-  const originalLodgingTotal = (lodging ? originalOf(lodging) : 0) * days;
-  const discountedLodgingTotal = lodgingPrice * days;
+  const originalLodgingTotal = (lodging ? originalOf(lodging) : 0) * days * catCount;
+  const discountedLodgingTotal = lodgingPrice * days * catCount;
 
-  const spaOriginal = spa ? originalOf(spa) : 0;
-  const spaDiscount = spa ? spaOriginal - (spa.price || 0) : 0;
+  const spaOriginal = spa ? originalOf(spa) * catCount : 0;
+  const spaDiscount = spa ? spaOriginal - (spa.price || 0) * catCount : 0;
   const extraOriginal = extra ? originalOf(extra) : 0;
   const extraDiscount = extra ? extraOriginal - (extra.price || 0) : 0;
 
@@ -33,6 +36,9 @@ export function calculateBookingPrice({ lodging, spa, extra, days, couponApplied
     : 0;
 
   return {
+    catCount,
+    spaOriginal,
+    spaTotal: spaOriginal - spaDiscount,
     originalLodgingTotal,
     discountedLodgingTotal,
     cameraIncluded,

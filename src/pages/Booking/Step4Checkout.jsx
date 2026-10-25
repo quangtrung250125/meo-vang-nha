@@ -42,15 +42,20 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const extraDiscountedPrice = extra?.price || 0;
   const extraOriginalPrice   = extra?.originalPrice || Math.round(extraDiscountedPrice / 0.9);
 
+  // ── Số bé: giá gói lưu trú và gói spa nhân theo số bé ──
+  const catCount = Math.max(1, Number(data.catCount) || data.petProfiles?.length || 1);
+
   // ── Tổng cộng (camera chỉ tính khi gói chưa có sẵn camera và khách chọn thêm) ──
   const {
     originalLodgingTotal,
     discountedLodgingTotal,
     cameraIncluded,
     cameraTotal,
+    spaOriginal: spaOriginalTotal,
+    spaTotal,
     discount: totalDiscountAmount,
     total,
-  } = calculateBookingPrice({ lodging, spa, extra, days, couponApplied: isCouponApplied, addCamera });
+  } = calculateBookingPrice({ lodging, spa, extra, days, cats: catCount, couponApplied: isCouponApplied, addCamera });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -248,7 +253,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               <span className="font-medium text-gray-400 line-through text-xs">{originalLodgingTotal.toLocaleString()}đ</span>
             </div>
             <div className="flex justify-between items-center text-xs text-gray-500">
-              <span>{days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
+              <span>{catCount} bé × {days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
               <span className="font-bold text-text-dark">{discountedLodgingTotal.toLocaleString()}đ</span>
             </div>
           </div>
@@ -258,11 +263,11 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
               <div className="flex justify-between items-center mb-1">
                 <span className="font-semibold text-purple-800">💆 {spa.name}</span>
-                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalPrice.toLocaleString()}đ</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalTotal.toLocaleString()}đ</span>
               </div>
               <div className="flex justify-between items-center text-xs text-purple-700">
-                <span>1 lần</span>
-                <span className="font-bold">{spaDiscountedPrice.toLocaleString()}đ</span>
+                <span>{catCount} bé × {spaOriginalPrice.toLocaleString()}đ/lần</span>
+                <span className="font-bold">{spaTotal.toLocaleString()}đ</span>
               </div>
             </div>
           )}
