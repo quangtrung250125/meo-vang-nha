@@ -30,4 +30,22 @@ describe('Tính tiền đặt phòng', () => {
     expect(price.discount).toBe(0);
     expect(price.total).toBe(450000);
   });
+
+  it('nhân giá gói lưu trú và spa theo số mèo', () => {
+    const spa = pkg('spa3');
+    const one = calculateBookingPrice({ lodging: pkg('p3'), spa, days: 2, cats: 1 });
+    const three = calculateBookingPrice({ lodging: pkg('p3'), spa, days: 2, cats: 3 });
+    // 3 bé × 2 ngày × 108.000đ
+    expect(three.discountedLodgingTotal).toBe(3 * 2 * 108000);
+    expect(three.spaTotal).toBe(3 * 108000);
+    expect(three.total).toBe(one.total * 3);
+  });
+
+  it('đưa đón và camera không nhân theo số mèo', () => {
+    const extra = pkg('s2');
+    const one = calculateBookingPrice({ lodging: pkg('p3'), extra, days: 2, cats: 1, addCamera: true });
+    const two = calculateBookingPrice({ lodging: pkg('p3'), extra, days: 2, cats: 2, addCamera: true });
+    expect(two.cameraTotal).toBe(one.cameraTotal);
+    expect(two.total - one.total).toBe(2 * 108000);
+  });
 });
