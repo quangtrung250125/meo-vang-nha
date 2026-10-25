@@ -1043,7 +1043,7 @@ const TrackingPage = () => {
                 <Stepper currentStep={3} />
 
                 {/* Care Log */}
-                <CareLogTimeline bookingId={activeBooking.id} petId={firstPet?.id} />
+                <CareLogTimeline bookingId={activeBooking.id} petId={firstPet?.id} pets={resolvedPets} />
               </div>
 
               {/* ── RIGHT: Sidebar ── */}

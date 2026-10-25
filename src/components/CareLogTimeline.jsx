@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { CalendarDays, Utensils, Droplets, Smile, HeartPulse, Sparkles } from 'lucide-react';
 import { useCareLog } from '../contexts/CareLogContext';
 
@@ -6,9 +6,39 @@ const ICON_MAP = {
   Utensils, Droplets, Smile, HeartPulse
 };
 
-const CareLogTimeline = ({ bookingId, petId }) => {
+// pets (tùy chọn): danh sách các bé trong đơn để khách xem nhật ký từng bé
+const CareLogTimeline = ({ bookingId, petId, pets = [] }) => {
   const { getGroupedLogs } = useCareLog();
-  const careLogs = getGroupedLogs(bookingId, petId);
+  const [activePetId, setActivePetId] = useState(petId);
+
+  useEffect(() => {
+    setActivePetId(petId);
+  }, [petId, bookingId]);
+
+  const careLogs = getGroupedLogs(bookingId, activePetId ?? petId);
+  const petTabs = pets.filter((p) => p && p.id != null);
+
+  const petSwitcher = petTabs.length > 1 && (
+    <div className="flex flex-wrap gap-2 mb-5" role="tablist" aria-label="Chọn bé">
+      {petTabs.map((p) => {
+        const isActive = String(p.id) === String(activePetId);
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => setActivePetId(p.id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+              isActive ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-200 hover:border-primary/50'
+            }`}
+          >
+            {p.name || 'Bé mèo'}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   if (!careLogs || careLogs.length === 0) {
     return (
@@ -17,6 +47,7 @@ const CareLogTimeline = ({ bookingId, petId }) => {
           <CalendarDays className="w-4 h-4 text-primary" />
           Nhật ký chăm sóc
         </h3>
+        {petSwitcher}
         <p className="text-gray-500 text-sm">Chưa có nhật ký nào được ghi nhận cho bé. Bạn hãy chờ nhân viên cập nhật nhé!</p>
       </div>
     );
@@ -28,16 +59,17 @@ const CareLogTimeline = ({ bookingId, petId }) => {
         <CalendarDays className="w-4 h-4 text-primary" />
         Nhật ký chăm sóc
       </h3>
+      {petSwitcher}
       <div className="space-y-6">
         {careLogs.map((day, dayIdx) => (
-          <div key={dayIdx}>
+          <div key={day.date || dayIdx}>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{day.date}</p>
             <div className="border-l-2 border-gray-100 pl-4 space-y-4">
               {day.logs.map((log, logIdx) => {
                 const Icon = typeof log.icon === 'string' ? ICON_MAP[log.icon] : (log.icon || Sparkles);
                 const isWatch = log.status === 'watch';
                 return (
-                  <div key={logIdx} className="relative flex items-start gap-3">
+                  <div key={log.id || logIdx} className="relative flex items-start gap-3">
                     <div className="absolute -left-[21px] w-4 h-4 rounded-full bg-white ring-2 ring-gray-100 flex items-center justify-center mt-0.5">
                       <div className={`w-2 h-2 rounded-full ${isWatch ? 'bg-amber-400' : 'bg-primary'}`} />
                     </div>

@@ -5,15 +5,19 @@ import { usePetProfile } from '../../contexts/PetContext';
 import { useCareLog } from '../../contexts/CareLogContext';
 import { activeBookings as mockActiveBookings } from '../../mockData/activeBookings';
 import CatDiaryModal from './CatDiaryModal';
+import BulkCareLogModal from './BulkCareLogModal';
+import { buildCareLogEntries } from './careLogEntries';
 import { Link } from 'react-router-dom';
+import { Utensils, Smile, ListChecks } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { globalBookingList } = useBookingHistory();
   const { petList } = usePetProfile();
-  const { getLogs, addCareLog } = useCareLog();
+  const { getLogs, addCareLogs } = useCareLog();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCat, setSelectedCat] = useState(null);
+  const [bulkAction, setBulkAction] = useState(null); // null = đóng | 'all' | 'feed' | 'play'
 
   // Filter active real bookings
   const activeRealBookings = globalBookingList.filter(b => {
@@ -52,8 +56,8 @@ const AdminDashboard = () => {
         bookingId: booking.id,
         booking: booking, // Pass the entire booking object
         catName: pet.name,
-        ownerName: booking.customerInfo?.fullName || 'Khách hàng',
-        room: booking.selectedRoom?.name || 'Tiêu chuẩn',
+        ownerName: booking.ownerName || booking.customerName || booking.customerInfo?.fullName || 'Khách hàng',
+        room: booking.roomId || booking.selectedRoom?.id || booking.selectedRoom?.name || 'Tiêu chuẩn',
         image: pet.imagePreview || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
         feedingSchedule: '08:00, 18:00',
         playSchedule: '16:00',
@@ -95,71 +99,40 @@ const AdminDashboard = () => {
     setSelectedCat(null);
   };
 
-  const handleSaveDiary = (bookingId, petId, formData) => {
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    if (formData.foodAmount) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'eating',
-        label: 'Cho ăn',
-        detail: `Đã cho ăn ${formData.foodAmount}g thức ăn.`,
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils'
-      });
+  // Lưu nhật ký cho 1 hoặc nhiều bé, báo kết quả đồng bộ cho admin
+  const saveCareLogs = async (cats, formData) => {
+    const entries = cats.flatMap((cat) => buildCareLogEntries(cat, formData));
+    if (entries.length === 0) {
+      toast.error('Chưa có nội dung nào để ghi nhật ký.');
+      return false;
     }
 
-    if (formData.played) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'mood',
-        label: 'Vui chơi',
-        detail: 'Bé đã chơi đùa và vận động.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Smile'
-      });
-    }
+    const result = await addCareLogs(entries);
+    const unsynced = result.unsavedBookings.filter((id) => id !== 'mockBooking');
+    const catLabel = cats.length > 1 ? `${cats.length} bé` : `bé ${cats[0].catName}`;
 
-    if (formData.stool) {
-      const isBad = formData.stool === 'Tiêu chảy' || formData.stool === 'Táo bón';
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'hygiene',
-        label: 'Vệ sinh',
-        detail: `Tình trạng: ${formData.stool}`,
-        status: isBad ? 'watch' : 'normal',
-        tag: isBad ? 'Cần theo dõi' : 'Bình thường',
-        icon: 'Droplets'
-      });
+    if (unsynced.length > 0) {
+      toast.error(
+        `Đã ghi nhật ký cho ${catLabel} trên máy này nhưng chưa đồng bộ được ${unsynced.length} đơn lên hệ thống. Kiểm tra mạng rồi lưu lại.`,
+        { duration: 6000 }
+      );
+    } else if (result.savedBookings.length === 0) {
+      toast.success(`Đã ghi nhật ký cho ${catLabel} (dữ liệu mẫu, chỉ lưu trên máy này).`);
+    } else {
+      toast.success(`Đã cập nhật nhật ký cho ${catLabel}. Khách hàng sẽ thấy ngay.`);
     }
+    return true;
+  };
 
-    if (formData.health) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'health',
-        label: 'Sức khỏe',
-        detail: formData.health,
-        status: 'watch',
-        tag: 'Cần theo dõi',
-        icon: 'HeartPulse'
-      });
-    }
+  const handleSaveDiary = async (cat, formData) => {
+    if (!cat) return;
+    const saved = await saveCareLogs([cat], formData);
+    if (saved) closeModal();
+  };
 
-    toast.success('Đã cập nhật nhật ký thành công!');
-    closeModal();
+  const handleSaveBulk = async (cats, formData) => {
+    const saved = await saveCareLogs(cats, formData);
+    if (saved) setBulkAction(null);
   };
 
   const totalCats = catsInHotel.length;
@@ -215,7 +188,39 @@ const AdminDashboard = () => {
       </div>
 
       {/* Danh sách các bé mèo */}
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Lịch trình chăm sóc hôm nay</h2>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <h2 className="text-xl font-bold text-gray-800">Lịch trình chăm sóc hôm nay</h2>
+        {totalCats > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkAction('feed')}
+              disabled={fedCats === totalCats}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-orange-200 bg-white text-orange-600 font-semibold text-sm hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Utensils className="w-4 h-4" />
+              Cho ăn các bé còn lại ({totalCats - fedCats})
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkAction('play')}
+              disabled={playedCats === totalCats}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-purple-200 bg-white text-purple-600 font-semibold text-sm hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Smile className="w-4 h-4" />
+              Cho chơi các bé còn lại ({totalCats - playedCats})
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkAction('all')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-secondary transition-colors shadow-md shadow-primary/20"
+            >
+              <ListChecks className="w-4 h-4" />
+              Cập nhật hàng loạt
+            </button>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {catsInHotel.map((cat) => (
           <div key={`${cat.bookingId}_${cat.id}`} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
@@ -268,7 +273,15 @@ const AdminDashboard = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         cat={selectedCat}
-        onSave={(catId, formData) => handleSaveDiary(selectedCat?.bookingId, catId, formData)}
+        onSave={(_catId, formData) => handleSaveDiary(selectedCat, formData)}
+      />
+
+      <BulkCareLogModal
+        isOpen={bulkAction !== null}
+        initialAction={bulkAction}
+        onClose={() => setBulkAction(null)}
+        cats={catsInHotel}
+        onSave={handleSaveBulk}
       />
     </div>
   );
