@@ -199,11 +199,13 @@ export const PetProvider = ({ children }) => {
   // ── 3. Lưu hồ sơ mèo (Cập nhật Local + Server API + Broadcast Realtime) ──
   const savePet = async (petData) => {
     let savedId = petData.id;
+    let ownerId = petData.ownerId || null;
 
     // Lưu vào Supabase nếu có session
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
+        ownerId = ownerId || session.user.id;
         if (petData.id && typeof petData.id === 'string' && petData.id.includes('-') && petData.id.length > 20) {
           await supabase.from('pets').update({
             name: petData.name,
@@ -238,6 +240,7 @@ export const PetProvider = ({ children }) => {
     const safePet = {
       ...petData,
       id: savedId || petData.id || String(Date.now()),
+      ownerId,
       imageFile: undefined,
       imagePreview: petData.imagePreview || '',
       updatedAt: new Date().toISOString(),

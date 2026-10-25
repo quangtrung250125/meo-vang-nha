@@ -315,6 +315,15 @@ const CustomerProfile = () => {
 
   const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
 
+  // Số bé đang gửi và ngày tham gia lấy từ dữ liệu thật thay vì số mẫu
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeCatsCount = activeCustomer.activeCatsCount ?? myBookings
+    .filter(b => b.checkIn && b.checkOut && b.checkIn <= todayStr && todayStr < b.checkOut
+      && !['check-out', 'cancelled', 'Đã hủy', 'Đã hoàn tất', 'hoàn tất'].includes(b.status))
+    .reduce((sum, b) => sum + (Number(b.cats) || b.petProfiles?.length || 1), 0);
+  const memberSince = activeCustomer.memberSince
+    || (activeCustomer.createdAt ? new Date(activeCustomer.createdAt).toLocaleDateString('vi-VN') : '—');
+
   const combinedBoardingList = [
     ...(myBookings.map(b => ({
       id: b.id || 'MVN-NEW',
@@ -385,7 +394,7 @@ const CustomerProfile = () => {
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
                   <PawPrint className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Đang gửi: <strong className="text-white font-black">{activeCustomer.activeCatsCount || 2} bé mèo</strong></span>
+                  <span>Đang gửi: <strong className="text-white font-black">{activeCatsCount} bé mèo</strong></span>
                 </span>
 
                 <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
@@ -395,7 +404,7 @@ const CustomerProfile = () => {
 
                 <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
                   <Calendar className="w-3.5 h-3.5 text-blue-300" />
-                  <span>Thành viên từ: <strong className="text-white font-bold">{activeCustomer.memberSince || '15/01/2025'}</strong></span>
+                  <span>Thành viên từ: <strong className="text-white font-bold">{memberSince}</strong></span>
                 </span>
               </div>
             </div>

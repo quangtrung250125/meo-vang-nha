@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AdminLayout, RoomStatusPage } from '../Chi';
 import Home from './pages/Home';
@@ -23,8 +23,31 @@ import { UIProvider } from './contexts/UIContext';
 import { RoomStateProvider } from './contexts/RoomStateContext';
 import { Toaster } from 'react-hot-toast';
 
+// Chỉ tài khoản admin đã xác thực mới vào được trang quản trị
+function RequireAdmin({ children }) {
+  const { isAdmin, authLoading, isAuthenticated } = useCustomerProfile();
+  if (isAdmin) return children;
+  // Đang chờ Supabase xác thực phiên đã lưu thì chưa vội chuyển hướng
+  if (authLoading && isAuthenticated) return null;
+  return <Navigate to="/" replace />;
+}
+
+function NotFound() {
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4 pt-24 pb-12 text-center">
+      <p className="text-6xl">🐾</p>
+      <h1 className="text-3xl font-bold text-text-dark font-title">Không tìm thấy trang</h1>
+      <p className="text-gray-600">Trang bạn tìm không tồn tại hoặc đã được chuyển đi.</p>
+      <Link to="/" className="bg-primary text-white font-bold px-6 py-3 rounded-2xl hover:opacity-90 transition-opacity">
+        Về trang chủ
+      </Link>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { isAdmin } = useCustomerProfile();
+  const adminOnly = (element) => <RequireAdmin>{element}</RequireAdmin>;
 
   // Shared routes between normal customer view and admin view
   const sharedRoutes = (
@@ -40,16 +63,17 @@ function AppRoutes() {
       <Route path="my-booking" element={<MyBooking />} />
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
-      <Route path="room-status" element={<RoomStatusPage />} />
-      <Route path="reviews" element={<AdminReviews />} />
-      <Route path="settings" element={<AdminSettings />} />
+      <Route path="room-status" element={adminOnly(<RoomStatusPage />)} />
+      <Route path="reviews" element={adminOnly(<AdminReviews />)} />
+      <Route path="settings" element={adminOnly(<AdminSettings />)} />
+      <Route path="*" element={<NotFound />} />
     </>
   );
 
   return (
     <Routes>
       {/* Direct Admin Route /admin */}
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route path="/admin" element={adminOnly(<AdminLayout />)}>
         <Route index element={<AdminDashboard />} />
         {sharedRoutes}
       </Route>

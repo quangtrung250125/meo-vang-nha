@@ -22,6 +22,7 @@ export const packagesList = [
     category: 'Lưu trú',
     // Gói Quý Tộc chỉ dành cho phòng DELUXE
     forRoomTypes: ['DELUXE'],
+    includesCamera: true,
     name: 'Gói Mèo Quý Tộc', 
     originalPrice: 200000, 
     price: 180000, 
@@ -51,6 +52,7 @@ export const packagesList = [
     category: 'Lưu trú',
     // Gói Sang Chảnh dành cho VIP, VVIP, DELUXE (với phụ phí)
     forRoomTypes: ['VIP', 'VVIP', 'DELUXE'],
+    includesCamera: true,
     // Giá cơ sở (ứng với phòng VIP)
     baseOriginalPrice: 150000,
     basePrice: 135000,

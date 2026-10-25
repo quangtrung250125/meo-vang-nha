@@ -117,6 +117,13 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: 5173,
       allowedHosts: true,
+      // API dev ghi dữ liệu vào api/lib/*.json; bỏ qua để Vite không tự tải lại trang sau khi đặt phòng
+      watch: {
+        ignored: ['**/api/lib/*.json'],
+      },
+    },
+    test: {
+      include: ['tests/unit/**/*.test.js'],
     },
     preview: {
       host: '0.0.0.0',
