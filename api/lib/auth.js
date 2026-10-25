@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './db.js';
-import { isAdminUser, parseAdminEmails } from '../../src/utils/adminAccess.js';
+import { getAdminEmails, isAdminUser } from '../../src/utils/adminAccess.js';
 
 const defaultVerifier = async (token) => {
   const { data, error } = await supabaseAdmin.auth.getUser(token);
@@ -26,7 +26,10 @@ export async function getRequestUser(req) {
   try {
     const user = await verifyToken(match[1].trim());
     if (!user?.id) return null;
-    const adminEmails = parseAdminEmails(process.env.ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS);
+    const adminEmails = getAdminEmails({
+      emails: process.env.ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS,
+      phones: process.env.ADMIN_PHONES || process.env.VITE_ADMIN_PHONES,
+    });
     return {
       id: user.id,
       email: user.email || '',

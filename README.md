@@ -30,15 +30,16 @@
 
  Không còn tài khoản admin viết cứng trong code. Admin là tài khoản Supabase bình thường (đăng ký trên web), được cấp quyền theo một trong hai cách:
 
- 1. Thêm email của tài khoản vào biến môi trường `VITE_ADMIN_EMAILS` (nhiều email cách nhau bằng dấu phẩy) trên Vercel và trong `.env` khi chạy local, rồi deploy lại.
- 2. Hoặc trong Supabase Dashboard > SQL Editor chạy:
+ 1. Thêm số điện thoại vào biến môi trường `VITE_ADMIN_PHONES` (ví dụ `VITE_ADMIN_PHONES=0962606249`, nhiều số cách nhau bằng dấu phẩy) trên Vercel và trong `.env` khi chạy local, rồi deploy lại. Tài khoản đó phải được đăng ký trên web bằng số điện thoại và **để trống ô email**.
+ 2. Hoặc thêm email của tài khoản vào biến `VITE_ADMIN_EMAILS` (nhiều email cách nhau bằng dấu phẩy).
+ 3. Hoặc trong Supabase Dashboard > SQL Editor chạy:
     ```sql
     update auth.users
     set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'
     where email = 'email-admin@cua-ban.vn';
     ```
 
- Tài khoản đăng ký bằng số điện thoại có email dạng `<số điện thoại>@meovangnha.vn`.
+ Tài khoản đăng ký bằng số điện thoại (không nhập email) có email dạng `<số điện thoại>@meovangnha.vn`, nên `VITE_ADMIN_PHONES=0962606249` tương đương `VITE_ADMIN_EMAILS=0962606249@meovangnha.vn`.
 
  ## Đẩy lên GitHub
 

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, setSyncIdentity } from '../services/crossDeviceSync';
-import { isAdminUser, parseAdminEmails } from '../utils/adminAccess';
+import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
 
 const CustomerContext = createContext();
 
@@ -12,7 +12,10 @@ const PHONE_MAP_KEY = 'meo-vang-nha-phone-email-map';
 
 const normalizePhone = (phone = '') => phone.replace(/\D/g, '');
 
-const ADMIN_EMAILS = parseAdminEmails(import.meta.env?.VITE_ADMIN_EMAILS);
+const ADMIN_EMAILS = getAdminEmails({
+    emails: import.meta.env?.VITE_ADMIN_EMAILS,
+    phones: import.meta.env?.VITE_ADMIN_PHONES,
+});
 
 const getFriendlyErrorMessage = (error) => {
     if (!error) return 'Đã xảy ra lỗi không xác định!';
