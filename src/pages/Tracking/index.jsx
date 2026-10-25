@@ -133,7 +133,7 @@ const ConfirmModal = ({ addon, selectedOption, onConfirm, onClose }) => {
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-const EmptyState = ({ navigate }) => (
+const EmptyState = ({ navigate, onEnableDemo }) => (
   <div className="flex flex-col items-center justify-center text-center py-20 px-4">
     <div className="relative mb-8">
       <div className="w-32 h-32 bg-gradient-to-br from-primary-light to-[#a7f3d0] rounded-full flex items-center justify-center mx-auto shadow-xl shadow-primary/20">
@@ -151,14 +151,26 @@ const EmptyState = ({ navigate }) => (
       Khi bé mèo của bạn đang được chúng mình chăm sóc, mọi thông tin lưu trú, nhật ký chăm sóc và camera sẽ hiện tại đây.
     </p>
 
-    <button
-      onClick={() => navigate('/booking')}
-      className="flex items-center gap-2 bg-primary text-white font-bold px-8 py-4 rounded-2xl hover:bg-secondary transition-all shadow-lg shadow-primary/30 active:scale-[0.98] cursor-pointer text-base"
-    >
-      <CalendarDays className="w-5 h-5" />
-      Đặt lịch lưu trú
-      <ArrowRight className="w-4 h-4" />
-    </button>
+    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
+      <button
+        onClick={() => navigate('/booking')}
+        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-white font-bold px-8 py-3.5 rounded-2xl hover:bg-secondary transition-all shadow-lg shadow-primary/30 active:scale-[0.98] cursor-pointer text-sm"
+      >
+        <CalendarDays className="w-4 h-4" />
+        Đặt lịch lưu trú
+        <ArrowRight className="w-4 h-4" />
+      </button>
+
+      {onEnableDemo && (
+        <button
+          onClick={onEnableDemo}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-50 border border-amber-300 text-amber-900 font-bold px-6 py-3.5 rounded-2xl hover:bg-amber-100 transition-all shadow-xs cursor-pointer text-sm"
+        >
+          <span>✨</span>
+          Xem nhật ký mẫu (Bé Mimi)
+        </button>
+      )}
+    </div>
 
     <p className="text-xs text-gray-400 mt-4">Chỉ mất vài phút để đặt lịch cho bé yêu!</p>
   </div>
@@ -766,11 +778,34 @@ const TrackingPage = () => {
     toast.success(`Chào mừng ${formData.fullName || 'bạn'}! 🐾`);
   };
 
+  const [useDemoStay, setUseDemoStay] = useState(false);
+  const [selectedPetIdx, setSelectedPetIdx] = useState(0);
+
   // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin, hoặc nếu chưa đăng nhập thì xem các đơn đã đồng bộ)
   const myBookings = activeCustomer
     ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
     : globalBookingList;
-  const activeBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú') || myBookings[0];
+  const realActiveBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú') || myBookings[0];
+
+  // Booking mẫu nếu máy chưa có booking thực tế để người dùng có thể test đồng bộ với Admin ngay lập tức
+  const demoBooking = {
+    id: 'mockBooking',
+    selectedPackage: { name: 'Gói Mèo Quý Tộc' },
+    selectedRoom: { name: 'P101 (VIP)' },
+    checkIn: '2026-10-20',
+    checkOut: '2026-10-30',
+    status: 'Đang lưu trú',
+    petIds: [1],
+    petProfiles: [{
+      id: 1,
+      name: 'Mimi',
+      imagePreview: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
+      breed: 'Anh lông ngắn',
+      weight: '4.2kg'
+    }]
+  };
+
+  const activeBooking = realActiveBooking || (useDemoStay ? demoBooking : null);
 
   const resolvedPets = activeBooking
     ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)
@@ -779,6 +814,8 @@ const TrackingPage = () => {
 
   const daysRemaining = activeBooking ? getDaysRemaining(activeBooking.checkOut) : 0;
   const firstPet = resolvedPets[0];
+  const currentPet = resolvedPets[selectedPetIdx] || firstPet;
+
 
 
 
@@ -948,11 +985,29 @@ const TrackingPage = () => {
         {!activeBooking ? (
           /* ── Empty State ── */
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm">
-            <EmptyState navigate={navigate} />
+            <EmptyState navigate={navigate} onEnableDemo={() => setUseDemoStay(true)} />
           </div>
         ) : (
           /* ── Active Stay ── */
           <>
+            {/* Banner chế độ Demo (nếu đang xem thử nghiệm) */}
+            {useDemoStay && (
+              <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-2xl mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-semibold shadow-xs">
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-200 text-amber-800 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md">
+                    Chế độ Demo
+                  </span>
+                  <span>Đang xem nhật ký lưu trú mẫu của bé Mimi (Phòng P101) - Tự động đồng bộ với Admin Dashboard!</span>
+                </div>
+                <button
+                  onClick={() => setUseDemoStay(false)}
+                  className="text-amber-800 hover:text-amber-950 font-bold underline self-start sm:self-auto cursor-pointer"
+                >
+                  Thoát xem thử
+                </button>
+              </div>
+            )}
+
             {/* ── Summary Banner ── */}
             <div className="bg-gradient-to-r from-[#ecfdf5] to-[#d1fae5] border border-primary/20 rounded-2xl p-5 sm:p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
               {/* Pet avatar (clickable → pet profile) */}
@@ -961,8 +1016,8 @@ const TrackingPage = () => {
                 title="Xem hồ sơ mèo"
                 className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-md shrink-0 hover:scale-105 transition-transform cursor-pointer group relative"
               >
-                {firstPet?.imagePreview
-                  ? <img src={firstPet.imagePreview} alt={firstPet.name} className="w-full h-full object-cover" />
+                {currentPet?.imagePreview
+                  ? <img src={currentPet.imagePreview} alt={currentPet.name} className="w-full h-full object-cover" />
                   : <div className="w-full h-full bg-primary-light flex items-center justify-center"><PawPrint className="w-8 h-8 text-primary" /></div>}
                 <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <ChevronRight className="w-6 h-6 text-white" />
@@ -1042,9 +1097,31 @@ const TrackingPage = () => {
                 {/* Stepper */}
                 <Stepper currentStep={3} />
 
+                {/* Tab chuyển đổi bé nếu phòng có nhiều mèo */}
+                {resolvedPets.length > 1 && (
+                  <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2 overflow-x-auto">
+                    <span className="text-xs font-bold text-gray-500 mr-1 whitespace-nowrap">Xem nhật ký của:</span>
+                    {resolvedPets.map((p, idx) => (
+                      <button
+                        key={p.id || idx}
+                        onClick={() => setSelectedPetIdx(idx)}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          selectedPetIdx === idx
+                            ? 'bg-primary text-white shadow-sm shadow-primary/25'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <span>🐾</span>
+                        <span>{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Care Log */}
-                <CareLogTimeline bookingId={activeBooking.id} petId={firstPet?.id} />
+                <CareLogTimeline bookingId={activeBooking.id} petId={currentPet?.id} />
               </div>
+
 
               {/* ── RIGHT: Sidebar ── */}
               <div className="space-y-6">
