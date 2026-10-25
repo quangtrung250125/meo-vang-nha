@@ -8,11 +8,11 @@ import {
 import { toast } from 'react-hot-toast';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
-import CustomerWelcomeModal from '../../components/CustomerWelcomeModal';
-import { getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
+import { BOOKING_STATUS, getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
+import AuthModal from '../../components/AuthModal';
 
 // ─────────────────────────────────────────────
 // Tạo nhật ký lưu trú mock theo ngày
@@ -65,16 +65,6 @@ const getStatusBadge = (status) => {
     case 'Đã hoàn tất': return 'bg-green-50 text-green-600';
     default: return 'bg-gray-100 text-gray-500';
   }
-};
-
-const calculateStatus = (checkIn, checkOut) => {
-  if (!checkIn || !checkOut) return 'Chưa rõ';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
-  const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
-  if (today < inDate) return 'Sắp tới';
-  if (today >= inDate && today <= outDate) return 'Đang lưu trú';
-  return 'Đã hoàn tất';
 };
 
 // ─────────────────────────────────────────────
@@ -193,7 +183,7 @@ const BookingCard = ({ booking, petList }) => {
 // ─────────────────────────────────────────────
 const PetProfile = () => {
   const { petList, savePet } = usePetProfile();
-  const { customerProfile, saveCustomerProfile } = useCustomerProfile();
+  const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile, isAuthenticated } = useCustomerProfile();
   const { globalBookingList } = useBookingHistory();
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -202,7 +192,7 @@ const PetProfile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  const isLoggedIn = Boolean(customerProfile);
+  const isLoggedIn = isAuthenticated;
 
   const handleSavePet = (petData) => {
     setIsSaving(true);
@@ -214,10 +204,8 @@ const PetProfile = () => {
     }, 800);
   };
 
-  const handleAuthSubmit = async (formData) => {
-    saveCustomerProfile(formData);
+  const handleAuthSubmit = async () => {
     setIsAuthOpen(false);
-    toast.success(`Chào mừng ${formData.fullName || 'bạn'} đến Mèo Vắng Nhà! 🐾`);
   };
 
   // ── LOGIN WALL ──────────────────────────────
@@ -272,23 +260,24 @@ const PetProfile = () => {
             </button>
 
             <p className="text-xs text-gray-400 mt-4">
-              Chỉ cần số điện thoại — không cần mật khẩu phức tạp
+              Chỉ cần số điện thoại và mật khẩu đã đăng ký
             </p>
           </div>
         </div>
 
-        <CustomerWelcomeModal
+        <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
-          onSubmit={handleAuthSubmit}
         />
       </>
     );
   }
 
   // ── LOGGED IN VIEW ──────────────────────────
-  const displayName = customerProfile?.fullName || customerProfile?.name || 'bạn';
-  const bookings = globalBookingList.map(b => ({
+  const activeCustomer = authenticatedCustomer || customerProfile;
+  const displayName = activeCustomer?.fullName || activeCustomer?.name || 'bạn';
+  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
+  const bookings = myBookings.map(b => ({
     ...b,
     dynamicStatus: getBookingStatus(b),
   }));
@@ -393,8 +382,8 @@ const PetProfile = () => {
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   {[
                     { label: 'Tổng lần gửi', value: bookings.length, color: 'text-primary', bg: 'bg-primary-light/50' },
-                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === 'Đang lưu trú').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === 'Đã hoàn tất').length, color: 'text-gray-600', bg: 'bg-gray-100' },
+                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.IN_HOUSE).length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.COMPLETED).length, color: 'text-gray-600', bg: 'bg-gray-100' },
                   ].map((stat, i) => (
                     <div key={i} className={`${stat.bg} rounded-2xl p-4 text-center border border-white/60`}>
                       <p className={`text-2xl font-black ${stat.color}`}>{stat.value}</p>

@@ -3,7 +3,7 @@ import { Camera, X, Loader2 } from 'lucide-react';
 
 const TABS = ['Thông tin cơ bản', 'Sức khỏe', 'Thói quen', 'Tính cách', 'Yêu cầu riêng'];
 
-const PetForm = ({ initialData, onSave, onCancel, isSaving }) => {
+const PetForm = ({ initialData, onSave, onCancel, isSaving, compact = false }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
@@ -88,9 +88,13 @@ const PetForm = ({ initialData, onSave, onCancel, isSaving }) => {
       return;
     }
 
-    const needsSpecialCare = petData.health.medicalCondition.trim() !== '' || petData.health.medication.trim() !== '';
-    const finalData = { ...petData, isSpecialCare: needsSpecialCare };
-    
+    const finalData = {
+      ...petData,
+      id: petData.id || Date.now().toString(),
+      imageFile: undefined,
+      isSpecialCare: (petData.health?.medicalCondition || '').trim() !== '' || (petData.health?.medication || '').trim() !== '',
+    };
+
     onSave(finalData);
   };
 
@@ -236,27 +240,37 @@ const PetForm = ({ initialData, onSave, onCancel, isSaving }) => {
     </div>
   );
 
+  const showAdvancedTabs = !compact;
+
   return (
     <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-100 relative">
-      <div className="flex space-x-6 border-b border-gray-100 mb-8 overflow-x-auto whitespace-nowrap scrollbar-hide">
-        {TABS.map((tab, idx) => (
-          <button 
-            key={idx}
-            onClick={() => setActiveTab(idx)}
-            className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === idx ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      {showAdvancedTabs && (
+        <div className="flex space-x-6 border-b border-gray-100 mb-8 overflow-x-auto whitespace-nowrap scrollbar-hide">
+          {TABS.map((tab, idx) => (
+            <button 
+              key={idx}
+              onClick={() => setActiveTab(idx)}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === idx ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">
-          {activeTab === 0 && renderBasicInfoTab()}
-          {activeTab === 1 && renderHealthTab()}
-          {activeTab === 2 && renderHabitsTab()}
-          {activeTab === 3 && renderPersonalityTab()}
-          {activeTab === 4 && renderSpecialRequestsTab()}
+          {showAdvancedTabs ? (
+            <>
+              {activeTab === 0 && renderBasicInfoTab()}
+              {activeTab === 1 && renderHealthTab()}
+              {activeTab === 2 && renderHabitsTab()}
+              {activeTab === 3 && renderPersonalityTab()}
+              {activeTab === 4 && renderSpecialRequestsTab()}
+            </>
+          ) : (
+            renderBasicInfoTab()
+          )}
         </div>
 
         <div className="md:col-span-1">

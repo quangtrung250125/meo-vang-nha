@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift } from 'lucide-react';
+import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift, AlertTriangle, RefreshCw } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
+import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { sendWebNotification } from '../../utils/notificationService';
 
-
-const Step4Checkout = ({ data, onNext, onPrev }) => {
-
+const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
   const [isCouponApplied, setIsCouponApplied] = useState(true);
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
+  const [conflictError, setConflictError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { addNewBooking } = useRoomState();
+  const { authenticatedCustomer, customerProfile } = useCustomerProfile();
+  const { upsertBooking } = useBookingHistory();
 
   // Kiểm tra ngày nhận có phải Thứ 5
   const isThursday = (() => {
@@ -26,21 +34,35 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
   };
 
   const days = calculateDays();
-  const discountedPackagePrice = data.selectedPackage?.price || 0;
-  const originalPackagePrice = data.selectedPackage?.originalPrice || Math.round(discountedPackagePrice / 0.9);
-  const cameraPrice = 10000; // Giá camera mỗi ngày
 
-  // Subtotal without discount
-  const originalPackageTotal = originalPackagePrice * days;
+  // ── Gói lưu trú (bắt buộc) ──
+  const lodging = data.selectedLodging || data.selectedPackage;
+  const discountedLodgingPrice  = lodging?.price         || 0;
+  const originalLodgingPrice    = lodging?.originalPrice || Math.round(discountedLodgingPrice / 0.9);
+  const originalLodgingTotal    = originalLodgingPrice * days;
+  const discountedLodgingTotal  = discountedLodgingPrice * days;
+  const lodgingDiscount         = originalLodgingTotal - discountedLodgingTotal;
+
+  // ── Gói spa (tùy chọn, tính theo lần, không nhân ngày) ──
+  const spa = data.selectedSpa || null;
+  const spaDiscountedPrice  = spa?.price         || 0;
+  const spaOriginalPrice    = spa?.originalPrice || Math.round(spaDiscountedPrice / 0.9);
+  const spaDiscount         = spaOriginalPrice - spaDiscountedPrice;
+
+  // ── Dịch vụ khác (tùy chọn, tính theo lần/chuyến) ──
+  const extra = data.selectedExtra || null;
+  const extraDiscountedPrice = extra?.price         || 0;
+  const extraOriginalPrice   = extra?.originalPrice || Math.round(extraDiscountedPrice / 0.9);
+  const extraDiscount        = extraOriginalPrice - extraDiscountedPrice;
+
+  // ── Camera (cố định theo gói lưu trú) ──
+  const cameraPrice = 10000;
   const cameraTotal = cameraPrice * days;
-  const grossTotal = originalPackageTotal + cameraTotal;
 
-  // Discount calculation
-  const discountAmount = isCouponApplied 
-    ? (originalPackageTotal - (discountedPackagePrice * days)) 
-    : 0;
-
-  const total = grossTotal - discountAmount;
+  // ── Tổng cộng ──
+  const originalGrossTotal = originalLodgingTotal + spaOriginalPrice + extraOriginalPrice + cameraTotal;
+  const totalDiscountAmount = isCouponApplied ? (lodgingDiscount + spaDiscount + extraDiscount) : 0;
+  const total = originalGrossTotal - totalDiscountAmount;
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -53,8 +75,102 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
     }
   };
 
-  const handleSubmit = () => {
-    updateData({ totalAmount: total });
+  const handleSubmit = async () => {
+    const roomId = data.selectedRoom?.id;
+    if (!roomId) {
+      setConflictError('Vui lòng chọn phòng trước khi gửi yêu cầu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setConflictError('');
+
+    // Generate random booking ID: MVN-XXXXX
+    const randomNum = Math.floor(10000 + Math.random() * 90000);
+    const newId = `MVN-${randomNum}`;
+
+    const activeCustomer = authenticatedCustomer || customerProfile;
+    const ownerName = activeCustomer?.fullName || data.customerName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || data.customerPhone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+    const packageName = data.selectedLodging?.name || data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+    const packageNames = [
+      packageName,
+      data.selectedSpa?.name,
+      data.selectedExtra?.name,
+    ].filter(Boolean);
+
+    const bookingPayload = {
+      id: newId,
+      code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
+      checkIn: data.checkIn,
+      checkOut: data.checkOut,
+      packages: packageNames,
+      selectedPackage: data.selectedLodging || data.selectedPackage,
+      selectedLodging: data.selectedLodging,
+      selectedSpa: data.selectedSpa,
+      selectedExtra: data.selectedExtra,
+      selectedRoom: data.selectedRoom,
+      roomId,
+      petIds: data.petProfiles?.map(p => p.id) || [],
+      petProfiles: data.petProfiles,
+      customerPhone: ownerPhone,
+      customerName: ownerName,
+      customerId: activeCustomer?.customerId || activeCustomer?.id || null,
+      status: bookingStatus,
+      totalPrice: total,
+      totalAmount: total,
+      paymentStatus: 'Chưa thanh toán',
+      pending_changes: null,
+      previous_status: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    // ── Kiểm tra độc quyền phòng theo ngày và thêm booking (Atomic qua server) ──
+    const roomResult = await addNewBooking(roomId, bookingPayload);
+
+    if (roomResult && (roomResult.conflict || roomResult.success === false)) {
+      setIsSubmitting(false);
+      const msg =
+        roomResult.message ||
+        `Rất tiếc, phòng ${roomId} không còn đủ chỗ trống trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
+      setConflictError(msg);
+      sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
+        body: msg,
+      });
+      if (updateData) {
+        updateData({ conflictedRoomId: roomResult.conflictedRoomId || roomId });
+      }
+      return;
+    }
+
+    // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
+    upsertBooking(bookingPayload);
+
+    // Cập nhật bookingData để Step 5 hiển thị
+    if (updateData) {
+      updateData({
+        bookingId: newId,
+        confirmedBooking: bookingPayload,
+        totalAmount: total,
+      });
+    }
+
+    sendWebNotification('🎉 Đặt phòng thành công!', {
+      body: `Mã đặt phòng của bạn là ${newId}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
+    });
+
+    setIsSubmitting(false);
     onNext();
   };
 
@@ -82,9 +198,19 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
             <span className="text-gray-400 block text-xs font-semibold uppercase">Số lượng mèo</span>
             <span className="font-bold text-text-dark">{data.catCount} bé</span>
           </div>
-          <div>
-            <span className="text-gray-400 block text-xs font-semibold uppercase">Phòng & Gói dịch vụ</span>
-            <span className="font-bold text-primary">{data.selectedRoom?.name} • {data.selectedPackage?.name}</span>
+          <div className="sm:col-span-2">
+            <span className="text-gray-400 block text-xs font-semibold uppercase mb-1">Phòng & Gói dịch vụ</span>
+            <div className="space-y-1">
+              <span className="font-bold text-primary block">
+                {data.selectedRoom?.id} — {lodging?.name || 'Chưa chọn gói'}
+              </span>
+              {spa && (
+                <span className="font-semibold text-purple-600 block text-xs">+ {spa.name}</span>
+              )}
+              {extra && (
+                <span className="font-semibold text-sky-600 block text-xs">+ {extra.name}</span>
+              )}
+            </div>
           </div>
           <div>
             <span className="text-gray-400 block text-xs font-semibold uppercase">Tên các bé</span>
@@ -125,30 +251,71 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
           Chi tiết chi phí
         </h3>
         
-        <div className="space-y-3 text-gray-700 mb-6 text-sm">
-          <div className="flex justify-between">
-            <span>Tiền dịch vụ ({days} ngày x {originalPackagePrice.toLocaleString()}đ):</span>
-            <span className="font-medium text-gray-500 line-through">
-              {originalPackageTotal.toLocaleString()}đ
-            </span>
+        <div className="space-y-2.5 text-gray-700 mb-6 text-sm">
+
+          {/* ── Gói lưu trú ── */}
+          <div className="bg-white border border-gray-100 rounded-xl p-3">
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-semibold text-text-dark">🏠 {lodging?.name || 'Gói lưu trú'}</span>
+              <span className="font-medium text-gray-400 line-through text-xs">{originalLodgingTotal.toLocaleString()}đ</span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-gray-500">
+              <span>{days} ngày × {originalLodgingPrice.toLocaleString()}đ/ngày</span>
+              <span className="font-bold text-text-dark">{discountedLodgingTotal.toLocaleString()}đ</span>
+            </div>
           </div>
 
-          {isCouponApplied && discountAmount > 0 && (
-            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
-              <span className="flex items-center gap-1">
-                <Percent className="w-4 h-4" />
-                Ưu đãi giảm giá 10% ({promotionInfo.code}):
-              </span>
-              <span>- {discountAmount.toLocaleString()}đ</span>
+          {/* ── Gói Spa ── */}
+          {spa && (
+            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-semibold text-purple-800">💆 {spa.name}</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{spaOriginalPrice.toLocaleString()}đ</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-purple-700">
+                <span>1 lần</span>
+                <span className="font-bold">{spaDiscountedPrice.toLocaleString()}đ</span>
+              </div>
             </div>
           )}
 
-          {/* Thứ 5 pate gift */}
+          {/* ── Dịch vụ khác ── */}
+          {extra && (
+            <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-semibold text-sky-800">🚗 {extra.name}</span>
+                <span className="font-medium text-gray-400 line-through text-xs">{extraOriginalPrice.toLocaleString()}đ</span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-sky-700">
+                <span>1 {extra.period?.replace('/', '') || 'lần'}</span>
+                <span className="font-bold">{extraDiscountedPrice.toLocaleString()}đ</span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Camera ── */}
+          <div className="flex justify-between items-center py-1.5 border-t border-dashed border-gray-200">
+            <span className="text-gray-500">📷 Camera 24/7 ({days} ngày × {cameraPrice.toLocaleString()}đ)</span>
+            <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
+          </div>
+
+          {/* ── Giảm giá ── */}
+          {isCouponApplied && totalDiscountAmount > 0 && (
+            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+              <span className="flex items-center gap-1">
+                <Percent className="w-4 h-4" />
+                Ưu đãi -10% ({promotionInfo.code}):
+              </span>
+              <span>- {totalDiscountAmount.toLocaleString()}đ</span>
+            </div>
+          )}
+
+          {/* ── Thứ 5 quà tặng ── */}
           {isThursday && (
             <div className="flex justify-between items-start bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
               <span className="flex items-center gap-1.5 text-amber-800 font-bold">
                 <Gift className="w-4 h-4 text-amber-500" />
-                Quà tặng Thứ 5 — Pate theo sở thích:
+                Quà Thứ 5 — Pate theo sở thích:
               </span>
               <div className="text-right">
                 <span className="font-black text-amber-700">Miễn phí 🎉</span>
@@ -164,37 +331,72 @@ const Step4Checkout = ({ data, onNext, onPrev }) => {
               </div>
             </div>
           )}
-
-          <div className="flex justify-between">
-            <span>Dịch vụ Camera 24/7 ({days} ngày x {cameraPrice.toLocaleString()}đ):</span>
-            <span className="font-medium">{cameraTotal.toLocaleString()}đ</span>
-          </div>
         </div>
 
         <div className="flex justify-between items-center pt-5 border-t-2 border-gray-200/80">
           <div>
             <span className="text-sm font-bold text-gray-400 uppercase block">Tổng thanh toán dự kiến</span>
-            <span className="text-xs text-emerald-600 font-bold">
-              {isCouponApplied ? `Đã tiết kiệm ${discountAmount.toLocaleString()}đ` : ''}
-            </span>
+            {isCouponApplied && totalDiscountAmount > 0 && (
+              <span className="text-xs text-emerald-600 font-bold">Đã tiết kiệm {totalDiscountAmount.toLocaleString()}đ</span>
+            )}
           </div>
           <span className="text-3xl font-black text-accent">{total.toLocaleString()}đ</span>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-100 flex justify-between">
+      {/* Conflict Error Alert */}
+      {conflictError && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-left animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle className="w-6 h-6 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+          <div className="flex-1">
+            <h4 className="font-bold text-red-800 text-base">Phòng vừa có khách đặt trước!</h4>
+            <p className="text-red-700 text-sm mt-1 leading-relaxed">{conflictError}</p>
+            <div className="mt-3 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const conflictedId = data.selectedRoom?.id;
+                  if (onBackToStep1) {
+                    onBackToStep1(conflictedId);
+                  } else {
+                    if (updateData) updateData({ selectedRoom: null, conflictedRoomId: conflictedId });
+                    if (onPrev) onPrev();
+                  }
+                }}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                <span>Chọn phòng khác</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
         <button 
           onClick={onPrev}
-          className="bg-white border border-gray-200 text-gray-600 font-bold px-8 py-3.5 rounded-xl hover:bg-gray-50 transition-colors"
+          disabled={isSubmitting}
+          className="bg-white border border-gray-200 text-gray-600 font-bold px-8 py-3.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           Quay lại
         </button>
         <button 
           onClick={handleSubmit}
-          className="bg-accent hover:bg-accent-hover text-white font-bold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-accent/30 active:scale-95 flex items-center gap-2"
+          disabled={isSubmitting}
+          className="bg-accent hover:bg-accent-hover text-white font-bold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-accent/30 active:scale-95 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-5 h-5" />
-          <span>GỬI YÊU CẦU ĐẶT LỊCH</span>
+          {isSubmitting ? (
+            <>
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span>ĐANG XÁC NHẬN...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              <span>GỬI YÊU CẦU ĐẶT LỊCH</span>
+            </>
+          )}
         </button>
       </div>
     </div>

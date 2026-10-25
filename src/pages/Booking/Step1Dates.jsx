@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Gift } from 'lucide-react';
+import { Plus, Gift, Search, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useRoomState } from '../../contexts/RoomStateContext';
+import { sendWebNotification } from '../../utils/notificationService';
 
 
 /* ------------------------------------------------
@@ -19,109 +21,97 @@ const PawIcon = ({ className = '' }) => (
    Cat Count Picker Component
 ------------------------------------------------ */
 const CatCountPicker = ({ value, onChange }) => {
-  const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(null);
-  const popupRef = useRef(null);
-  const selectedRef = useRef(null);
-  const numbers = Array.from({ length: 100 }, (_, i) => i + 1);
+  const safeValue = Number(value) || 1;
 
-  // Close popup on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e) => {
-      if (popupRef.current && !popupRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  // Scroll to selected item when popup opens
-  useEffect(() => {
-    if (open && selectedRef.current) {
-      selectedRef.current.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const handleManualChange = (e) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      onChange(1);
+      return;
     }
-  }, [open]);
 
-  const handleSelect = (num) => {
-    onChange(num);
-    setOpen(false);
+    const parsed = Number(raw);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+      onChange(parsed);
+    }
+  };
+
+  const handleAdd = () => {
+    const next = Math.min(3, safeValue + 1);
+    onChange(next);
+  };
+
+  const handleSubtract = () => {
+    const next = Math.max(1, safeValue - 1);
+    onChange(next);
   };
 
   return (
     <div>
       <label className="block text-sm font-semibold text-text-dark mb-3">Số lượng mèo</label>
-      <div className="flex items-center gap-4">
-        {/* Display current value */}
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-primary-light border-2 border-primary rounded-full">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSubtract}
+          className="w-10 h-10 rounded-full border border-primary bg-white text-primary font-bold text-lg hover:bg-primary hover:text-white transition-colors"
+        >
+          −
+        </button>
+
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-primary-light border-2 border-primary rounded-full min-w-[120px] justify-center">
           <PawIcon className="h-4 w-4 text-primary" />
-          <span className="text-primary font-bold text-sm">
-            {value ? `${value} bé` : 'Chưa chọn'}
-          </span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={safeValue}
+            onChange={handleManualChange}
+            className="w-14 bg-transparent text-center text-primary font-bold text-sm outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            aria-label="Số lượng mèo"
+          />
+          <span className="text-primary font-bold text-sm">bé</span>
         </div>
 
-        {/* Plus button */}
-        <div className="relative" ref={popupRef}>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            title="Chọn số lượng"
-            className="w-10 h-10 flex items-center justify-center rounded-full border-2 border-primary bg-white text-primary hover:bg-primary hover:text-white transition-all duration-200 shadow-sm"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-
-          {/* Popup */}
-          {open && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 bottom-12 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
-              style={{ width: 160 }}
-            >
-              {/* Header */}
-              <div className="px-4 py-3 bg-primary-light border-b border-primary/20 text-center">
-                <span className="text-xs font-bold text-primary tracking-wide uppercase">Số lượng bé</span>
-              </div>
-
-              {/* Scrollable list */}
-              <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
-                {numbers.map((num) => {
-                  const isSelected = value === num;
-                  const isHov = hovered === num;
-                  return (
-                    <div
-                      key={num}
-                      ref={isSelected ? selectedRef : null}
-                      onClick={() => handleSelect(num)}
-                      onMouseEnter={() => setHovered(num)}
-                      onMouseLeave={() => setHovered(null)}
-                      className={`flex items-center justify-between px-4 py-2 cursor-pointer transition-all duration-100 select-none ${
-                        isSelected
-                          ? 'bg-primary text-white font-bold'
-                          : isHov
-                          ? 'bg-primary-light text-primary font-semibold'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-sm">{num} bé</span>
-                      {(isSelected || isHov) && (
-                        <PawIcon className={`h-4 w-4 ml-2 flex-shrink-0 ${isSelected ? 'text-white' : 'text-primary'}`} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Footer hint */}
-              <div className="px-4 py-2 border-t border-gray-100 text-center">
-                <span className="text-xs text-gray-400">Cuộn để xem thêm</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={safeValue >= 3}
+          className="w-10 h-10 rounded-full border border-primary bg-white text-primary font-bold text-lg hover:bg-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Tăng số lượng bé tối đa 3"
+        >
+          +
+        </button>
       </div>
+      <p className="mt-2 text-xs text-gray-500">Bạn gửi trên 3 bé, hãy nhập số lượng bé muốn gửi vào ô nhé!</p>
     </div>
   );
+};
+
+/* ------------------------------------------------
+   Config hạng phòng — badge & màu
+------------------------------------------------ */
+const TYPE_META = {
+  VIP: {
+    label: 'Hạng VIP',
+    badgeBg: 'bg-orange-100 border-orange-300 text-orange-700',
+    selectBg: 'border-orange-400 bg-orange-50',
+    dot: 'bg-orange-400',
+    capacityLabel: 'Tối đa 2 mèo/phòng',
+  },
+  VVIP: {
+    label: 'Hạng VVIP',
+    badgeBg: 'bg-purple-100 border-purple-300 text-purple-700',
+    selectBg: 'border-purple-400 bg-purple-50',
+    dot: 'bg-purple-400',
+    capacityLabel: 'Tối đa 4 mèo/phòng',
+  },
+  DELUXE: {
+    label: 'Hạng DELUXE',
+    badgeBg: 'bg-sky-100 border-sky-300 text-sky-700',
+    selectBg: 'border-sky-400 bg-sky-50',
+    dot: 'bg-sky-400',
+    capacityLabel: 'Tối đa 6 mèo/phòng',
+  },
 };
 
 /* ------------------------------------------------
@@ -129,8 +119,12 @@ const CatCountPicker = ({ value, onChange }) => {
 ------------------------------------------------ */
 const Step1Dates = ({ data, updateData, onNext }) => {
   const [error, setError] = useState('');
-  const [availableRooms, setAvailableRooms] = useState(null);
+  const [availableGroups, setAvailableGroups] = useState(null); // nhóm theo hạng
   const [noRooms, setNoRooms] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+
+  // Kết nối với shared RoomStateContext
+  const { getRoomAvailability, bookings } = useRoomState();
 
   // Kiểm tra nếu ngày check-in là Thứ 5 (getDay() === 4)
   const isThursdayCheckIn = () => {
@@ -140,66 +134,164 @@ const Step1Dates = ({ data, updateData, onNext }) => {
   };
   const thursdayPromo = isThursdayCheckIn();
 
+  const parseDateOnly = (value) => {
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Cập nhật trạng thái phòng Realtime nếu có khách khác vừa đặt
+  useEffect(() => {
+    if (availableGroups && data.checkIn && data.checkOut) {
+      const updatedGroups = getRoomAvailability(data.catCount || 1, data.checkIn, data.checkOut);
+      setAvailableGroups(updatedGroups);
+
+      if (data.selectedRoom) {
+        const currentRoom = updatedGroups
+          ?.flatMap((g) => g.rooms)
+          .find((r) => r.id === data.selectedRoom.id);
+
+        if (!currentRoom || currentRoom.remaining < (data.catCount || 1)) {
+          const roomName = data.selectedRoom.id;
+          updateData({ selectedRoom: null, conflictedRoomId: roomName });
+          setError(`Phòng ${roomName} vừa hết chỗ cho ${data.catCount || 1} bé. Vui lòng chọn phòng khác!`);
+          sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
+            body: `Phòng ${roomName} vừa hết chỗ cho các bé. Hệ thống đã bôi đỏ để bạn chọn phòng khác.`,
+          });
+        } else if (currentRoom.remaining !== data.selectedRoom.remaining) {
+          updateData({ selectedRoom: currentRoom });
+        }
+      }
+    }
+  }, [bookings, data.catCount, data.checkIn, data.checkOut]);
+
   const handleCheckRoom = () => {
     if (!data.checkIn || !data.checkOut) {
-      setError('Vui lòng chọn ngày nhận và ngày trả.');
+      setError('Vui lòng chọn ngày gửi và ngày đón.');
       return;
     }
-    setError('');
 
-    const isAvailable = Math.random() > 0.2;
-    if (isAvailable) {
-      setNoRooms(false);
-      setAvailableRooms([
-        { id: 'R1', name: 'Phòng Tiêu Chuẩn 1', capacity: '2/4', status: 'Còn trống' },
-        { id: 'R2', name: 'Phòng Cao Cấp 2', capacity: '1/2', status: 'Còn trống' },
-        { id: 'R3', name: 'Phòng VIP 1', capacity: '0/2', status: 'Còn trống' },
-      ]);
-    } else {
-      setNoRooms(true);
-      setAvailableRooms(null);
-      updateData({ selectedRoom: null });
+    if (parseDateOnly(data.checkOut) <= parseDateOnly(data.checkIn)) {
+      setError('Ngày đón bé phải sau ngày gửi bé.');
+      return;
     }
+
+    setError('');
+    setIsChecking(true);
+
+    // Mô phỏng delay network 500ms để UX mượt mà hơn
+    setTimeout(() => {
+      const groups = getRoomAvailability(data.catCount || 1, data.checkIn, data.checkOut);
+      setIsChecking(false);
+      const hasAnyFree = groups && groups.some((g) => g.rooms.some((r) => !r.isBooked));
+      if (!groups || groups.length === 0 || !hasAnyFree) {
+        setNoRooms(true);
+        setAvailableGroups(null);
+        updateData({ selectedRoom: null });
+      } else {
+        setNoRooms(false);
+        setAvailableGroups(groups);
+      }
+    }, 500);
   };
 
   const handleNextClick = () => {
-    if (!data.checkIn || !data.checkOut || !data.selectedRoom) {
-      setError('Vui lòng chọn ngày và phòng hợp lệ trước khi tiếp tục.');
+    if (!data.checkIn || !data.checkOut) {
+      setError('Vui lòng chọn ngày gửi và ngày đón.');
+      return;
+    }
+
+    if (parseDateOnly(data.checkOut) <= parseDateOnly(data.checkIn)) {
+      setError('Ngày đón bé phải sau ngày gửi bé.');
+      return;
+    }
+
+    if (!data.selectedRoom) {
+      setError('Vui lòng chọn phòng hợp lệ trước khi tiếp tục.');
       return;
     }
     onNext();
   };
 
+  const resetRoomCheck = () => {
+    setAvailableGroups(null);
+    setNoRooms(false);
+    updateData({ selectedRoom: null });
+  };
+
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-bold text-text-dark font-title">1. Chọn thời gian &amp; Phòng</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold text-text-dark font-title">1. Chọn thời gian &amp; Phòng</h2>
+        {data.conflictedRoomId && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+            <span>Phòng {data.conflictedRoomId} vừa bị trùng (đã bôi đỏ)</span>
+          </span>
+        )}
+      </div>
+
+      {/* Banner thông báo phòng vừa trùng để khách dễ phân biệt */}
+      {data.conflictedRoomId && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex items-center justify-between gap-3 text-red-800 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-red-500 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+              !
+            </div>
+            <div>
+              <p className="font-bold text-red-900">
+                Phòng <span className="underline decoration-red-500 underline-offset-2 font-black">{data.conflictedRoomId}</span> vừa được khách khác đặt trước cùng lúc!
+              </p>
+              <p className="text-red-700 text-xs mt-0.5">
+                Hệ thống đã tự động <strong className="text-red-900">bôi đỏ nổi bật</strong> phòng này bên dưới. Vui lòng chọn một phòng còn trống khác để tiếp tục.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => updateData({ conflictedRoomId: null })}
+            className="text-xs text-red-600 hover:text-red-900 font-bold px-2 py-1 rounded-lg hover:bg-red-100 transition-colors shrink-0"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Date Inputs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày nhận</label>
+          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày gửi bé</label>
           <input
             type="date"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
             value={data.checkIn}
             onChange={(e) => {
-              updateData({ checkIn: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
+              const nextCheckIn = e.target.value;
+              updateData({ checkIn: nextCheckIn, selectedRoom: null });
+              if (data.checkOut && parseDateOnly(data.checkOut) <= parseDateOnly(nextCheckIn)) {
+                setError('Ngày đón bé phải sau ngày gửi bé.');
+              } else {
+                setError('');
+              }
+              resetRoomCheck();
             }}
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày trả</label>
+          <label className="block text-sm font-semibold text-text-dark mb-2">Ngày đón bé</label>
           <input
             type="date"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-gray-600"
             value={data.checkOut}
-            min={data.checkIn}
             onChange={(e) => {
-              updateData({ checkOut: e.target.value, selectedRoom: null });
-              setAvailableRooms(null);
-              setNoRooms(false);
+              const nextCheckOut = e.target.value;
+              updateData({ checkOut: nextCheckOut, selectedRoom: null });
+              if (data.checkIn && parseDateOnly(nextCheckOut) <= parseDateOnly(data.checkIn)) {
+                setError('Ngày đón bé phải sau ngày gửi bé.');
+              } else {
+                setError('');
+              }
+              resetRoomCheck();
             }}
           />
         </div>
@@ -226,25 +318,35 @@ const Step1Dates = ({ data, updateData, onNext }) => {
         value={data.catCount}
         onChange={(num) => {
           updateData({ catCount: num, selectedRoom: null });
-          setAvailableRooms(null);
-          setNoRooms(false);
+          resetRoomCheck();
         }}
       />
 
       {/* Check Room Action */}
-      {!availableRooms && !noRooms && (
+      {!availableGroups && !noRooms && (
         <button
           onClick={handleCheckRoom}
-          className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 mt-4"
+          disabled={isChecking}
+          className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent-hover transition-colors shadow-lg shadow-accent/30 mt-4 flex items-center justify-center gap-2 disabled:opacity-70"
         >
-          Kiểm tra phòng trống
+          {isChecking ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Đang kiểm tra...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4" />
+              Kiểm tra phòng trống
+            </>
+          )}
         </button>
       )}
 
       {/* No Rooms */}
       {noRooms && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <p className="text-red-600 font-medium mb-4">Rất tiếc, cửa hàng không còn phòng trong thời gian này.</p>
+          <p className="text-red-600 font-medium mb-4">Rất tiếc, cửa hàng không còn phòng phù hợp trong thời gian này.</p>
           <button
             onClick={() => {
               updateData({ checkIn: '', checkOut: '' });
@@ -257,28 +359,122 @@ const Step1Dates = ({ data, updateData, onNext }) => {
         </div>
       )}
 
-      {/* Available Rooms */}
-      {availableRooms && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-          <h3 className="font-bold text-text-dark">Phòng có sẵn:</h3>
-          <div className="grid gap-3">
-            {availableRooms.map((room) => (
-              <div
-                key={room.id}
-                onClick={() => updateData({ selectedRoom: room })}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  data.selectedRoom?.id === room.id
-                    ? 'border-primary bg-primary-light'
-                    : 'border-gray-100 bg-bg-cream hover:border-primary/50'
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-text-dark">{room.name}</span>
-                  <span className="text-sm text-gray-500">Sức chứa: {room.capacity}</span>
+      {/* ── Available Rooms grouped by type ── */}
+      {availableGroups && (
+        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-text-dark flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              Phòng có sẵn:
+            </h3>
+            <button
+              onClick={resetRoomCheck}
+              className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+            >
+              Kiểm tra lại
+            </button>
+          </div>
+
+          {availableGroups.map(({ type, rooms }) => {
+            const meta = TYPE_META[type] || TYPE_META.VIP;
+            return (
+              <div key={type} className="space-y-2">
+                {/* Tiêu đề hạng */}
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold ${meta.badgeBg}`}>
+                  <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                  {meta.label}
+                  <span className="opacity-60">— {meta.capacityLabel}</span>
+                </div>
+
+                {/* Danh sách phòng trong hạng: độ rộng vừa đủ chứa tên phòng & số chỗ còn trống */}
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  {rooms.map((room) => {
+                    const isSelected = data.selectedRoom?.id === room.id;
+                    const isConflicted = data.conflictedRoomId === room.id;
+                    const neededCats = Number(data.catCount) || 1;
+                    const isZeroSlots = room.remaining <= 0;
+                    const isNotEnoughSlots = room.remaining < neededCats;
+
+                    // 1. Phòng vừa được ghi nhận đặt cùng lúc trước đó -> BÔI ĐỎ NỔI BẬT ĐỂ DỄ PHÂN BIỆT
+                    if (isConflicted) {
+                      return (
+                        <div
+                          key={room.id}
+                          title={`Phòng ${room.id} vừa được một khách hàng khác đặt trước cùng lúc`}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 border-red-500 bg-red-100 text-red-900 cursor-not-allowed text-sm select-none shadow-md ring-2 ring-red-400/60 animate-pulse"
+                        >
+                          <span className="font-black text-red-900">{room.id}</span>
+                          <span className="text-xs font-black px-2 py-0.5 rounded-md bg-red-600 text-white shadow-xs">
+                            ⚠️ Vừa có khách đặt
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // 2. Kín phòng (hết toàn bộ chỗ)
+                    if (isZeroSlots) {
+                      return (
+                        <div
+                          key={room.id}
+                          title={`Phòng ${room.id} đã kín phòng (0/${room.capacity} chỗ) trong khoảng thời gian này`}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-red-200 bg-red-50/70 text-gray-400 cursor-not-allowed text-sm select-none"
+                        >
+                          <span className="font-bold line-through text-gray-500">{room.id}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-600">
+                            Kín phòng (0/{room.capacity})
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // 3. Còn chỗ nhưng không đủ cho số mèo khách muốn gửi
+                    if (isNotEnoughSlots) {
+                      return (
+                        <div
+                          key={room.id}
+                          title={`Phòng ${room.id} chỉ còn ${room.remaining} chỗ trống, không đủ cho ${neededCats} bé`}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-amber-200 bg-amber-50/60 text-gray-500 cursor-not-allowed text-sm select-none"
+                        >
+                          <span className="font-bold text-gray-600">{room.id}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                            Còn {room.remaining} chỗ (cần {neededCats})
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // 4. Còn đủ chỗ cho khách chọn đặt
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => updateData({ selectedRoom: room })}
+                        className={`
+                          inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border-2 cursor-pointer transition-all duration-200 text-sm
+                          ${isSelected
+                            ? `${meta.selectBg} shadow-sm ring-2 ring-primary/20`
+                            : 'border-gray-200 bg-white hover:border-primary/40 hover:bg-orange-50/20 text-gray-700'}
+                        `}
+                      >
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
+                        <span className="font-bold text-text-dark">{room.id}</span>
+                        {room.remaining < room.capacity ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300">
+                            Còn {room.remaining} chỗ
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Còn {room.remaining} chỗ
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
 

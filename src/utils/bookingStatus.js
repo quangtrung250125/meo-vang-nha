@@ -61,13 +61,20 @@ export const getBookingStatus = (booking) => {
   }
 
   // Tương thích ngược với các chuỗi trạng thái cũ
-  if (booking.status === 'Đang lưu trú' || booking.dynamicStatus === 'Đang lưu trú') {
+  // Trạng thái vận hành phòng ('check-in' = chờ Admin nhận bé)
+  if (booking.status === 'check-in') {
+    return BOOKING_STATUS.UPCOMING;
+  }
+  if (booking.status === 'Đang lưu trú' || booking.status === 'đang ở' || booking.dynamicStatus === 'Đang lưu trú') {
     return BOOKING_STATUS.IN_HOUSE;
   }
-  if (booking.status === 'Đã hoàn tất' || booking.status === 'Đã hoàn thành' || booking.dynamicStatus === 'Đã hoàn tất') {
+  if (
+    ['Đã hoàn tất', 'Đã hoàn thành', 'hoàn tất', 'check-out'].includes(booking.status) ||
+    booking.dynamicStatus === 'Đã hoàn tất'
+  ) {
     return BOOKING_STATUS.COMPLETED;
   }
-  if (booking.status === 'Đã hủy' || booking.dynamicStatus === 'Đã hủy') {
+  if (booking.status === 'Đã hủy' || booking.status === 'cancelled' || booking.dynamicStatus === 'Đã hủy') {
     return BOOKING_STATUS.CANCELLED;
   }
   if (booking.status === 'Chờ khách xác nhận') {

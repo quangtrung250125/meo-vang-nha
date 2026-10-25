@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Info, Plus, Check, Gift } from 'lucide-react';
 import { usePetProfile } from '../../contexts/PetContext';
 import PetForm from '../../components/PetForm';
@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 
 const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
   const { petList, savePet } = usePetProfile();
+  const requiredPetCount = Math.max(1, Number(data.catCount) || 1);
   
   const [selectedIds, setSelectedIds] = useState(() => {
     return data.petProfiles ? data.petProfiles.map(p => p.id) : [];
@@ -15,12 +16,18 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
   const [addingNew, setAddingNew] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    if (petList.length === 0 && !addingNew) {
+      setAddingNew(true);
+    }
+  }, [petList.length, addingNew]);
+
   const toggleSelect = (id) => {
     if (selectedIds.includes(id)) {
       setSelectedIds(prev => prev.filter(i => i !== id));
     } else {
-      if (selectedIds.length >= data.catCount) {
-        toast.error(`Bạn chỉ được chọn hồ sơ cho ${data.catCount} bé mèo như đã đăng ký.`);
+      if (selectedIds.length >= requiredPetCount) {
+        toast.error(`Bạn chỉ được chọn hồ sơ cho ${requiredPetCount} bé mèo như đã đăng ký.`);
         return;
       }
       setSelectedIds(prev => [...prev, id]);
@@ -33,7 +40,7 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
       const newPet = { ...petData, id: petData.id || Date.now().toString() };
       savePet(newPet);
       
-      if (selectedIds.length < data.catCount) {
+      if (selectedIds.length < requiredPetCount) {
         setSelectedIds(prev => [...prev, newPet.id]);
       }
       
@@ -44,8 +51,8 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
   };
 
   const handleNextClick = () => {
-    if (selectedIds.length !== data.catCount) {
-      toast.error(`Vui lòng chọn đủ hồ sơ cho ${data.catCount} bé mèo.`);
+    if (selectedIds.length !== requiredPetCount) {
+      toast.error(`Vui lòng chọn đủ hồ sơ cho ${requiredPetCount} bé mèo.`);
       return;
     }
     
@@ -68,6 +75,7 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
           onSave={handleSaveNewPet}
           onCancel={() => setAddingNew(false)}
           isSaving={isSaving}
+          compact={true}
         />
       </div>
     );
@@ -78,8 +86,8 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
       <div>
         <h2 className="text-2xl font-bold text-text-dark font-title mb-2">3. Hồ sơ bé mèo</h2>
         <p className="text-gray-600">
-          Vui lòng chọn hồ sơ cho <strong>{data.catCount}</strong> bé mèo bạn đã đăng ký. 
-          (Đã chọn {selectedIds.length}/{data.catCount})
+          Vui lòng chọn hồ sơ cho <strong>{requiredPetCount}</strong> bé mèo bạn đã đăng ký. 
+          (Đã chọn {selectedIds.length}/{requiredPetCount})
         </p>
       </div>
 
@@ -147,7 +155,7 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
         <button onClick={onPrev} className="bg-white border border-gray-200 text-gray-600 font-bold px-8 py-3 rounded-xl hover:bg-gray-50 transition-colors">Quay lại</button>
         <button 
           onClick={handleNextClick} 
-          className={`font-bold px-8 py-3 rounded-xl transition-all shadow-md ${selectedIds.length === data.catCount ? 'bg-primary text-white hover:opacity-90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+          className={`font-bold px-8 py-3 rounded-xl transition-all shadow-md ${selectedIds.length === requiredPetCount ? 'bg-primary text-white hover:opacity-90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
         >
           Tiếp tục
         </button>

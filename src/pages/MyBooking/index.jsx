@@ -16,8 +16,9 @@ import {
   CreditCard
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
 import { 
   BOOKING_STATUS, 
@@ -40,6 +41,7 @@ const MyBooking = () => {
     customerCancel,
     resetDefaultBookings
   } = useBookingHistory();
+  const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
 
   const { petList } = usePetProfile();
   const { approvalModalBookingId, openApprovalModal, closeApprovalModal } = useUI();
@@ -72,7 +74,14 @@ const MyBooking = () => {
   }, [approvalModalBookingId, globalBookingList, closeApprovalModal]);
 
   // Chuẩn hóa và lọc danh sách đơn
-  const processedBookings = globalBookingList.map(booking => {
+  const activeCustomer = authenticatedCustomer || customerProfile;
+
+  // Lọc chỉ hiển thị đơn của tài khoản đang đăng nhập (Admin thấy tất cả; nếu chưa đăng nhập thì hiển thị danh sách đơn đã đồng bộ)
+  const myBookings = activeCustomer
+    ? globalBookingList.filter((booking) => isBookingOfCustomer(booking, activeCustomer, isAdmin))
+    : globalBookingList;
+
+  const processedBookings = myBookings.map(booking => {
     const normalizedStatus = getBookingStatus(booking);
     return {
       ...booking,
@@ -140,7 +149,7 @@ const MyBooking = () => {
 
           <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
             <Link
-              to="/admin"
+              to="/admin/approvals"
               target="_blank"
               rel="noreferrer"
               className="w-full md:w-auto text-center px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"

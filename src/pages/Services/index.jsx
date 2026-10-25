@@ -27,14 +27,26 @@ import {
   HeartHandshake,
   Percent
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { packagesList, promotionInfo } from '../../mockData/servicesData';
+import BoardingDetailSection from '../../components/BoardingServices/BoardingDetailSection';
 
 const Services = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('Tất cả');
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState('Lưu trú');
   const [copied, setCopied] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  React.useEffect(() => {
+    const tabParam = searchParams.get('tab') || location.state?.tab;
+    if (tabParam === 'hotel' || tabParam === 'luu-tru' || tabParam === 'Lưu trú') {
+      setActiveTab('Lưu trú');
+    } else if (tabParam === 'all' || tabParam === 'Tất cả') {
+      setActiveTab('Tất cả');
+    }
+  }, [searchParams, location.state]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(promotionInfo.code);
@@ -166,110 +178,205 @@ const Services = () => {
           </div>
         </div>
 
-        {/* Services Grid */}
-        {filteredPackages.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-            {filteredPackages.map((service, idx) => (
-              <div 
-                key={service.id || idx} 
-                className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
-              >
-                {/* 10% Discount Floating Badge */}
-                {service.isPromo && (
-                  <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
-                    <span>ƯU ĐÃI GIẢM 10%</span>
+        {/* Khi chọn tab Lưu trú -> Hiển thị phần Chi Tiết Dịch Vụ Lưu Trú Cho Mèo */}
+        {activeTab === 'Lưu trú' && (
+          <div className="mb-20">
+            <BoardingDetailSection />
+          </div>
+        )}
+
+        {/* Khi chọn tab Tất cả -> Hiển thị BoardingDetailSection trước, sau đó là các dịch vụ Spa & khác */}
+        {activeTab === 'Tất cả' && (
+          <div className="mb-20 space-y-16">
+            <BoardingDetailSection />
+
+            {/* Phần dịch vụ Spa & Khác */}
+            <div className="pt-8 border-t border-gray-200/80">
+              <div className="text-center max-w-2xl mx-auto mb-10">
+                <span className="text-xs font-bold uppercase tracking-wider text-accent bg-orange-100 px-3 py-1 rounded-full">
+                  Dịch vụ làm đẹp & chăm sóc
+                </span>
+                <h3 className="text-3xl font-extrabold text-text-dark font-title mt-2">
+                  Dịch Vụ Spa, Tắm Cắt & Đưa Đón
+                </h3>
+                <p className="text-gray-500 text-sm mt-1">
+                  Trải nghiệm liệu trình chăm sóc lông móng và xe đưa đón tận nơi
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredPackages.filter(p => p.category !== 'Lưu trú').map((service, idx) => (
+                  <div 
+                    key={service.id || idx} 
+                    className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
+                  >
+                    {service.isPromo && (
+                      <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
+                        <span>ƯU ĐÃI GIẢM 10%</span>
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
+                      {service.category}
+                    </div>
+                    <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
+                       <img 
+                        src={service.image} 
+                        alt={service.name} 
+                        className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" 
+                       />
+                       <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
+                      {service.isPromo && (
+                        <div className="absolute bottom-3 right-3 bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow">
+                          Tiết kiệm {service.savingsString}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6 flex flex-col flex-1 justify-between">
+                      <div>
+                        <h3 className="text-2xl font-bold text-text-dark mb-2 font-title group-hover:text-primary transition-colors">
+                          {service.name}
+                        </h3>
+                        <div className="bg-bg-cream rounded-2xl p-3.5 mb-4 border border-orange-100/70">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-black text-accent font-title">
+                              {service.priceString}
+                            </span>
+                            <span className="text-xs text-gray-500 font-semibold">
+                              {service.period}
+                            </span>
+                            {service.originalPriceString && (
+                              <span className="text-sm text-gray-400 line-through font-medium ml-auto">
+                                {service.originalPriceString}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
+                          {service.desc}
+                        </p>
+                        <div className="space-y-2.5 mb-6 pt-2 border-t border-gray-100">
+                          <p className="text-xs font-bold uppercase text-gray-400 tracking-wider">Tiện ích đi kèm:</p>
+                          {service.features?.map((feature, fIdx) => (
+                            <div key={fIdx} className="flex items-center gap-2 text-sm text-gray-700">
+                              <Check className="w-4 h-4 text-primary shrink-0 stroke-[2.5]" />
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
+                        className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
+                      >
+                        <span>Đặt dịch vụ này</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                )}
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-                {/* Category Pill */}
-                <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
-                  {service.category}
-                </div>
-
-                {/* Service Image */}
-                <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
-                   <img 
-                    src={service.image} 
-                    alt={service.name} 
-                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" 
-                   />
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
-                   
-                   {/* Saving Tag Bottom-Right of Image */}
+        {/* Các tab khác (Spa, Ưu đãi, Dịch vụ khác) */}
+        {activeTab !== 'Lưu trú' && activeTab !== 'Tất cả' && (
+          filteredPackages.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+              {filteredPackages.map((service, idx) => (
+                <div 
+                  key={service.id || idx} 
+                  className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
+                >
                   {service.isPromo && (
-                    <div className="absolute bottom-3 right-3 bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow">
-                      Tiết kiệm {service.savingsString}
+                    <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
+                      <span>ƯU ĐÃI GIẢM 10%</span>
                     </div>
                   )}
-                </div>
 
-                {/* Service Content */}
-                <div className="p-6 flex flex-col flex-1 justify-between">
-                  <div>
-                    <h3 className="text-2xl font-bold text-text-dark mb-2 font-title group-hover:text-primary transition-colors">
-                      {service.name}
-                    </h3>
-                    
-                    {/* Pricing Section with 10% Discount Display */}
-                    <div className="bg-bg-cream rounded-2xl p-3.5 mb-4 border border-orange-100/70">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-black text-accent font-title">
-                          {service.priceString}
-                        </span>
-                        <span className="text-xs text-gray-500 font-semibold">
-                          {service.period}
-                        </span>
-                        
-                        {/* Original Strikethrough Price */}
-                        {service.originalPriceString && (
-                          <span className="text-sm text-gray-400 line-through font-medium ml-auto">
-                            {service.originalPriceString}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
-                        <span>✓ Đã áp dụng giảm 10%</span>
-                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
-                          -10%
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
-                      {service.desc}
-                    </p>
-
-                    {/* Features List */}
-                    <div className="space-y-2.5 mb-6 pt-2 border-t border-gray-100">
-                      <p className="text-xs font-bold uppercase text-gray-400 tracking-wider">Tiện ích đi kèm:</p>
-                      {service.features?.map((feature, fIdx) => (
-                        <div key={fIdx} className="flex items-center gap-2 text-sm text-gray-700">
-                          <Check className="w-4 h-4 text-primary shrink-0 stroke-[2.5]" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
+                    {service.category}
                   </div>
 
-                  {/* Action Button */}
-                  <button 
-                    onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
-                    className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
-                  >
-                    <span>Đặt phòng với ưu đãi 10%</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
+                     <img 
+                      src={service.image} 
+                      alt={service.name} 
+                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" 
+                     />
+                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60"></div>
+                     
+                    {service.isPromo && (
+                      <div className="absolute bottom-3 right-3 bg-emerald-600/95 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow">
+                        Tiết kiệm {service.savingsString}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-6 flex flex-col flex-1 justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-text-dark mb-2 font-title group-hover:text-primary transition-colors">
+                        {service.name}
+                      </h3>
+                      
+                      <div className="bg-bg-cream rounded-2xl p-3.5 mb-4 border border-orange-100/70">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-black text-accent font-title">
+                            {service.priceString}
+                          </span>
+                          <span className="text-xs text-gray-500 font-semibold">
+                            {service.period}
+                          </span>
+                          
+                          {service.originalPriceString && (
+                            <span className="text-sm text-gray-400 line-through font-medium ml-auto">
+                              {service.originalPriceString}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
+                          <span>✓ Đã áp dụng giảm 10%</span>
+                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
+                            -10%
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
+                        {service.desc}
+                      </p>
+
+                      <div className="space-y-2.5 mb-6 pt-2 border-t border-gray-100">
+                        <p className="text-xs font-bold uppercase text-gray-400 tracking-wider">Tiện ích đi kèm:</p>
+                        {service.features?.map((feature, fIdx) => (
+                          <div key={fIdx} className="flex items-center gap-2 text-sm text-gray-700">
+                            <Check className="w-4 h-4 text-primary shrink-0 stroke-[2.5]" />
+                            <span>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
+                      className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
+                    >
+                      <span>Đặt dịch vụ với ưu đãi 10%</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm mb-20">
-            <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-600">Chưa có dịch vụ nào trong danh mục này</h3>
-            <p className="text-gray-400 text-sm mt-1">Vui lòng chọn danh mục khác để xem thêm dịch vụ.</p>
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm mb-20">
+              <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-600">Chưa có dịch vụ nào trong danh mục này</h3>
+              <p className="text-gray-400 text-sm mt-1">Vui lòng chọn danh mục khác để xem thêm dịch vụ.</p>
+            </div>
+          )
         )}
 
         {/* Value Proposition Highlights */}

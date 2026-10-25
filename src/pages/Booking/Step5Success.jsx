@@ -1,13 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle, Download, Home, Gift } from 'lucide-react';
+import { CheckCircle, Download, Home, Gift, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
-import { BOOKING_STATUS } from '../../utils/bookingStatus';
+import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
 
-const Step5Success = ({ data }) => {
-  const [bookingId, setBookingId] = useState('');
-  const { addBooking } = useBookingHistory();
+const Step5Success = ({ data, onBackToStep1 }) => {
+  const initialBookingId = data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id || '';
+  const [bookingId, setBookingId] = useState(initialBookingId);
+  const [bookingConflict, setBookingConflict] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState('');
+  const { upsertBooking } = useBookingHistory();
+  const { addNewBooking } = useRoomState();
+  const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
 
   // Kiểm tra Thứ 5
@@ -17,31 +23,117 @@ const Step5Success = ({ data }) => {
   })();
 
   useEffect(() => {
+    // Nếu đơn đã được xác nhận thành công tại Bước 4, chỉ hiển thị mã đặt phòng
+    if (data.confirmedBooking || data.bookingId) {
+      if (!bookingId) {
+        setBookingId(data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id);
+      }
+      return;
+    }
+
     if (hasAdded.current) return;
     hasAdded.current = true;
-    
-    // Generate random booking ID: MVN-XXXXX
+
+    // Dự phòng khi chuyển trực tiếp vào Bước 5
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const newId = `MVN-${randomNum}`;
     setBookingId(newId);
 
-    // Save to context
-    addBooking({
+    const activeCustomer = authenticatedCustomer || customerProfile;
+    const ownerName = activeCustomer?.fullName || data.customerName || 'Nguyễn Đức An';
+    const ownerPhone = activeCustomer?.phone || data.customerPhone || '0376131531';
+    const ownerTier = activeCustomer?.tier || 'Vàng';
+    const catNames = data.petProfiles && data.petProfiles.length > 0
+      ? data.petProfiles.map(p => p.name).filter(Boolean).join(', ')
+      : 'Bé Miu Miu';
+    const packageName = data.selectedPackage?.name || 'Gói Chăm Sóc Toàn Diện';
+    const catCount = data.catCount || data.petProfiles?.length || 1;
+    const bookingStatus = determineBookingStatus(data.checkIn);
+
+    const bookingPayload = {
       id: newId,
+      code: newId,
+      ownerName,
+      ownerPhone,
+      ownerTier,
+      catNames,
+      cats: catCount,
       checkIn: data.checkIn,
       checkOut: data.checkOut,
+      packages: [packageName],
       selectedPackage: data.selectedPackage,
       selectedRoom: data.selectedRoom,
+      roomId: data.selectedRoom?.id,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
+      customerPhone: ownerPhone,
+      customerName: ownerName,
+      customerId: activeCustomer?.customerId || activeCustomer?.id || null,
+      status: bookingStatus,
       totalAmount: data.totalAmount || 0,
       paymentStatus: 'Chưa thanh toán',
-      status: BOOKING_STATUS.UPCOMING,
       pending_changes: null,
       previous_status: null,
-      createdAt: new Date().toISOString()
-    });
-  }, [addBooking, data]);
+      createdAt: new Date().toISOString(),
+    };
+
+    const executeFallbackBooking = async () => {
+      // ── Kiểm tra độc quyền phòng và đồng bộ sang Admin Tình trạng phòng ──
+      const roomId = data.selectedRoom?.id;
+      if (roomId) {
+        const roomResult = await addNewBooking(roomId, bookingPayload);
+
+        if (roomResult && (roomResult.conflict || roomResult.success === false)) {
+          setBookingConflict(true);
+          setConflictMessage(
+            roomResult.message ||
+              `Phòng ${roomId} vừa có khách đặt trong khoảng thời gian này. Vui lòng chọn phòng khác!`
+          );
+          return; // Dừng lại, KHÔNG lưu đơn vào booking history
+        }
+      }
+
+      // Chỉ lưu vào booking history khi phòng không bị xung đột
+      upsertBooking(bookingPayload);
+    };
+
+    executeFallbackBooking();
+  }, [addNewBooking, data, authenticatedCustomer, customerProfile, upsertBooking, bookingId]);
+
+  if (bookingConflict) {
+    return (
+      <div className="text-center space-y-6 py-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 text-red-600 shadow-sm">
+          <AlertTriangle className="h-10 w-10 text-red-500 animate-pulse" />
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-bold text-text-dark font-title">
+          Phòng vừa có khách đặt trước!
+        </h2>
+        <p className="max-w-xl mx-auto text-gray-600 leading-relaxed text-sm sm:text-base">
+          {conflictMessage ||
+            `Rất tiếc, trong lúc bạn thao tác, phòng ${data.selectedRoom?.id || ''} đã được một khách hàng khác đặt trong khoảng thời gian này. Để đảm bảo không gian riêng biệt cho các bé, vui lòng quay lại chọn phòng khác hoặc đổi ngày.`}
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          {onBackToStep1 ? (
+            <button
+              onClick={() => onBackToStep1(data.selectedRoom?.id)}
+              className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+            >
+              Chọn phòng khác
+            </button>
+          ) : (
+            <Link
+              to="/booking"
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+            >
+              Chọn phòng khác
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!bookingId) return null;
 
@@ -50,7 +142,7 @@ const Step5Success = ({ data }) => {
       <div className="flex justify-center mb-6">
         <CheckCircle className="w-24 h-24 text-primary animate-bounce" />
       </div>
-      
+
       <h2 className="text-3xl font-bold text-text-dark font-title">Đặt Lịch Thành Công!</h2>
       <p className="text-gray-600 max-w-md mx-auto">
         Cảm ơn bạn đã tin tưởng Mèo Vắng Nhà. Yêu cầu đặt phòng của các bé <strong>{data.petProfiles?.map(p => p.name).join(', ')}</strong> đã được ghi nhận.
@@ -79,27 +171,27 @@ const Step5Success = ({ data }) => {
       <div className="bg-bg-cream inline-block p-8 rounded-3xl border border-gray-100 shadow-sm mx-auto mt-8">
         <p className="text-sm text-gray-500 mb-2 font-semibold">MÃ ĐẶT PHÒNG CỦA BẠN</p>
         <p className="text-2xl font-bold text-text-dark mb-6 tracking-wider">{bookingId}</p>
-        
+
         <div className="bg-white p-4 rounded-xl inline-block shadow-sm mb-6 border border-gray-100">
-          <QRCodeSVG 
-            value={`https://meovangnha.vn/booking/${bookingId}`} 
+          <QRCodeSVG
+            value={`https://meovangnha.vn/booking/${bookingId}`}
             size={180}
             level="H"
             fgColor="#1E293B" // text-dark
           />
         </div>
-        
+
         <p className="text-sm text-gray-500 italic max-w-xs mx-auto">
           Vui lòng lưu lại mã QR này hoặc đưa cho nhân viên khi đến làm thủ tục check-in.
         </p>
       </div>
 
-      <div className="flex justify-center gap-4 pt-8">
+      <div className="flex flex-wrap justify-center gap-4 pt-8">
         <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-50 transition-colors">
           <Download className="w-5 h-5" />
           Lưu ảnh QR
         </button>
-        <Link 
+        <Link
           to="/"
           className="flex items-center gap-2 bg-primary text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity"
         >

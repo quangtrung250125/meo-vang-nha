@@ -8,7 +8,7 @@ const searchableData = [
     id: 'hotel-vip',
     title: 'Khách Sạn Mèo Cao Cấp & Phòng VIP',
     type: 'Dịch vụ',
-    desc: 'Điều hòa 24/7, camera trực tiếp, dọn vệ sinh 2 lần/ngày, đồ chơi riêng biệt.',
+    desc: 'Bảng giá dịch vụ lưu trú, điều hòa 24/7, camera trực tiếp, dọn vệ sinh 2 lần/ngày.',
     link: '/services',
     action: 'navigate',
     icon: Hotel,

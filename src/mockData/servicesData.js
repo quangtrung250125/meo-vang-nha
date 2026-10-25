@@ -9,10 +9,19 @@ export const promotionInfo = {
   terms: 'Ưu đãi được kích hoạt tự động ngay khi bạn đã hoàn tất ít nhất 1 lần đặt dịch vụ trước đó.'
 };
 
+// Surcharge cho từng hạng phòng (so với giá gốc của gói VIP)
+export const ROOM_SURCHARGES = {
+  VIP: 0,
+  VVIP: 10000,
+  DELUXE: 20000,
+};
+
 export const packagesList = [
   { 
     id: 'p1', 
     category: 'Lưu trú',
+    // Gói Quý Tộc chỉ dành cho phòng DELUXE
+    forRoomTypes: ['DELUXE'],
     name: 'Gói Mèo Quý Tộc', 
     originalPrice: 200000, 
     price: 180000, 
@@ -25,11 +34,11 @@ export const packagesList = [
     bg: 'bg-[#FFF9F0]', 
     border: 'border-orange-100', 
     desc: 'Phòng Deluxe sang trọng, menu 3 bữa chính + 1 bữa phụ đa dạng, camera riêng 24/24 với thoại 2 chiều.', 
-    image: '/images/service_hotel.png', 
+    image: '/images/rooms/deluxe-1.png', 
     features: [
-      'Phòng Deluxe cao cấp',
-      '3 bữa chính + 1 bữa phụ (gà, pate tươi, pate hộp, hạt Royal Canin, đồ sấy khô, súp)',
-      'Cát đậu nành sạch sẽ — dọn 2 lần/ngày',
+      'Phòng Deluxe cao cấp (2 biến thể)',
+      '3 bữa chính + 1 bữa phụ (sen tự chọn menu)',
+      'Cát đậu nành hữu cơ — dọn 2 lần/ngày',
       'Camera riêng 24/24, chỉnh hướng, thoại 2 chiều',
       'Tắm miễn phí khi gửi từ 5 ngày',
       'Free đón trả trong vòng 8km'
@@ -40,6 +49,11 @@ export const packagesList = [
   { 
     id: 'p2', 
     category: 'Lưu trú',
+    // Gói Sang Chảnh dành cho VIP, VVIP, DELUXE (với phụ phí)
+    forRoomTypes: ['VIP', 'VVIP', 'DELUXE'],
+    // Giá cơ sở (ứng với phòng VIP)
+    baseOriginalPrice: 150000,
+    basePrice: 135000,
     name: 'Gói Mèo Sang Chảnh', 
     originalPrice: 150000, 
     price: 135000, 
@@ -51,12 +65,11 @@ export const packagesList = [
     period: '/ngày', 
     bg: 'bg-primary-light', 
     border: 'border-green-100', 
-    desc: 'Phòng VIP ấm cúng, 3 bữa/ngày full pate hoặc mix hạt, camera riêng 24/24 theo dõi bé.', 
-    image: '/images/service_hotel.png', 
+    desc: '3 bữa/ngày full pate hoặc mix hạt, camera riêng 24/24 theo dõi bé.', 
+    image: '/images/rooms/vip.png', 
     features: [
-      'Phòng VIP (nâng Deluxe +20k, nâng VVIP +10k)',
       'Ăn 3 bữa/ngày: full pate hoặc mix 1 bữa hạt',
-      'Cát Bentonite — dọn 1 lần/ngày',
+      'Cát khoáng Bentonite — dọn 1 lần/ngày',
       'Camera trong phòng riêng 24/24',
       'Tắm miễn phí khi gửi từ 7 ngày',
       'Free đón trả trong vòng 6km'
@@ -67,6 +80,9 @@ export const packagesList = [
   { 
     id: 'p3', 
     category: 'Lưu trú',
+    forRoomTypes: ['VIP', 'VVIP', 'DELUXE'],
+    baseOriginalPrice: 120000,
+    basePrice: 108000,
     name: 'Gói Mèo Thượng Đế', 
     originalPrice: 120000, 
     price: 108000, 
@@ -78,12 +94,11 @@ export const packagesList = [
     period: '/ngày', 
     bg: 'bg-primary-light', 
     border: 'border-green-100', 
-    desc: 'Phòng VIP, ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.', 
-    image: '/images/service_hotel.png', 
+    desc: 'Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.', 
+    image: '/images/rooms/vip.png', 
     features: [
-      'Phòng VIP (nâng Deluxe +20k, nâng VVIP +10k)',
       'Ăn 3 bữa/ngày: 1 pate + 2 hạt',
-      'Cát Bentonite — dọn 1 lần/ngày',
+      'Cát khoáng Bentonite — dọn 1 lần/ngày',
       'Cập nhật tình hình hàng ngày (camera +10k)',
       'Tắm miễn phí khi gửi từ 8 ngày',
       'Free đón trả trong vòng 5km'
@@ -93,6 +108,9 @@ export const packagesList = [
   { 
     id: 'p4-tt', 
     category: 'Lưu trú',
+    forRoomTypes: ['VIP', 'VVIP', 'DELUXE'],
+    baseOriginalPrice: 90000,
+    basePrice: 81000,
     name: 'Gói Mèo Tự Túc', 
     originalPrice: 90000, 
     price: 81000, 
@@ -104,12 +122,11 @@ export const packagesList = [
     period: '/ngày', 
     bg: 'bg-[#FFF9F0]', 
     border: 'border-orange-100', 
-    desc: 'Sen tự chuẩn bị đồ ăn, tối đa 3 bữa/ngày. Phòng VIP sạch sẽ, cập nhật tình hình mỗi ngày.', 
-    image: '/images/service_care.png', 
+    desc: 'Sen tự chuẩn bị đồ ăn, tối đa 3 bữa/ngày. Cập nhật tình hình mỗi ngày.', 
+    image: '/images/rooms/vip.png', 
     features: [
-      'Phòng VIP (nâng Deluxe +20k, nâng VVIP +10k)',
       'Sen tự chuẩn bị đồ ăn — tối đa 3 bữa/ngày',
-      'Cát Bentonite — dọn 1 lần/ngày',
+      'Cát khoáng Bentonite — dọn 1 lần/ngày',
       'Cập nhật tình hình hàng ngày (camera +10k)',
       'Free đón trả trong vòng 4km'
     ],
