@@ -1,4 +1,4 @@
-import { deleteSubscriptionByEndpoint } from '../lib/db.js';
+import { deleteSubscriptionByEndpoint } from '../_lib/db.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

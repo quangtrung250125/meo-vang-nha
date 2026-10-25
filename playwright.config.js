@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 
 const PORT = 4173;
-// API dev ghi dữ liệu vào thư mục tạm để test không làm bẩn api/lib
+// API dev ghi dữ liệu vào thư mục tạm để test không làm bẩn api/_lib
 const dataDir = process.env.MVN_DATA_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'mvn-e2e-'));
 
 export default defineConfig({

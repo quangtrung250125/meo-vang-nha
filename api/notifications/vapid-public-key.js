@@ -1,4 +1,4 @@
-import { vapidPublicKey } from '../lib/pushService.js';
+import { vapidPublicKey } from '../_lib/pushService.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

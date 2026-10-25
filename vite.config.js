@@ -44,27 +44,27 @@ function apiDevPlugin() {
             if (req.method === 'POST') {
               req.body = await parseBody();
             }
-            const { handleSync } = await import('./api/lib/syncService.js');
+            const { handleSync } = await import('./api/_lib/syncService.js');
             return handleSync(req, res);
           }
           if (urlPath === '/api/bookings') {
             if (req.method === 'GET') {
-              const { handleGetBookings } = await import('./api/lib/bookingsService.js');
+              const { handleGetBookings } = await import('./api/_lib/bookingsService.js');
               return handleGetBookings(req, res);
             }
             if (req.method === 'POST') {
               req.body = await parseBody();
-              const { handleAddBooking } = await import('./api/lib/bookingsService.js');
+              const { handleAddBooking } = await import('./api/_lib/bookingsService.js');
               return handleAddBooking(req, res);
             }
             if (req.method === 'PUT' || req.method === 'PATCH') {
               req.body = await parseBody();
-              const { handleUpdateBooking } = await import('./api/lib/bookingsService.js');
+              const { handleUpdateBooking } = await import('./api/_lib/bookingsService.js');
               return handleUpdateBooking(req, res);
             }
             if (req.method === 'DELETE') {
               req.body = await parseBody();
-              const { handleRemoveBooking } = await import('./api/lib/bookingsService.js');
+              const { handleRemoveBooking } = await import('./api/_lib/bookingsService.js');
               return handleRemoveBooking(req, res);
             }
           }
@@ -122,9 +122,9 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: 5173,
       allowedHosts: true,
-      // API dev ghi dữ liệu vào api/lib/*.json; bỏ qua để Vite không tự tải lại trang sau khi đặt phòng
+      // API dev ghi dữ liệu vào api/_lib/*.json; bỏ qua để Vite không tự tải lại trang sau khi đặt phòng
       watch: {
-        ignored: ['**/api/lib/*.json'],
+        ignored: ['**/api/_lib/*.json'],
       },
     },
     test: {

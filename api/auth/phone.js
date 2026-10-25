@@ -1,4 +1,4 @@
-import { handlePhoneLogin, handlePhoneCheck } from '../lib/phoneLogin.js';
+import { handlePhoneLogin, handlePhoneCheck } from '../_lib/phoneLogin.js';
 
 // POST /api/auth/phone?action=login  { phone, password }
 // POST /api/auth/phone?action=check  { phone }

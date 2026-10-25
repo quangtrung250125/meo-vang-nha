@@ -5,7 +5,7 @@ import {
   handlePhoneLogin,
   normalizeVnPhone,
   setPhoneLoginDeps,
-} from '../../api/lib/phoneLogin.js';
+} from '../../api/_lib/phoneLogin.js';
 
 // Tài khoản giả trên "Supabase": email -> { password, phone }
 const ACCOUNTS = {
