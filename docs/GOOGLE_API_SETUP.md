@@ -1,7 +1,6 @@
 # 📘 Hướng Dẫn Cấu Hình Google API Cho SEO Radar (PageSpeed & Search Console)
 
 > **Tài liệu hướng dẫn cấu hình toàn diện theo giao diện mới nhất của Google Cloud (Google Auth Platform).**  
-> Dành cho lập trình viên và quản trị viên muốn tích hợp dữ liệu SEO thật vào website.
 
 ---
 
@@ -17,7 +16,7 @@ VITE_PAGESPEED_KEY=AIzaSy...
 VITE_GSC_CLIENT_ID=xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
 
 # 3. Domain trang web cần quét (cần là website online thật)
-VITE_SITE_URL=https://meovangnha.com
+VITE_SITE_URL=https://meovangnha.store
 ```
 
 ---
@@ -114,7 +113,7 @@ Nếu bỏ qua bước này, khi đăng nhập bạn sẽ bị lỗi:
        ```
        http://localhost:5173
        ```
-     - *(Nếu có domain thật hoặc link deploy Vercel, bấm tiếp + ADD URI và thêm vào, ví dụ: `https://meovangnha.com`)*.
+     - *(Nếu có domain thật hoặc link deploy Vercel, bấm tiếp + ADD URI và thêm vào, ví dụ: `https://meovangnha.store`)*.
    - **Authorized redirect URIs**: Để trống hoặc điền giống mục JavaScript origins.
 4. Bấm **CREATE** (Tạo).
 5. Một popup hiện ra hiển thị **Your Client ID** (chuỗi dài dạng `xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com`).
