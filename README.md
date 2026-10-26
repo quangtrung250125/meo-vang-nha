@@ -68,3 +68,8 @@
  4. Nhấn **Deploy**. `vercel.json` đã cấu hình rewrite về `index.html` để các route React như `/booking` không bị lỗi 404 khi refresh.
 
  Mỗi lần push lên `main`, Vercel sẽ tự build và cập nhật website. Kiểm tra local bằng `npm run lint` và `npm run build` trước khi push.
+
+## Cấu hình SEO Radar (Google PageSpeed & Search Console API)
+
+Để trang **SEO Radar** hiển thị số liệu thật (tốc độ Lighthouse, từ khóa, thứ hạng Google, số lượt click), xem tài liệu hướng dẫn chi tiết từng bước tại:  
+👉 **[docs/GOOGLE_API_SETUP.md](docs/GOOGLE_API_SETUP.md)**

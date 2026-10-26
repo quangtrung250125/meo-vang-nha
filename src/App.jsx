@@ -17,6 +17,7 @@ import Checkout from './pages/Checkout';
 import Promotions from './pages/Promotions';
 import AdminPromotions from './pages/AdminPromotions';
 import AdminMarketing from './pages/AdminMarketing';
+import AdminSEO from './pages/AdminSEO';
 import News from './pages/News';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider, useCustomerProfile } from './contexts/CustomerContext';
@@ -71,6 +72,7 @@ function AppRoutes() {
       <Route path="room-status" element={adminOnly(<RoomStatusPage />)} />
       <Route path="customers" element={adminOnly(<AdminCustomers />)} />
       <Route path="reviews" element={adminOnly(<AdminReviews />)} />
+      <Route path="seo" element={adminOnly(<AdminSEO />)} />
       <Route path="settings" element={adminOnly(<AdminSettings />)} />
       <Route path="*" element={<NotFound />} />
     </>
