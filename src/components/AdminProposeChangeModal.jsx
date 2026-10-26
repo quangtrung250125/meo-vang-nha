@@ -1,21 +1,36 @@
 import React, { useState } from 'react';
-import { X, Calendar, AlertTriangle, Send, ShieldAlert } from 'lucide-react';
-import { formatDateSingle } from '../utils/bookingStatus';
+import { X, Calendar, AlertTriangle, Send, ShieldAlert, Package } from 'lucide-react';
+import {
+  BOOKING_STATUS,
+  PROPOSAL_TYPE,
+  formatDateSingle,
+  normalizeStatusValue,
+} from '../utils/bookingStatus';
+import { packagesList } from '../mockData/servicesData';
 import { toast } from 'react-hot-toast';
 
 const AdminProposeChangeModal = ({ isOpen, onClose, booking, onConfirm }) => {
-  if (!isOpen || !booking) return null;
-
-  const [type, setType] = useState('RESCHEDULE'); // 'RESCHEDULE' hoặc 'CANCEL'
-  const [newCheckIn, setNewCheckIn] = useState(booking.checkIn || '');
-  const [newCheckOut, setNewCheckOut] = useState(booking.checkOut || '');
+  // Đổi lịch / Hủy chỉ áp dụng khi đơn chưa Check-in; đang lưu trú thì chỉ "Thay đổi đơn"
+  const isUpcoming = normalizeStatusValue(booking?.status) === BOOKING_STATUS.UPCOMING;
+  const [type, setType] = useState(isUpcoming ? PROPOSAL_TYPE.RESCHEDULE : PROPOSAL_TYPE.UPDATE);
+  const [newCheckIn, setNewCheckIn] = useState(booking?.checkIn || '');
+  const [newCheckOut, setNewCheckOut] = useState(booking?.checkOut || '');
+  const [newPackageName, setNewPackageName] = useState('');
+  const [note, setNote] = useState('');
   const [reason, setReason] = useState('');
 
+  if (!isOpen || !booking) return null;
+
   const todayStr = new Date().toISOString().split('T')[0];
+  const currentPackageName = booking.selectedPackage?.name || booking.packages?.[0] || 'Chưa rõ';
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (type === 'RESCHEDULE') {
+    if (type === PROPOSAL_TYPE.UPDATE && !newPackageName && !note.trim()) {
+      toast.error('Vui lòng chọn gói mới hoặc nhập nội dung thay đổi');
+      return;
+    }
+    if (type === PROPOSAL_TYPE.RESCHEDULE) {
       if (!newCheckIn || !newCheckOut) {
         toast.error('Vui lòng chọn ngày nhận và trả phòng đề xuất');
         return;
@@ -30,13 +45,15 @@ const AdminProposeChangeModal = ({ isOpen, onClose, booking, onConfirm }) => {
       return;
     }
 
-    onConfirm(booking.id, {
+    const ok = onConfirm(booking.id, {
       type,
-      newCheckIn,
-      newCheckOut,
+      newCheckIn: type === PROPOSAL_TYPE.RESCHEDULE ? newCheckIn : undefined,
+      newCheckOut: type === PROPOSAL_TYPE.RESCHEDULE ? newCheckOut : undefined,
+      newPackageName: type === PROPOSAL_TYPE.UPDATE ? newPackageName : undefined,
+      note: type === PROPOSAL_TYPE.UPDATE ? note.trim() : undefined,
       reason,
     });
-    onClose();
+    if (ok !== false) onClose();
   };
 
   const petsName = (booking.petProfiles || []).map(p => p.name).join(', ') || 'Bé cưng';
@@ -81,36 +98,85 @@ const AdminProposeChangeModal = ({ isOpen, onClose, booking, onConfirm }) => {
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
               Loại đề xuất gửi khách:
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setType('RESCHEDULE')}
-                className={`py-3 px-4 rounded-xl border-2 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  type === 'RESCHEDULE'
+                disabled={!isUpcoming}
+                onClick={() => setType(PROPOSAL_TYPE.RESCHEDULE)}
+                className={`py-3 px-2 rounded-xl border-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  type === PROPOSAL_TYPE.RESCHEDULE
                     ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
                     : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>Đề xuất Đổi lịch</span>
+                <span>Đổi lịch</span>
               </button>
               <button
                 type="button"
-                onClick={() => setType('CANCEL')}
-                className={`py-3 px-4 rounded-xl border-2 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  type === 'CANCEL'
+                disabled={!isUpcoming}
+                onClick={() => setType(PROPOSAL_TYPE.CANCEL)}
+                className={`py-3 px-2 rounded-xl border-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  type === PROPOSAL_TYPE.CANCEL
                     ? 'border-rose-600 bg-rose-50 text-rose-700 shadow-sm'
                     : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
-                <span>Đề xuất Hủy đơn</span>
+                <span>Hủy đơn</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType(PROPOSAL_TYPE.UPDATE)}
+                className={`py-3 px-2 rounded-xl border-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  type === PROPOSAL_TYPE.UPDATE
+                    ? 'border-amber-600 bg-amber-50 text-amber-700 shadow-sm'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                <span>Thay đổi đơn</span>
               </button>
             </div>
+            {!isUpcoming && (
+              <p className="text-[11px] text-gray-500 mt-1.5">Đơn đã Check-in nên chỉ có thể đề xuất thay đổi gói dịch vụ / nội dung đơn.</p>
+            )}
           </div>
 
+          {/* Update (thay đổi gói / nội dung đơn) inputs */}
+          {type === PROPOSAL_TYPE.UPDATE && (
+            <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+              <div className="text-xs text-gray-500">
+                Gói hiện tại: <strong className="text-gray-700">{currentPackageName}</strong>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Gói dịch vụ mới (không bắt buộc)</label>
+                <select
+                  value={newPackageName}
+                  onChange={(e) => setNewPackageName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
+                >
+                  <option value="">-- Giữ nguyên gói --</option>
+                  {packagesList.filter(p => p.name !== currentPackageName).map(p => (
+                    <option key={p.id || p.name} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Nội dung thay đổi khác</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="VD: Tặng thêm 1 lần tắm sấy miễn phí"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Reschedule inputs */}
-          {type === 'RESCHEDULE' && (
+          {type === PROPOSAL_TYPE.RESCHEDULE && (
             <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               <div className="text-xs text-gray-500 mb-1">
                 Lịch trình gốc: <strong className="text-gray-700">{formatDateSingle(booking.checkIn)} → {formatDateSingle(booking.checkOut)}</strong>

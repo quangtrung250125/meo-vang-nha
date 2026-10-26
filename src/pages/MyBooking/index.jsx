@@ -13,44 +13,142 @@ import {
   ExternalLink,
   ChevronRight,
   Video,
-  CreditCard
+  CreditCard,
+  LogIn,
+  LogOut,
+  Send,
+  Undo2,
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
-import { 
-  BOOKING_STATUS, 
-  BOOKING_STATUS_CONFIG, 
-  getBookingStatus, 
-  formatDateRange 
+import { useRoomState, ROOM_CONFIG, getPeakOccupancyForRoom } from '../../contexts/RoomStateContext';
+import {
+  BOOKING_STATUS,
+  BOOKING_STATUS_CONFIG,
+  PROPOSAL_LABEL,
+  PROPOSAL_TYPE,
+  getBookingStatus,
+  normalizeStatusValue,
+  formatDateRange,
+  formatDateSingle
 } from '../../utils/bookingStatus';
 import CustomerApprovalModal from '../../components/CustomerApprovalModal';
 import CustomerRescheduleModal from '../../components/CustomerRescheduleModal';
 import CustomerCancelModal from '../../components/CustomerCancelModal';
+import AdminProposeChangeModal from '../../components/AdminProposeChangeModal';
 import { toast } from 'react-hot-toast';
 
+// Khách gửi yêu cầu đặc biệt cho đơn (Admin thấy ngay ở Tình trạng phòng)
+const SpecialNoteModal = ({ booking, onClose, onSave }) => {
+  const [note, setNote] = useState(booking?.specialNote || '');
+  if (!booking) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-text-dark font-title">Yêu cầu đặc biệt</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Đơn #{booking.id} — nhân viên sẽ nhận được ngay.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 cursor-pointer"><X className="w-5 h-5 text-gray-500" /></button>
+        </div>
+        <textarea
+          rows={4}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="VD: Bé ăn hạt mềm, sợ tiếng ồn, cho bé uống thuốc lúc 8h tối..."
+          className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+        />
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 cursor-pointer">Đóng</button>
+          <button
+            onClick={() => { if (onSave(booking.id, note.trim()) !== false) onClose(); }}
+            className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 cursor-pointer"
+          >
+            Gửi yêu cầu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MyBooking = () => {
-  const { 
-    globalBookingList, 
-    updateBooking, 
-    customerAcceptProposal, 
+  const {
+    globalBookingList,
+    updateBooking,
+    customerAcceptProposal,
     customerRejectProposal,
     customerReschedule,
     customerCancel,
+    customerUpdateNote,
+    adminCheckIn,
+    adminCheckOut,
+    adminProposeChange,
+    adminCancelProposal,
     resetDefaultBookings
   } = useBookingHistory();
   const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
+  const { bookings: roomBookings } = useRoomState();
 
   const { petList } = usePetProfile();
-  const { approvalModalBookingId, openApprovalModal, closeApprovalModal } = useUI();
+  const { approvalModalBookingId, closeApprovalModal } = useUI();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('ALL');
   const [selectedBookingForApproval, setSelectedBookingForApproval] = useState(null);
   const [selectedBookingForReschedule, setSelectedBookingForReschedule] = useState(null);
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
+  const [selectedBookingForProposal, setSelectedBookingForProposal] = useState(null);
+  const [selectedBookingForNote, setSelectedBookingForNote] = useState(null);
+
+  // Kiểm tra phòng còn đủ chỗ cho khoảng ngày mới (loại trừ chính đơn đang đổi)
+  const hasRoomCapacity = (booking, newCheckIn, newCheckOut) => {
+    const roomId = booking.roomId || booking.selectedRoom?.id;
+    const room = ROOM_CONFIG.find(r => r.id === roomId);
+    if (!room) return true;
+    const occupied = getPeakOccupancyForRoom(
+      roomId,
+      roomBookings,
+      newCheckIn,
+      newCheckOut,
+      [booking.code, booking.id].filter(Boolean)
+    );
+    const cats = Number(booking.cats || booking.catCount || booking.petProfiles?.length) || 1;
+    if (room.capacity - occupied < cats) {
+      toast.error(`Phòng ${roomId} không còn đủ chỗ từ ${formatDateSingle(newCheckIn)} đến ${formatDateSingle(newCheckOut)}. Vui lòng chọn ngày khác.`);
+      return false;
+    }
+    return true;
+  };
+
+  const handleCustomerReschedule = (id, dates) => {
+    const booking = globalBookingList.find(b => b.id === id);
+    if (booking && !hasRoomCapacity(booking, dates.newCheckIn, dates.newCheckOut)) return false;
+    return customerReschedule(id, dates);
+  };
+
+  const handleAcceptProposal = (id) => {
+    const booking = globalBookingList.find(b => b.id === id);
+    const changes = booking?.pending_changes;
+    if (changes?.type === PROPOSAL_TYPE.RESCHEDULE && !hasRoomCapacity(booking, changes.newCheckIn, changes.newCheckOut)) {
+      return false;
+    }
+    return customerAcceptProposal(id);
+  };
+
+  const handleAdminPropose = (id, data) => {
+    const booking = globalBookingList.find(b => b.id === id);
+    if (data.type === PROPOSAL_TYPE.RESCHEDULE && booking && !hasRoomCapacity(booking, data.newCheckIn, data.newCheckOut)) {
+      return false;
+    }
+    return adminProposeChange(id, data);
+  };
 
   // Danh mục tab chuẩn hóa theo 5 trạng thái enum
   const tabs = [
@@ -62,16 +160,16 @@ const MyBooking = () => {
     { key: BOOKING_STATUS.CANCELLED, label: 'Đã hủy' },
   ];
 
-  // Tự động mở Modal phê duyệt nếu người dùng bấm từ Popover thông báo ở Header
+  // Tự động mở Modal phê duyệt nếu người dùng bấm từ thông báo ở Header
   useEffect(() => {
-    if (approvalModalBookingId) {
+    if (approvalModalBookingId && !isAdmin) {
       const target = globalBookingList.find(b => b.id === approvalModalBookingId);
       if (target && target.pending_changes) {
         setSelectedBookingForApproval(target);
       }
       closeApprovalModal();
     }
-  }, [approvalModalBookingId, globalBookingList, closeApprovalModal]);
+  }, [approvalModalBookingId, globalBookingList, closeApprovalModal, isAdmin]);
 
   // Chuẩn hóa và lọc danh sách đơn
   const activeCustomer = authenticatedCustomer || customerProfile;
@@ -107,23 +205,41 @@ const MyBooking = () => {
         isOpen={Boolean(selectedBookingForApproval)}
         booking={selectedBookingForApproval}
         onClose={() => setSelectedBookingForApproval(null)}
-        onAccept={(id) => customerAcceptProposal(id)}
+        onAccept={handleAcceptProposal}
         onReject={(id) => customerRejectProposal(id)}
       />
 
       <CustomerRescheduleModal
+        key={`reschedule-${selectedBookingForReschedule?.id || 'none'}`}
         isOpen={Boolean(selectedBookingForReschedule)}
         booking={selectedBookingForReschedule}
         onClose={() => setSelectedBookingForReschedule(null)}
-        onConfirm={(id, dates) => customerReschedule(id, dates)}
+        onConfirm={handleCustomerReschedule}
       />
 
       <CustomerCancelModal
+        key={`cancel-${selectedBookingForCancel?.id || 'none'}`}
         isOpen={Boolean(selectedBookingForCancel)}
         booking={selectedBookingForCancel}
         onClose={() => setSelectedBookingForCancel(null)}
         onConfirm={(id, reason) => customerCancel(id, reason)}
       />
+
+      <AdminProposeChangeModal
+        key={`propose-${selectedBookingForProposal?.id || 'none'}`}
+        isOpen={Boolean(selectedBookingForProposal)}
+        booking={selectedBookingForProposal}
+        onClose={() => setSelectedBookingForProposal(null)}
+        onConfirm={handleAdminPropose}
+      />
+
+      {selectedBookingForNote && (
+        <SpecialNoteModal
+          booking={selectedBookingForNote}
+          onClose={() => setSelectedBookingForNote(null)}
+          onSave={customerUpdateNote}
+        />
+      )}
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
         
@@ -236,6 +352,10 @@ const MyBooking = () => {
               const isPendingApproval = booking.normalizedStatus === BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL;
               const isCompleted = booking.normalizedStatus === BOOKING_STATUS.COMPLETED;
               const isCancelled = booking.normalizedStatus === BOOKING_STATUS.CANCELLED;
+              // Trạng thái vận hành thực tế (bỏ qua đề xuất đang chờ) dùng cho nút Check-in/Check-out của Admin
+              const baseStatus = normalizeStatusValue(booking.status);
+              const isClosed = isCompleted || isCancelled;
+              const proposalLabel = PROPOSAL_LABEL[booking.pending_changes?.type] || 'Thay đổi';
 
               return (
                 <div 
@@ -256,14 +376,21 @@ const MyBooking = () => {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="bg-purple-600 text-white text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
-                              Cần Bạn Xác Nhận
+                              {isAdmin ? 'Đang chờ khách xác nhận' : 'Cần Bạn Xác Nhận'}
                             </span>
                             <span className="text-xs text-purple-700 font-bold">
-                              {booking.pending_changes.type === 'CANCEL' ? 'Yêu cầu Hủy đơn' : 'Yêu cầu Đổi lịch'}
+                              Đề xuất {proposalLabel}
                             </span>
                           </div>
                           <p className="text-xs sm:text-sm font-semibold text-purple-950 mt-1">
-                            Admin đã gửi yêu cầu <span className="underline font-bold">{booking.pending_changes.type === 'CANCEL' ? 'Hủy đơn đặt' : 'Thay đổi lịch'}</span> cho đơn #{booking.id}.
+                            {isAdmin ? 'Bạn đã gửi' : 'Admin đã gửi'} đề xuất <span className="underline font-bold">{proposalLabel.toLowerCase()}</span> cho đơn #{booking.id}
+                            {booking.pending_changes.type === PROPOSAL_TYPE.RESCHEDULE && (
+                              <> ({formatDateRange(booking.pending_changes.newCheckIn, booking.pending_changes.newCheckOut)})</>
+                            )}
+                            {booking.pending_changes.type === PROPOSAL_TYPE.UPDATE && booking.pending_changes.newPackageName && (
+                              <> → {booking.pending_changes.newPackageName}</>
+                            )}
+                            . Đơn chỉ thay đổi khi khách bấm Đồng ý.
                           </p>
                           <p className="text-xs text-purple-700 mt-0.5 italic">
                             Lý do: "{booking.pending_changes.reason}"
@@ -271,13 +398,23 @@ const MyBooking = () => {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => setSelectedBookingForApproval(booking)}
-                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs shadow-md shadow-purple-200 flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer active:scale-95"
-                      >
-                        <Sparkles className="w-4 h-4 text-yellow-300" />
-                        <span>Xem chi tiết & Phản hồi</span>
-                      </button>
+                      {isAdmin ? (
+                        <button
+                          onClick={() => adminCancelProposal(booking.id)}
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white border-2 border-purple-300 hover:bg-purple-100 text-purple-700 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer active:scale-95"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                          <span>Rút lại đề xuất</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedBookingForApproval(booking)}
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs shadow-md shadow-purple-200 flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer active:scale-95"
+                        >
+                          <Sparkles className="w-4 h-4 text-yellow-300" />
+                          <span>Xem chi tiết & Phản hồi</span>
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -340,6 +477,23 @@ const MyBooking = () => {
                           Lý do hủy: {booking.cancelReason}
                         </p>
                       )}
+
+                      {(booking.specialNote || booking.adminNote) && (
+                        <div className="mt-2 flex flex-col gap-1 text-xs">
+                          {booking.specialNote && (
+                            <p className="text-gray-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
+                              <MessageSquare className="inline w-3.5 h-3.5 mr-1 text-amber-600" />
+                              Yêu cầu đặc biệt: {booking.specialNote}
+                            </p>
+                          )}
+                          {booking.adminNote && (
+                            <p className="text-gray-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                              <ShieldCheck className="inline w-3.5 h-3.5 mr-1 text-indigo-600" />
+                              Ghi chú từ Admin: {booking.adminNote}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* VÙNG NÚT THAO TÁC CỦA KHÁCH HÀNG (ACTIONS) */}
@@ -356,8 +510,37 @@ const MyBooking = () => {
                         </button>
                       )}
 
-                      {/* 2. QUYỀN THAO TÁC CỦA KHÁCH HÀNG: CHỈ ĐƯỢC ĐỔI LỊCH & HỦY ĐƠN KHI UPCOMING */}
-                      {isUpcoming && (
+                      {/* 2a. THAO TÁC CỦA ADMIN: Check-in / Check-out trực tiếp, Đổi lịch / Hủy / Thay đổi qua đề xuất */}
+                      {isAdmin && baseStatus === BOOKING_STATUS.UPCOMING && (
+                        <button
+                          onClick={() => adminCheckIn(booking.id)}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          <span>Check-in</span>
+                        </button>
+                      )}
+                      {isAdmin && baseStatus === BOOKING_STATUS.IN_HOUSE && (
+                        <button
+                          onClick={() => adminCheckOut(booking.id)}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Check-out</span>
+                        </button>
+                      )}
+                      {isAdmin && !isClosed && !booking.pending_changes && (
+                        <button
+                          onClick={() => setSelectedBookingForProposal(booking)}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{baseStatus === BOOKING_STATUS.UPCOMING ? 'Đổi lịch / Hủy / Thay đổi' : 'Đề xuất thay đổi đơn'}</span>
+                        </button>
+                      )}
+
+                      {/* 2b. QUYỀN THAO TÁC CỦA KHÁCH HÀNG: CHỈ ĐƯỢC ĐỔI LỊCH & HỦY ĐƠN KHI UPCOMING */}
+                      {!isAdmin && isUpcoming && (
                         <>
                           <button
                             onClick={() => setSelectedBookingForReschedule(booking)}
@@ -377,8 +560,19 @@ const MyBooking = () => {
                         </>
                       )}
 
+                      {/* 2c. Khách gửi yêu cầu đặc biệt (đơn chưa kết thúc) */}
+                      {!isAdmin && !isClosed && (
+                        <button
+                          onClick={() => setSelectedBookingForNote(booking)}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>{booking.specialNote ? 'Sửa yêu cầu' : 'Yêu cầu đặc biệt'}</span>
+                        </button>
+                      )}
+
                       {/* 3. VÔ HIỆU HÓA HOẶC ẨN ĐỔI LỊCH/HỦY ĐƠN KHI ĐÃ CHECK-IN HOẶC HOÀN TẤT */}
-                      {(isInHouse || isCompleted) && (
+                      {!isAdmin && (isInHouse || isCompleted) && (
                         <div className="hidden sm:block text-[11px] text-gray-400 italic text-right">
                           {isInHouse ? 'Đã check-in lưu trú' : 'Kỳ lưu trú đã hoàn tất'}
                         </div>

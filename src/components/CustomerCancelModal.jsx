@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { X, AlertTriangle, XCircle } from 'lucide-react';
 
 const CustomerCancelModal = ({ isOpen, onClose, booking, onConfirm }) => {
-  if (!isOpen || !booking) return null;
-
   const [reason, setReason] = useState('');
+
+  if (!isOpen || !booking) return null;
 
   const handleCancel = (e) => {
     e.preventDefault();
-    onConfirm(booking.id, reason || 'Khách hàng yêu cầu hủy đơn');
-    onClose();
+    if (onConfirm(booking.id, reason || 'Khách hàng yêu cầu hủy đơn') !== false) onClose();
   };
 
   const petsName = (booking.petProfiles || []).map(p => p.name).join(', ') || 'Bé cưng';

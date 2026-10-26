@@ -50,54 +50,67 @@ export const BOOKING_STATUS_CONFIG = {
   }
 };
 
+// ==========================================
+// GIÁ TRỊ TRẠNG THÁI LƯU TRỮ (dùng chung cho Tình trạng phòng, server /api/bookings,
+// Supabase và Lịch đặt của khách) — chỉ Admin Check-in/Check-out hoặc Hủy mới đổi được
+// ==========================================
+export const STORED_STATUS = {
+  UPCOMING: 'check-in',   // Sắp tới: chờ Admin bấm Check-in
+  IN_HOUSE: 'đang ở',     // Đang lưu trú
+  COMPLETED: 'check-out', // Đã hoàn thành
+  CANCELLED: 'cancelled', // Đã hủy
+};
+
+// Loại đề xuất Admin gửi khách (lưu trong booking.pending_changes)
+export const PROPOSAL_TYPE = {
+  RESCHEDULE: 'RESCHEDULE', // Đổi lịch nhận/trả
+  CANCEL: 'CANCEL',         // Hủy đơn
+  UPDATE: 'UPDATE',         // Thay đổi gói dịch vụ / ghi chú đơn
+};
+
+export const PROPOSAL_LABEL = {
+  [PROPOSAL_TYPE.RESCHEDULE]: 'Đổi lịch',
+  [PROPOSAL_TYPE.CANCEL]: 'Hủy đơn',
+  [PROPOSAL_TYPE.UPDATE]: 'Thay đổi đơn',
+};
+
 /**
- * Chuẩn hóa trạng thái đơn đặt phòng từ dữ liệu cũ hoặc mới
+ * Chuẩn hóa riêng giá trị status (không xét đề xuất đang chờ)
+ */
+export const normalizeStatusValue = (status) => {
+  if (status && BOOKING_STATUS[status]) return status;
+  if (status === 'Đang lưu trú' || status === 'đang ở') return BOOKING_STATUS.IN_HOUSE;
+  if (['Đã hoàn tất', 'Đã hoàn thành', 'hoàn tất', 'check-out'].includes(status)) return BOOKING_STATUS.COMPLETED;
+  if (status === 'Đã hủy' || status === 'cancelled') return BOOKING_STATUS.CANCELLED;
+  if (status === 'Chờ khách xác nhận') return BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL;
+  // 'check-in', 'Sắp tới' hoặc chưa có status: luôn là Sắp tới cho tới khi Admin Check-in
+  return BOOKING_STATUS.UPCOMING;
+};
+
+/**
+ * Đơn đã kết thúc (hoàn thành hoặc đã hủy) -> không còn chiếm phòng
+ */
+export const isClosedStatus = (status) => {
+  const normalized = normalizeStatusValue(status);
+  return normalized === BOOKING_STATUS.COMPLETED || normalized === BOOKING_STATUS.CANCELLED;
+};
+
+/**
+ * Trạng thái hiển thị của đơn: nếu Admin đang có đề xuất chờ khách duyệt
+ * thì hiển thị "Chờ khách xác nhận", ngược lại theo status lưu trữ.
  */
 export const getBookingStatus = (booking) => {
   if (!booking) return BOOKING_STATUS.UPCOMING;
 
-  if (booking.status && BOOKING_STATUS[booking.status]) {
-    return booking.status;
-  }
-
-  // Tương thích ngược với các chuỗi trạng thái cũ
-  // Trạng thái vận hành phòng ('check-in' = chờ Admin nhận bé)
-  if (booking.status === 'check-in') {
-    return BOOKING_STATUS.UPCOMING;
-  }
-  if (booking.status === 'Đang lưu trú' || booking.status === 'đang ở' || booking.dynamicStatus === 'Đang lưu trú') {
-    return BOOKING_STATUS.IN_HOUSE;
-  }
-  if (
-    ['Đã hoàn tất', 'Đã hoàn thành', 'hoàn tất', 'check-out'].includes(booking.status) ||
-    booking.dynamicStatus === 'Đã hoàn tất'
-  ) {
-    return BOOKING_STATUS.COMPLETED;
-  }
-  if (booking.status === 'Đã hủy' || booking.status === 'cancelled' || booking.dynamicStatus === 'Đã hủy') {
-    return BOOKING_STATUS.CANCELLED;
-  }
-  if (booking.status === 'Chờ khách xác nhận') {
+  const base = normalizeStatusValue(booking.status);
+  if (booking.pending_changes && base !== BOOKING_STATUS.COMPLETED && base !== BOOKING_STATUS.CANCELLED) {
     return BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL;
   }
-
-  // Fallback tính theo ngày nếu đơn hàng cũ chưa có trường status
-  if (booking.checkIn && booking.checkOut) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const inDate = new Date(booking.checkIn);
-    inDate.setHours(0, 0, 0, 0);
-
-    const outDate = new Date(booking.checkOut);
-    outDate.setHours(23, 59, 59, 999);
-
-    if (today < inDate) return BOOKING_STATUS.UPCOMING;
-    if (today >= inDate && today <= outDate) return BOOKING_STATUS.IN_HOUSE;
-    if (today > outDate) return BOOKING_STATUS.COMPLETED;
+  if (base === BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL) {
+    // Dữ liệu cũ: status PENDING nhưng đã mất pending_changes -> quay về trạng thái trước
+    return normalizeStatusValue(booking.previous_status);
   }
-
-  return BOOKING_STATUS.UPCOMING;
+  return base;
 };
 
 /**

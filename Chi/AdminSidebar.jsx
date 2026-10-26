@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Star,
-  Settings
+  Settings,
+  ClipboardList
 } from 'lucide-react';
 import { useCustomerProfile } from '../src/contexts/CustomerContext';
 import { toast } from 'react-hot-toast';
@@ -37,6 +38,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
     { name: 'Trang chủ', path: isDirectAdminRoute ? '/admin' : '/', icon: Home },
     { name: 'Tình trạng phòng', path: `${basePrefix}/room-status`, icon: LayoutDashboard },
     { name: 'Dịch vụ', path: `${basePrefix}/services`, icon: Briefcase },
+    { name: 'Lịch đặt', path: `${basePrefix}/my-booking`, icon: ClipboardList },
     { name: 'Khuyến mãi', path: `${basePrefix}/promotions`, icon: Tag },
     { name: 'Tin tức', path: `${basePrefix}/news`, icon: Newspaper },
     { name: 'Hồ sơ mèo', path: `${basePrefix}/pet-profile`, icon: PawPrint },

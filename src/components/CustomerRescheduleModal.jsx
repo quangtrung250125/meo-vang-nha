@@ -4,10 +4,10 @@ import { formatDateSingle } from '../utils/bookingStatus';
 import { toast } from 'react-hot-toast';
 
 const CustomerRescheduleModal = ({ isOpen, onClose, booking, onConfirm }) => {
-  if (!isOpen || !booking) return null;
+  const [newCheckIn, setNewCheckIn] = useState(booking?.checkIn || '');
+  const [newCheckOut, setNewCheckOut] = useState(booking?.checkOut || '');
 
-  const [newCheckIn, setNewCheckIn] = useState(booking.checkIn || '');
-  const [newCheckOut, setNewCheckOut] = useState(booking.checkOut || '');
+  if (!isOpen || !booking) return null;
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -22,8 +22,8 @@ const CustomerRescheduleModal = ({ isOpen, onClose, booking, onConfirm }) => {
       return;
     }
 
-    onConfirm(booking.id, { newCheckIn, newCheckOut });
-    onClose();
+    // Giữ modal mở nếu đổi lịch thất bại (VD: phòng đã kín chỗ ngày mới)
+    if (onConfirm(booking.id, { newCheckIn, newCheckOut }) !== false) onClose();
   };
 
   const petsName = (booking.petProfiles || []).map(p => p.name).join(', ') || 'Bé cưng';

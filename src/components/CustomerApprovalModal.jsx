@@ -10,7 +10,8 @@ import {
   MessageSquare, 
   ShieldAlert, 
   Sparkles,
-  PawPrint 
+  PawPrint,
+  Package
 } from 'lucide-react';
 import { formatDateSingle } from '../utils/bookingStatus';
 
@@ -20,6 +21,7 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
   const changes = booking.pending_changes;
   const isReschedule = changes.type === 'RESCHEDULE';
   const isCancel = changes.type === 'CANCEL';
+  const isUpdate = changes.type === 'UPDATE';
 
   const petsName = (booking.petProfiles || []).map(p => p.name).join(', ') || 'Bé cưng';
 
@@ -53,6 +55,11 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
                 <ShieldAlert className="w-6 h-6 text-rose-300 shrink-0" />
                 <span>Admin đề xuất HỦY ĐƠN ĐẶT</span>
               </>
+            ) : isUpdate ? (
+              <>
+                <Package className="w-6 h-6 text-yellow-300 shrink-0" />
+                <span>Admin đề xuất THAY ĐỔI ĐƠN</span>
+              </>
             ) : (
               <>
                 <Calendar className="w-6 h-6 text-yellow-300 shrink-0" />
@@ -76,7 +83,9 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
               <p className="font-bold mb-1">
                 {isCancel 
                   ? 'Ban quản trị gửi yêu cầu hủy đơn đặt phòng này với lý do bên dưới.' 
-                  : 'Ban quản trị gửi đề xuất điều chỉnh lịch check-in/check-out cho bé.'}
+                  : isUpdate
+                    ? 'Ban quản trị gửi đề xuất thay đổi gói dịch vụ / nội dung đơn đặt của bé.'
+                    : 'Ban quản trị gửi đề xuất điều chỉnh lịch check-in/check-out cho bé.'}
               </p>
               <p className="opacity-90">
                 Vui lòng kiểm tra kỹ chi tiết. Nếu bạn <strong className="font-semibold underline">Đồng ý</strong>, hệ thống sẽ tự động cập nhật lại đơn. Nếu bạn <strong className="font-semibold underline">Từ chối</strong>, thông tin cũ sẽ được giữ nguyên 100%.
@@ -116,6 +125,23 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
             </div>
           )}
 
+          {isUpdate && (
+            <div className="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-2 text-sm">
+              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-purple-600" />
+                Nội dung thay đổi:
+              </h4>
+              {changes.newPackageName && (
+                <p className="font-semibold text-gray-700">
+                  Gói dịch vụ: <span className="line-through text-gray-400">{changes.oldPackageName || 'Gói hiện tại'}</span>
+                  <ArrowRight className="inline w-3.5 h-3.5 mx-1 text-purple-600" />
+                  <span className="font-black text-purple-800">{changes.newPackageName}</span>
+                </p>
+              )}
+              {changes.note && <p className="text-gray-700">• {changes.note}</p>}
+            </div>
+          )}
+
           {/* Reason from Admin */}
           <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4">
             <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -148,8 +174,7 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
 
           <button
             onClick={() => {
-              onAccept(booking.id);
-              onClose();
+              if (onAccept(booking.id) !== false) onClose();
             }}
             className={`w-full sm:w-auto px-7 py-3 rounded-2xl text-white font-extrabold text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 ${
               isCancel
@@ -158,7 +183,7 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>{isCancel ? 'Đồng ý hủy đơn' : 'Xác nhận & Đồng ý đổi lịch'}</span>
+            <span>{isCancel ? 'Đồng ý hủy đơn' : isUpdate ? 'Xác nhận & Đồng ý thay đổi' : 'Xác nhận & Đồng ý đổi lịch'}</span>
           </button>
         </div>
       </div>

@@ -1,5 +1,7 @@
-import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../src/supabaseClient';
+import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
+import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
 
 // ─────────────────────────────────────────────
 // Helper: generate a unique booking detail key for localStorage
@@ -104,11 +106,7 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
     if (!b || b.code?.includes('BK')) return false;
     // Bỏ qua các đơn đã check-out, đã hoàn tất hoặc bị hủy
     if (
-      b.status === 'check-out' ||
-      b.status === 'Đã hoàn tất' ||
-      b.status === 'hoàn tất' ||
-      b.status === 'cancelled' ||
-      b.status === 'Đã hủy'
+      isClosedStatus(b.status)
     ) {
       return false;
     }
@@ -171,11 +169,7 @@ export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, chec
     }
     // Bỏ qua các đơn đã kết thúc / đã hủy
     if (
-      b.status === 'cancelled' ||
-      b.status === 'Đã hủy' ||
-      b.status === 'check-out' ||
-      b.status === 'Đã hoàn tất' ||
-      b.status === 'hoàn tất'
+      isClosedStatus(b.status)
     ) {
       return false;
     }
@@ -275,11 +269,7 @@ const getInitialBookings = () => {
             parsed[r.id].forEach((b) => {
               if (b && (b.code || b.id) && !b.code?.includes('BK')) {
                 const isFinished =
-                  b.status === 'check-out' ||
-                  b.status === 'Đã hoàn tất' ||
-                  b.status === 'hoàn tất' ||
-                  b.status === 'cancelled' ||
-                  b.status === 'Đã hủy';
+                  isClosedStatus(b.status);
                 if (!isFinished) {
                   result[r.id].push(b);
                 }
@@ -304,11 +294,7 @@ const getInitialBookings = () => {
           const code = b.code || b.id;
           if (roomId && result[roomId] && code && !code.includes('BK')) {
             const isFinished =
-              b.status === 'check-out' ||
-              b.status === 'Đã hoàn tất' ||
-              b.status === 'hoàn tất' ||
-              b.status === 'cancelled' ||
-              b.status === 'Đã hủy';
+              isClosedStatus(b.status);
             if (!isFinished) {
               const exists = result[roomId].some((item) => item.code === code || item.id === code);
               if (!exists) {
@@ -331,6 +317,56 @@ const getInitialBookings = () => {
 
 export const RoomStateProvider = ({ children }) => {
   const [bookings, setBookings] = useState(getInitialBookings);
+  const bookingHistory = useBookingHistory();
+  const historyRef = useRef(bookingHistory);
+  historyRef.current = bookingHistory;
+
+  // Cập nhật đơn tương ứng trong "Lịch đặt" (nếu có) — đồng bộ sang tài khoản khách
+  const mirrorToHistory = useCallback((code, updates) => {
+    const history = historyRef.current;
+    const exists = history?.globalBookingList?.some((b) => b.id === code || b.code === code);
+    if (exists) history.updateBooking(code, updates, { syncRoom: false });
+  }, []);
+
+  // Lịch đặt thay đổi (khách đổi lịch/hủy, khách đồng ý đề xuất, thiết bị khác cập nhật...)
+  // -> phản ánh ngay vào kho phòng để trang Tình trạng phòng luôn khớp
+  useEffect(() => {
+    const list = bookingHistory.globalBookingList || [];
+    setBookings((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      list.forEach((hb) => {
+        const code = hb.code || hb.id;
+        const roomId = hb.roomId || hb.selectedRoom?.id;
+        if (!code || !roomId || !next[roomId]) return;
+        const idx = next[roomId].findIndex((b) => b.code === code || b.id === code);
+        if (idx < 0) return;
+        if (isClosedStatus(hb.status)) {
+          next[roomId] = next[roomId].filter((_, i) => i !== idx);
+          changed = true;
+          return;
+        }
+        const current = next[roomId][idx];
+        const synced = {
+          status: hb.status || current.status,
+          checkIn: hb.checkIn || current.checkIn,
+          checkOut: hb.checkOut || current.checkOut,
+          pending_changes: hb.pending_changes || null,
+          specialNote: hb.specialNote || current.specialNote,
+        };
+        const differs = Object.keys(synced).some(
+          (k) => JSON.stringify(current[k] ?? null) !== JSON.stringify(synced[k] ?? null)
+        );
+        if (differs) {
+          next[roomId] = next[roomId].map((b, i) => (i === idx ? { ...b, ...synced } : b));
+          changed = true;
+        }
+      });
+      if (!changed) return prev;
+      try { localStorage.setItem('mvn_room_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  }, [bookingHistory.globalBookingList]);
   // Lưu id các booking vừa được thêm mới để highlight
   const [newBookingIds, setNewBookingIds] = useState(new Set());
   // Trạng thái bảo trì phòng (lưu vĩnh viễn tới khi bấm "Hết bảo trì")
@@ -414,11 +450,7 @@ export const RoomStateProvider = ({ children }) => {
                   if (!sBk || (!sBk.code && !sBk.id)) return;
                   const code = sBk.code || sBk.id;
                   const isFinished =
-                    sBk.status === 'check-out' ||
-                    sBk.status === 'Đã hoàn tất' ||
-                    sBk.status === 'hoàn tất' ||
-                    sBk.status === 'cancelled' ||
-                    sBk.status === 'Đã hủy';
+                    isClosedStatus(sBk.status);
                   const localIdx = localList.findIndex((l) => l.code === code || l.id === code);
 
                   if (isFinished) {
@@ -485,11 +517,7 @@ export const RoomStateProvider = ({ children }) => {
               const code = row.code || bData.code;
               const status = bData.status;
               const isFinished =
-                status === 'check-out' ||
-                status === 'Đã hoàn tất' ||
-                status === 'hoàn tất' ||
-                status === 'cancelled' ||
-                status === 'Đã hủy';
+                isClosedStatus(status);
 
               if (roomId && next[roomId] && code) {
                 const currentList = next[roomId];
@@ -602,11 +630,7 @@ export const RoomStateProvider = ({ children }) => {
             const code = row.code || bData.code;
             const status = bData.status;
             const isFinished =
-              status === 'check-out' ||
-              status === 'Đã hoàn tất' ||
-              status === 'hoàn tất' ||
-              status === 'cancelled' ||
-              status === 'Đã hủy';
+              isClosedStatus(status);
 
             if (roomId) {
               setBookings((prev) => {
@@ -855,6 +879,7 @@ export const RoomStateProvider = ({ children }) => {
    * @param {object} updates  - Các trường cần cập nhật
    */
   const updateBooking = useCallback((roomId, code, updates) => {
+    mirrorToHistory(code, updates);
     setBookings((prev) => {
       const current = prev[roomId] || [];
       const updated = {
@@ -866,17 +891,6 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {
         console.error('Failed to update booking in localStorage', e);
       }
-      try {
-        const savedHist = localStorage.getItem('bookingHistory');
-        if (savedHist) {
-          const list = JSON.parse(savedHist);
-          if (Array.isArray(list)) {
-            const nextList = list.map(item => (item.id === code || item.code === code) ? { ...item, ...updates } : item);
-            localStorage.setItem('bookingHistory', JSON.stringify(nextList));
-            window.dispatchEvent(new Event('mvn_booking_sync'));
-          }
-        }
-      } catch (e) {}
 
       // Đồng bộ Server API
       fetch('/api/bookings', {
@@ -890,19 +904,20 @@ export const RoomStateProvider = ({ children }) => {
       }
       return updated;
     });
-  }, []);
+  }, [mirrorToHistory]);
 
   /**
    * Check-in: chuyển trạng thái booking → 'đang ở'
    */
   const checkInBooking = useCallback((roomId, code) => {
-    updateBooking(roomId, code, { status: 'đang ở' });
+    updateBooking(roomId, code, { status: STORED_STATUS.IN_HOUSE, checkedInAt: new Date().toISOString(), pending_changes: null });
   }, [updateBooking]);
 
   /**
    * Check-out: cập nhật trạng thái đã check-out, giải phóng phòng để phòng TRỐNG ngay lập tức
    */
   const checkOutBooking = useCallback((roomId, code) => {
+    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt: new Date().toISOString(), pending_changes: null });
     setBookings((prev) => {
       const currentList = prev[roomId] || [];
       // Giải phóng booking khỏi phòng đang ở để phòng trở lại TRỐNG
@@ -934,23 +949,6 @@ export const RoomStateProvider = ({ children }) => {
       return updated;
     });
 
-    // Cập nhật trạng thái thành 'check-out' trong bookingHistory
-    try {
-      const savedHist = localStorage.getItem('bookingHistory');
-      if (savedHist) {
-        const list = JSON.parse(savedHist);
-        if (Array.isArray(list)) {
-          const nextList = list.map((item) =>
-            item.id === code || item.code === code
-              ? { ...item, status: 'check-out' }
-              : item
-          );
-          localStorage.setItem('bookingHistory', JSON.stringify(nextList));
-          window.dispatchEvent(new Event('mvn_booking_sync'));
-        }
-      }
-    } catch (e) {}
-
     // Đồng bộ trạng thái check-out lên Server API trung tâm
     fetch('/api/bookings', {
       method: 'PUT',
@@ -979,12 +977,13 @@ export const RoomStateProvider = ({ children }) => {
         console.warn('Lỗi cập nhật check-out lên Supabase:', err);
       }
     })();
-  }, []);
+  }, [mirrorToHistory]);
 
   /**
    * Hủy / xóa đơn đặt phòng khỏi hệ thống
    */
-  const removeBooking = useCallback((roomId, code) => {
+  const removeBooking = useCallback((roomId, code, reason = 'Admin hủy đơn') => {
+    mirrorToHistory(code, { status: STORED_STATUS.CANCELLED, cancelReason: reason, cancelledAt: new Date().toISOString(), cancelledBy: 'admin', pending_changes: null });
     setBookings((prev) => {
       const updated = {
         ...prev,
@@ -995,21 +994,6 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {
         console.error('Failed to remove booking', e);
       }
-      try {
-        const savedHist = localStorage.getItem('bookingHistory');
-        if (savedHist) {
-          const list = JSON.parse(savedHist);
-          if (Array.isArray(list)) {
-            const nextList = list.map(item =>
-              item.id === code || item.code === code
-                ? { ...item, status: 'cancelled' }
-                : item
-            );
-            localStorage.setItem('bookingHistory', JSON.stringify(nextList));
-            window.dispatchEvent(new Event('mvn_booking_sync'));
-          }
-        }
-      } catch (e) {}
 
       // Đồng bộ xóa/hủy đơn lên Server API trung tâm
       fetch('/api/bookings', {
@@ -1052,7 +1036,7 @@ export const RoomStateProvider = ({ children }) => {
       } catch (e) {}
       return updated;
     });
-  }, []);
+  }, [mirrorToHistory]);
 
   /**
    * Trả về danh sách phòng còn chỗ, nhóm theo hạng
@@ -1088,11 +1072,7 @@ export const RoomStateProvider = ({ children }) => {
                 checkIn &&
                 checkOut &&
                 isDateRangeOverlap(b.checkIn, b.checkOut, checkIn, checkOut) &&
-                b.status !== 'cancelled' &&
-                b.status !== 'Đã hủy' &&
-                b.status !== 'check-out' &&
-                b.status !== 'Đã hoàn tất' &&
-                b.status !== 'hoàn tất'
+                !isClosedStatus(b.status)
             )
           : null;
 
