@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents } from '../services/crossDeviceSync';
+import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, setSyncIdentity } from '../services/crossDeviceSync';
+import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
+import { normalizeVnPhone } from '../utils/phone';
 
 const CustomerContext = createContext();
 
@@ -9,7 +11,12 @@ const CUSTOMERS_KEY = 'meo-vang-nha-customers';
 const SESSION_KEY = 'meo-vang-nha-authenticated-customer';
 const PHONE_MAP_KEY = 'meo-vang-nha-phone-email-map';
 
-const normalizePhone = (phone = '') => phone.replace(/\D/g, '');
+const normalizePhone = (phone = '') => normalizeVnPhone(phone);
+
+const ADMIN_EMAILS = getAdminEmails({
+    emails: import.meta.env?.VITE_ADMIN_EMAILS,
+    phones: import.meta.env?.VITE_ADMIN_PHONES,
+});
 
 const getFriendlyErrorMessage = (error) => {
     if (!error) return 'Đã xảy ra lỗi không xác định!';
@@ -30,6 +37,32 @@ const getFriendlyErrorMessage = (error) => {
         return 'Tài khoản chưa được xác thực email!';
     }
     return msg || 'Thao tác không thành công, vui lòng thử lại!';
+};
+
+// Gọi API đăng nhập/kiểm tra SĐT. Trả về null nếu API không chạy (ví dụ host tĩnh).
+const callPhoneAuthApi = async (action, body) => {
+    try {
+        const res = await fetch(`/api/auth/phone?action=${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const json = await res.json().catch(() => null);
+        if (!json) return null;
+        return { ...json, status: res.status };
+    } catch {
+        return null;
+    }
+};
+
+const rememberPhoneOnServer = async (user) => {
+    const phone = user?.user_metadata?.phone;
+    if (!user?.id || !phone) return;
+    try {
+        await supabase.from('customer_profiles').upsert({ id: user.id, phone, email: user.email || '' });
+    } catch (err) {
+        console.warn('Không thể cập nhật SĐT lên customer_profiles:', err);
+    }
 };
 
 // Helper ánh xạ phone -> email lưu trữ local để hỗ trợ đăng nhập bằng SĐT
@@ -53,11 +86,41 @@ const savePhoneEmailMap = (phone, email) => {
     }
 };
 
+// Đăng nhập bằng SĐT: server tìm đúng tài khoản gắn với SĐT nên dùng được trên mọi thiết bị.
+// Nếu API không chạy thì thử email đã nhớ trên máy này và email ẩn <sđt>@meovangnha.vn.
+const signInWithPhone = async (phone, password) => {
+    const result = await callPhoneAuthApi('login', { phone, password });
+    if (result?.success && result.session) {
+        const { data, error } = await supabase.auth.setSession(result.session);
+        if (error) throw new Error(getFriendlyErrorMessage(error));
+        return data.user;
+    }
+    if (result && result.status >= 400 && result.status < 500 && result.status !== 404) {
+        throw new Error(result.message || 'Số điện thoại hoặc mật khẩu không chính xác!');
+    }
+
+    const candidates = [...new Set([getPhoneEmailMap()[phone], `${phone}@meovangnha.vn`].filter(Boolean))];
+    let lastError = null;
+    for (const email of candidates) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (!error) return data.user;
+        lastError = error;
+    }
+    throw new Error(getFriendlyErrorMessage(lastError));
+};
+
 export const CustomerProvider = ({ children }) => {
     const [authenticatedCustomer, setAuthenticatedCustomer] = useState(() => {
         if (typeof window === 'undefined') return null;
         try {
             const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+            // Phiên admin đăng nhập cứng kiểu cũ (không qua Supabase) không còn hợp lệ
+            if (saved?.id === 'admin-0962606249') {
+                localStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(STORAGE_KEY);
+                return null;
+            }
+            setSyncIdentity({ userId: saved?.id || null, isAdmin: false });
             if (saved && normalizePhone(saved.phone) === '0962606249') {
                 if (!saved.fullName || saved.fullName.includes('(Chi)')) {
                     saved.fullName = 'Quản trị viên';
@@ -87,10 +150,13 @@ export const CustomerProvider = ({ children }) => {
     });
 
     const [authLoading, setAuthLoading] = useState(true);
+    // Quyền admin chỉ được bật sau khi Supabase xác thực phiên đăng nhập, không đọc từ localStorage
+    const [verifiedAdmin, setVerifiedAdmin] = useState(false);
 
     // Chuyển đổi Supabase User sang Customer object chuẩn của app
     const mapSupabaseUserToCustomer = useCallback(async (user) => {
         if (!user) return null;
+        setVerifiedAdmin(isAdminUser(user, ADMIN_EMAILS));
         const meta = user.user_metadata || {};
         let fullName = meta.full_name || meta.fullName || user.email?.split('@')[0] || 'Khách hàng';
         const phone = meta.phone || '';
@@ -175,7 +241,9 @@ export const CustomerProvider = ({ children }) => {
             try {
                 const serverData = await fetchServerSync();
                 if (serverData && Array.isArray(serverData.profiles) && serverData.profiles.length > 0 && isMounted) {
-                    const latest = serverData.profiles[0];
+                    // Chỉ nhận hồ sơ của chính tài khoản đang đăng nhập
+                    const sessionId = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.id;
+                    const latest = sessionId ? serverData.profiles.find((p) => p.id === sessionId) : null;
                     if (latest) {
                         setCustomerProfile(prev => {
                             if (!prev || !prev.fullName) {
@@ -200,6 +268,7 @@ export const CustomerProvider = ({ children }) => {
                 localStorage.setItem(SESSION_KEY, JSON.stringify(customer));
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(customer));
             } else if (event === 'SIGNED_OUT') {
+                setVerifiedAdmin(false);
                 setAuthenticatedCustomer(null);
                 setCustomerProfile(null);
                 localStorage.removeItem(SESSION_KEY);
@@ -212,6 +281,8 @@ export const CustomerProvider = ({ children }) => {
         const unsubSync = subscribeSyncEvents(({ type, payload }) => {
             if (type === 'PROFILE_UPDATED' && payload?.profile && isMounted) {
                 const prof = payload.profile;
+                const sessionId = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')?.id;
+                if (!sessionId || prof.id !== sessionId) return;
                 setCustomerProfile(prof);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(prof));
             }
@@ -261,6 +332,14 @@ export const CustomerProvider = ({ children }) => {
 
         if (!email || !password) {
             throw new Error('Email/Số điện thoại và Mật khẩu là bắt buộc!');
+        }
+
+        // Mỗi số điện thoại chỉ được gắn với một tài khoản để đăng nhập bằng SĐT không bị nhầm
+        if (normalizedPhone) {
+            const check = await callPhoneAuthApi('check', { phone: rawPhone });
+            if (check?.taken) {
+                throw new Error('Số điện thoại này đã được đăng ký, vui lòng đăng nhập!');
+            }
         }
 
         // 1. Gọi Supabase Auth để tạo tài khoản
@@ -335,7 +414,7 @@ export const CustomerProvider = ({ children }) => {
         return customer;
     };
 
-    // Đăng nhập bằng Email hoặc Số điện thoại qua Supabase (kèm hỗ trợ Admin bypass nếu cần)
+    // Đăng nhập bằng Email hoặc Số điện thoại qua Supabase
     const authenticateCustomer = async (identifier, password) => {
         if (!identifier || !password) {
             throw new Error('Vui lòng nhập tài khoản và mật khẩu!');
@@ -344,50 +423,24 @@ export const CustomerProvider = ({ children }) => {
         const trimmed = identifier.trim();
         const normalized = normalizePhone(trimmed);
 
-        // Hỗ trợ đăng nhập nhanh tài khoản Admin 0962606249
-        if (normalized === '0962606249' && password === 'admin') {
-            const adminCustomer = {
-                id: 'admin-0962606249',
-                customerId: 'admin-0962606249',
-                fullName: 'Quản trị viên',
-                phone: '0962606249',
-                email: 'admin@meovangnha.vn',
-                role: 'admin',
-                labels: ['Quản trị viên'],
-                pets: [],
-                createdAt: new Date().toISOString(),
-            };
-            setAuthenticatedCustomer(adminCustomer);
-            setCustomerProfile(adminCustomer);
-            localStorage.setItem(SESSION_KEY, JSON.stringify(adminCustomer));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(adminCustomer));
-            return adminCustomer;
-        }
-
-        let targetEmail = '';
+        let user = null;
 
         if (trimmed.includes('@')) {
-            targetEmail = trimmed.toLowerCase();
-        } else {
-            // Identifier là số điện thoại
-            const map = getPhoneEmailMap();
-            if (map[normalized]) {
-                targetEmail = map[normalized];
-            } else {
-                targetEmail = `${normalized}@meovangnha.vn`;
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: trimmed.toLowerCase(),
+                password,
+            });
+            if (error) {
+                throw new Error(getFriendlyErrorMessage(error));
             }
+            user = data.user;
+        } else {
+            user = await signInWithPhone(normalized, password);
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: targetEmail,
-            password,
-        });
+        // Ghi lại SĐT + email lên customer_profiles để lần sau đăng nhập bằng SĐT ở thiết bị nào cũng tìm được
+        rememberPhoneOnServer(user);
 
-        if (error) {
-            throw new Error(getFriendlyErrorMessage(error));
-        }
-
-        const user = data.user;
         const customer = await mapSupabaseUserToCustomer(user);
         setAuthenticatedCustomer(customer);
         setCustomerProfile(customer);
@@ -433,6 +486,7 @@ export const CustomerProvider = ({ children }) => {
         } catch (err) {
             console.warn('Supabase signOut error:', err);
         } finally {
+            setVerifiedAdmin(false);
             setAuthenticatedCustomer(null);
             setCustomerProfile(null);
             localStorage.removeItem(SESSION_KEY);
@@ -440,9 +494,11 @@ export const CustomerProvider = ({ children }) => {
         }
     };
 
-    const isAdmin = useMemo(() => {
-        return normalizePhone(authenticatedCustomer?.phone) === '0962606249';
-    }, [authenticatedCustomer]);
+    const isAdmin = verifiedAdmin && Boolean(authenticatedCustomer);
+
+    useEffect(() => {
+        setSyncIdentity({ userId: authenticatedCustomer?.id || null, isAdmin });
+    }, [authenticatedCustomer, isAdmin]);
 
     const value = useMemo(() => ({
         customerProfile,

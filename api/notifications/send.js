@@ -1,4 +1,4 @@
-import { sendPushToUser, broadcastPush } from '../lib/pushService.js';
+import { sendPushToUser, broadcastPush } from '../_lib/pushService.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

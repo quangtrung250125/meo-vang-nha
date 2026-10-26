@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { paymentAccount } from '../../config/payment';
+import { buildVietQrPayload, isPaymentAccountReady } from '../../utils/vietqr';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
   const initialBookingId = data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id || '';
@@ -15,6 +17,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   const { addNewBooking } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
+  const paymentTotal = Number(data.confirmedBooking?.totalPrice) || 0;
 
   // Kiểm tra Thứ 5
   const isThursday = (() => {
@@ -185,6 +188,36 @@ const Step5Success = ({ data, onBackToStep1 }) => {
           Vui lòng lưu lại mã QR này hoặc đưa cho nhân viên khi đến làm thủ tục check-in.
         </p>
       </div>
+
+      {/* ── QR thanh toán chuyển khoản: điền sẵn số tiền và mã đặt phòng ── */}
+      {paymentTotal > 0 && (
+        <div className="bg-white max-w-md mx-auto mt-6 p-6 rounded-3xl border border-emerald-100 shadow-sm">
+          <p className="text-sm text-gray-500 mb-1 font-semibold">QUÉT MÃ ĐỂ THANH TOÁN</p>
+          <p className="text-3xl font-black text-accent mb-4">{paymentTotal.toLocaleString()}đ</p>
+          {isPaymentAccountReady(paymentAccount) ? (
+            <>
+              <div className="bg-white p-3 rounded-xl inline-block border border-gray-100 mb-4">
+                <QRCodeSVG
+                  value={buildVietQrPayload({ ...paymentAccount, amount: paymentTotal, memo: bookingId })}
+                  size={200}
+                  level="M"
+                />
+              </div>
+              <div className="text-sm text-gray-600 space-y-1 text-left bg-bg-cream rounded-2xl p-4">
+                {paymentAccount.bankName && <p>Ngân hàng: <strong className="text-text-dark">{paymentAccount.bankName}</strong></p>}
+                <p>Số tài khoản: <strong className="text-text-dark">{paymentAccount.accountNumber}</strong></p>
+                {paymentAccount.accountName && <p>Chủ tài khoản: <strong className="text-text-dark">{paymentAccount.accountName}</strong></p>}
+                <p>Nội dung: <strong className="text-text-dark">{bookingId}</strong></p>
+              </div>
+              <p className="text-xs text-gray-400 mt-3">Mở app ngân hàng, quét mã QR. Số tiền và nội dung đã được điền sẵn.</p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 bg-bg-cream rounded-2xl p-4">
+              Nhân viên Mèo Vàng Nhà sẽ gửi thông tin chuyển khoản cho bạn qua Zalo/điện thoại.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap justify-center gap-4 pt-8">
         <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-50 transition-colors">

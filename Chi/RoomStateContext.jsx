@@ -2,6 +2,15 @@ import React, { createContext, useState, useContext, useCallback, useEffect, use
 import { supabase } from '../src/supabaseClient';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
 import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
+import { getAuthHeaders } from '../src/services/crossDeviceSync';
+
+// Gọi /api/bookings kèm token đăng nhập (server chỉ cho admin sửa/xóa đơn và xem đầy đủ thông tin)
+const callBookingsApi = async (method = 'GET', body) =>
+  fetch('/api/bookings', {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 
 // ─────────────────────────────────────────────
 // Helper: generate a unique booking detail key for localStorage
@@ -433,7 +442,7 @@ export const RoomStateProvider = ({ children }) => {
     let isMounted = true;
     const fetchServerBookings = async () => {
       try {
-        const res = await fetch('/api/bookings');
+        const res = await callBookingsApi();
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.bookings && isMounted) {
@@ -731,11 +740,7 @@ export const RoomStateProvider = ({ children }) => {
     // 1. Gửi request atomic lên server trung tâm (/api/bookings)
     // Đảm bảo tuyệt đối không bị race condition giữa 2 thiết bị/tài khoản cùng đặt chỗ cuối
     try {
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, booking }),
-      });
+      const res = await callBookingsApi('POST', { roomId, booking });
 
       const data = await res.json();
 
@@ -746,8 +751,9 @@ export const RoomStateProvider = ({ children }) => {
         }
         return {
           success: false,
-          conflict: true,
-          reason: data.reason || 'ROOM_CAPACITY_FULL',
+          conflict: !data.invalid,
+          invalid: Boolean(data.invalid),
+          reason: data.reason || (data.invalid ? 'INVALID_BOOKING' : 'ROOM_CAPACITY_FULL'),
           message: data.message || `Phòng ${roomId} đã kín chỗ! Vui lòng bấm "Chọn phòng khác".`,
           conflictedRoomId: roomId,
           availableSlots: data.availableSlots ?? 0,
@@ -893,11 +899,7 @@ export const RoomStateProvider = ({ children }) => {
       }
 
       // Đồng bộ Server API
-      fetch('/api/bookings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, code, updates }),
-      }).catch(() => {});
+      callBookingsApi('PUT', { roomId, code, updates }).catch(() => {});
 
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code, updates, allBookings: updated });
@@ -950,11 +952,7 @@ export const RoomStateProvider = ({ children }) => {
     });
 
     // Đồng bộ trạng thái check-out lên Server API trung tâm
-    fetch('/api/bookings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomId, code, updates: { status: 'check-out' } }),
-    }).catch(() => {});
+    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out' } }).catch(() => {});
 
     // Cập nhật lên Supabase Database realtime
     (async () => {
@@ -996,11 +994,7 @@ export const RoomStateProvider = ({ children }) => {
       }
 
       // Đồng bộ xóa/hủy đơn lên Server API trung tâm
-      fetch('/api/bookings', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, code }),
-      }).catch(() => {});
+      callBookingsApi('DELETE', { roomId, code }).catch(() => {});
 
       // Cập nhật trạng thái hủy lên Supabase Database realtime
       (async () => {

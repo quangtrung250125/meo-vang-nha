@@ -7,6 +7,7 @@ import {
   pushServerSync,
   broadcastEvent,
   subscribeSyncEvents,
+  getAuthHeaders,
 } from '../services/crossDeviceSync';
 import {
   BOOKING_STATUS,
@@ -580,16 +581,29 @@ export const BookingHistoryProvider = ({ children }) => {
     // C. Đồng bộ kho phòng trung tâm (/api/bookings) để trang Tình trạng phòng cập nhật theo
     const roomId = target?.roomId || target?.selectedRoom?.id;
     if (syncRoom && roomId) {
-      const roomFields = ['status', 'checkIn', 'checkOut', 'pending_changes', 'packages', 'specialNote'];
+      const roomFields = [
+        'status', 'checkIn', 'checkOut', 'pending_changes', 'checkedInAt', 'checkedOutAt',
+        'rescheduledAt', 'cancelReason', 'cancelledAt', 'cancelledBy',
+        'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
+      ];
       const roomUpdates = Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
       );
       if (Object.keys(roomUpdates).length > 0) {
-        fetch('/api/bookings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId, code: target.code || target.id, updates: roomUpdates }),
-        }).catch(() => {});
+        (async () => {
+          try {
+            const res = await fetch('/api/bookings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+              body: JSON.stringify({ roomId, code: target.code || target.id, updates: roomUpdates }),
+            });
+            // Server từ chối (VD: phòng vừa hết chỗ, chưa đăng nhập) -> báo để người dùng tải lại
+            if (!res.ok) {
+              const json = await res.json().catch(() => ({}));
+              toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng tải lại trang.');
+            }
+          } catch (e) {}
+        })();
       }
     }
 

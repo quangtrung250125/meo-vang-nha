@@ -89,10 +89,6 @@ const AuthModal = ({ isOpen, onClose }) => {
         toast.error('Vui lòng nhập số điện thoại!');
         return;
       }
-      if (!formData.email.trim()) {
-        toast.error('Vui lòng nhập email!');
-        return;
-      }
       if (!formData.password || !formData.confirmPassword) {
         toast.error('Vui lòng nhập đầy đủ mật khẩu và xác nhận mật khẩu!');
         return;
@@ -298,11 +294,10 @@ const AuthModal = ({ isOpen, onClose }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Email <span className="font-normal text-gray-400">(không bắt buộc)</span></label>
                       <input
                         type="email"
                         name="email"
-                        required
                         value={formData.email}
                         onChange={handleChange}
                         placeholder="customer@gmail.com"
@@ -388,20 +383,6 @@ const AuthModal = ({ isOpen, onClose }) => {
                   )}
                 </button>
 
-                {activeTab === 'login' && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData({ ...formData, identifier: '0962606249', phone: '0962606249', password: 'admin' });
-                      }}
-                      className="w-full py-2 px-3 bg-orange-50 hover:bg-orange-100/70 border border-dashed border-orange-200 rounded-xl text-xs font-semibold text-primary flex items-center justify-center gap-1.5 transition-all"
-                      title="Nhấn để tự động điền SĐT 0962606249"
-                    >
-                      <span>⚡ Điền nhanh tài khoản Admin: <strong>0962606249</strong></span>
-                    </button>
-                  </div>
-                )}
               </form>
             )}
           </>

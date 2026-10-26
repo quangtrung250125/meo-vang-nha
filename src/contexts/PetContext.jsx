@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { useCustomerProfile } from './CustomerContext';
 import {
   fetchServerSync,
   pushServerSync,
@@ -43,34 +44,93 @@ const normalizePetList = (value) => {
     }));
 };
 
-const readStoredPets = () => {
-  if (typeof window === 'undefined') return [];
+// Mỗi tài khoản có một ngăn lưu riêng trong localStorage, khách chưa đăng nhập dùng ngăn 'guest'
+const LEGACY_KEYS = ['petList', 'petProfiles', 'petProfileList'];
+const GUEST_KEY = 'guest';
+const storageKeyFor = (ownerKey) => `petList:${ownerKey || GUEST_KEY}`;
 
-  const candidates = ['petList', 'petProfiles', 'petProfileList'];
-  for (const key of candidates) {
+const readJson = (key) => {
+  try {
     const saved = localStorage.getItem(key);
-    if (!saved) continue;
-    try {
-      const parsed = JSON.parse(saved);
-      const normalized = normalizePetList(parsed);
-      if (normalized.length > 0) return normalized;
-    } catch (e) {
-      console.warn('Failed to parse pet list', e);
-    }
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) {
+    console.warn('Failed to parse pet list', e);
+    return null;
   }
+};
 
-  return [];
+const readStoredPets = (ownerKey) => {
+  if (typeof window === 'undefined') return [];
+  const own = normalizePetList(readJson(storageKeyFor(ownerKey)));
+
+  // Dữ liệu kiểu cũ (dùng chung mọi tài khoản): chỉ nhận lại những bé có ownerId đúng tài khoản này
+  if (ownerKey) {
+    LEGACY_KEYS.forEach((key) => {
+      normalizePetList(readJson(key)).forEach((pet) => {
+        if (pet.ownerId === ownerKey && !own.some((p) => p.id === pet.id)) own.push(pet);
+      });
+    });
+  }
+  return own;
+};
+
+// Gộp theo id (không gộp theo tên: 2 nhà có thể cùng đặt tên bé là "Mochi")
+const mergePets = (prev, incoming) => {
+  const merged = [...prev];
+  incoming.forEach((np) => {
+    const idx = merged.findIndex((p) => p.id === np.id);
+    if (idx >= 0) merged[idx] = { ...merged[idx], ...np };
+    else merged.push(np);
+  });
+  return merged;
 };
 
 export const PetProvider = ({ children }) => {
-  const [petList, setPetList] = useState(() => readStoredPets());
+  const { authenticatedCustomer, isAdmin } = useCustomerProfile() || {};
+  const ownerKey = authenticatedCustomer?.id || null;
+
+  const [petList, setPetList] = useState(() => readStoredPets(ownerKey));
   const petListRef = useRef(petList);
   petListRef.current = petList;
 
+  // Tài khoản đang xem, dùng trong các callback bất đồng bộ
+  const ownerRef = useRef({ ownerKey, isAdmin });
+  ownerRef.current = { ownerKey, isAdmin };
+
   const persistPets = (nextList) => {
-    localStorage.setItem('petList', JSON.stringify(nextList));
-    localStorage.setItem('petProfiles', JSON.stringify(nextList));
+    // Bỏ các khoá dùng chung kiểu cũ để tài khoản sau không đọc được mèo của tài khoản trước
+    LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem(storageKeyFor(ownerRef.current.ownerKey), JSON.stringify(nextList));
   };
+
+  // Khách chỉ giữ mèo của chính mình; admin xem được tất cả
+  const keepOwnPets = (list) => {
+    const { ownerKey: current, isAdmin: admin } = ownerRef.current;
+    if (admin) return list;
+    return list.filter((pet) => (current ? pet.ownerId === current : !pet.ownerId));
+  };
+
+  // Đổi tài khoản: nạp ngăn lưu của tài khoản mới; mèo tạo lúc chưa đăng nhập được chuyển sang tài khoản vừa đăng nhập
+  const prevOwnerRef = useRef(ownerKey);
+  useEffect(() => {
+    const prevOwner = prevOwnerRef.current;
+    if (prevOwner === ownerKey) return;
+    prevOwnerRef.current = ownerKey;
+
+    let next = readStoredPets(ownerKey);
+    if (!prevOwner && ownerKey) {
+      const guestPets = normalizePetList(readJson(storageKeyFor(null)))
+        .filter((pet) => !pet.ownerId)
+        .map((pet) => ({ ...pet, ownerId: ownerKey }));
+      if (guestPets.length > 0) {
+        next = mergePets(next, guestPets);
+        localStorage.removeItem(storageKeyFor(null));
+        pushServerSync({ pets: next });
+      }
+    }
+    setPetList(next);
+    persistPets(next);
+  }, [ownerKey]);
 
   // ── 1. Tải dữ liệu ban đầu từ Server API và Supabase DB ──
   useEffect(() => {
@@ -81,20 +141,10 @@ export const PetProvider = ({ children }) => {
       try {
         const serverData = await fetchServerSync();
         if (serverData && Array.isArray(serverData.pets) && serverData.pets.length > 0 && isMounted) {
-          const serverNormalized = normalizePetList(serverData.pets);
+          const serverNormalized = keepOwnPets(normalizePetList(serverData.pets));
           setPetList((prev) => {
             // Merge dữ liệu server và local
-            const merged = [...prev];
-            serverNormalized.forEach((sp) => {
-              const idx = merged.findIndex(
-                (p) => p.id === sp.id || (p.name && sp.name && p.name.trim().toLowerCase() === sp.name.trim().toLowerCase())
-              );
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...sp };
-              } else {
-                merged.push(sp);
-              }
-            });
+            const merged = mergePets(prev, serverNormalized);
             persistPets(merged);
             return merged;
           });
@@ -123,15 +173,11 @@ export const PetProvider = ({ children }) => {
               notes: p.notes || '',
               imagePreview: p.avatar || null,
               createdAt: p.created_at,
+              ownerId: p.user_id || session.user.id,
             }));
-            const normalized = normalizePetList(mappedPets);
+            const normalized = keepOwnPets(normalizePetList(mappedPets));
             setPetList((prev) => {
-              const merged = [...prev];
-              normalized.forEach(np => {
-                const idx = merged.findIndex(p => p.id === np.id || (p.name && np.name && p.name.trim().toLowerCase() === np.name.trim().toLowerCase()));
-                if (idx >= 0) merged[idx] = { ...merged[idx], ...np };
-                else merged.push(np);
-              });
+              const merged = mergePets(prev, normalized);
               persistPets(merged);
               return merged;
             });
@@ -164,19 +210,9 @@ export const PetProvider = ({ children }) => {
       if (type === 'PETS_UPDATED' || type === 'FULL_SYNC_RESPONSE') {
         const incomingPets = payload?.pets;
         if (Array.isArray(incomingPets) && incomingPets.length > 0) {
-          const normalized = normalizePetList(incomingPets);
+          const normalized = keepOwnPets(normalizePetList(incomingPets));
           setPetList((prev) => {
-            const merged = [...prev];
-            normalized.forEach((np) => {
-              const idx = merged.findIndex(
-                (p) => p.id === np.id || (p.name && np.name && p.name.trim().toLowerCase() === np.name.trim().toLowerCase())
-              );
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...np };
-              } else {
-                merged.push(np);
-              }
-            });
+            const merged = mergePets(prev, normalized);
             persistPets(merged);
             return merged;
           });
@@ -199,11 +235,13 @@ export const PetProvider = ({ children }) => {
   // ── 3. Lưu hồ sơ mèo (Cập nhật Local + Server API + Broadcast Realtime) ──
   const savePet = async (petData) => {
     let savedId = petData.id;
+    let ownerId = petData.ownerId || (ownerRef.current.isAdmin ? null : ownerRef.current.ownerKey);
 
     // Lưu vào Supabase nếu có session
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
+        ownerId = ownerId || session.user.id;
         if (petData.id && typeof petData.id === 'string' && petData.id.includes('-') && petData.id.length > 20) {
           await supabase.from('pets').update({
             name: petData.name,
@@ -238,6 +276,7 @@ export const PetProvider = ({ children }) => {
     const safePet = {
       ...petData,
       id: savedId || petData.id || String(Date.now()),
+      ownerId,
       imageFile: undefined,
       imagePreview: petData.imagePreview || '',
       updatedAt: new Date().toISOString(),

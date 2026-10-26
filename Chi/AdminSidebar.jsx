@@ -14,7 +14,9 @@ import {
   LayoutDashboard,
   Star,
   Settings,
-  ClipboardList
+  ClipboardList,
+  Users,
+  Zap
 } from 'lucide-react';
 import { useCustomerProfile } from '../src/contexts/CustomerContext';
 import { toast } from 'react-hot-toast';
@@ -37,9 +39,11 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
   const navItems = [
     { name: 'Trang chủ', path: isDirectAdminRoute ? '/admin' : '/', icon: Home },
     { name: 'Tình trạng phòng', path: `${basePrefix}/room-status`, icon: LayoutDashboard },
+    { name: 'Khách hàng', path: `${basePrefix}/customers`, icon: Users },
     { name: 'Dịch vụ', path: `${basePrefix}/services`, icon: Briefcase },
     { name: 'Lịch đặt', path: `${basePrefix}/my-booking`, icon: ClipboardList },
-    { name: 'Khuyến mãi', path: `${basePrefix}/promotions`, icon: Tag },
+    { name: 'Khuyến mãi & điểm thưởng', path: `${basePrefix}/promotions`, icon: Tag },
+    { name: 'Marketing tự động', path: `${basePrefix}/marketing`, icon: Zap },
     { name: 'Tin tức', path: `${basePrefix}/news`, icon: Newspaper },
     { name: 'Hồ sơ mèo', path: `${basePrefix}/pet-profile`, icon: PawPrint },
     { name: 'Đặt phòng', path: `${basePrefix}/booking`, icon: Calendar },

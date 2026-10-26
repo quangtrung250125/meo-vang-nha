@@ -25,7 +25,7 @@ import {
   testPhoneNotification
 } from '../../utils/notifications';
 import cameraFeed from '../../assets/images/camera_feed.png';
-import { BOOKING_STATUS, getBookingStatus } from '../../utils/bookingStatus';
+import { BOOKING_STATUS, BOOKING_STATUS_CONFIG, getBookingStatus, normalizeStatusValue } from '../../utils/bookingStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -767,9 +767,11 @@ const TrackingPage = () => {
   const myBookings = activeCustomer
     ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
     : globalBookingList;
+  // Ưu tiên đơn đang lưu trú, nếu không có thì lấy đơn sắp tới gần nhất (không hiển thị đơn đã hoàn tất/đã hủy)
   const realActiveBooking = myBookings.find(b => getBookingStatus(b) === BOOKING_STATUS.IN_HOUSE)
-    || myBookings.find(b => getBookingStatus(b) === BOOKING_STATUS.UPCOMING)
-    || myBookings[0];
+    || myBookings
+      .filter(b => [BOOKING_STATUS.UPCOMING, BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL].includes(getBookingStatus(b)))
+      .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''))[0];
 
   // Booking mẫu nếu máy chưa có booking thực tế để người dùng có thể test đồng bộ với Admin ngay lập tức
   const demoBooking = {
@@ -779,6 +781,7 @@ const TrackingPage = () => {
     checkIn: '2026-10-20',
     checkOut: '2026-10-30',
     status: 'Đang lưu trú',
+    staffNote: 'Bé ăn ít hơn bình thường vào bữa trưa và có vẻ stress nhẹ. Chúng mình đang theo dõi sát và sẽ liên hệ ngay nếu có gì bất thường.',
     petIds: [1],
     petProfiles: [{
       id: 1,
@@ -796,7 +799,14 @@ const TrackingPage = () => {
         .concat(activeBooking.petProfiles || []).filter((p, i, arr) => arr.findIndex(q => q.id === p.id) === i)
     : [];
 
-  const daysRemaining = activeBooking ? getDaysRemaining(activeBooking.checkOut) : 0;
+  const activeStatus = activeBooking === demoBooking
+    ? 'Đang lưu trú'
+    : activeBooking ? (BOOKING_STATUS_CONFIG[getBookingStatus(activeBooking)]?.label || 'Sắp tới') : '';
+  // Đơn chưa Check-in (kể cả đang chờ khách xác nhận đề xuất) vẫn là đơn sắp tới
+  const isUpcoming = activeBooking !== demoBooking && Boolean(activeBooking)
+    && normalizeStatusValue(activeBooking.status) === BOOKING_STATUS.UPCOMING;
+  // Đơn sắp tới: đếm ngày đến hôm gửi bé; đơn đang lưu trú: đếm ngày đến hôm đón bé
+  const daysRemaining = activeBooking ? getDaysRemaining(isUpcoming ? activeBooking.checkIn : activeBooking.checkOut) : 0;
   const firstPet = resolvedPets[0];
   const currentPet = resolvedPets[selectedPetIdx] || firstPet;
 
@@ -1016,7 +1026,7 @@ const TrackingPage = () => {
                   >
                     {resolvedPets.map(p => p.name).join(', ') || 'Bé mèo'}
                   </button>
-                  <span className="bg-primary text-white text-xs font-bold px-2.5 py-0.5 rounded-full">Đang lưu trú</span>
+                  <span className={`${isUpcoming ? 'bg-amber-500' : 'bg-primary'} text-white text-xs font-bold px-2.5 py-0.5 rounded-full`}>{activeStatus}</span>
                 </div>
                 <p className="text-gray-600 text-sm mb-3">
                   {(activeBooking.selectedPackage?.name && activeBooking.selectedPackage.name !== 'Gói Tiêu Chuẩn') ? activeBooking.selectedPackage.name : 'Gói Mèo Quý Tộc'}
@@ -1030,8 +1040,10 @@ const TrackingPage = () => {
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="font-bold text-amber-600">
-                      Còn {extendPending ? daysRemaining + extendPending.days : daysRemaining} ngày
-                      {extendPending ? ' (dự kiến)' : ''}
+                      {isUpcoming
+                        ? `Còn ${daysRemaining} ngày đến ngày gửi bé`
+                        : `Còn ${extendPending ? daysRemaining + extendPending.days : daysRemaining} ngày`}
+                      {!isUpcoming && extendPending ? ' (dự kiến)' : ''}
                     </span>
                   </div>
                 </div>
@@ -1055,6 +1067,7 @@ const TrackingPage = () => {
             </div>
 
             {/* ── Warning Banner (abnormal events) ── */}
+            {activeBooking.staffNote && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
               <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5 text-amber-500" />
@@ -1062,7 +1075,7 @@ const TrackingPage = () => {
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-amber-800 text-sm mb-0.5">Lưu ý từ nhân viên chăm sóc</p>
                 <p className="text-amber-700 text-sm leading-relaxed">
-                  Bé ăn ít hơn bình thường vào bữa trưa và có vẻ stress nhẹ. Chúng mình đang theo dõi sát và sẽ liên hệ ngay nếu có gì bất thường.
+                  {activeBooking.staffNote}
                 </p>
                 <button
                   onClick={() => setShowCallModal(true)}
@@ -1073,13 +1086,14 @@ const TrackingPage = () => {
                 </button>
               </div>
             </div>
+            )}
 
             {/* ── 2-column layout ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* ── LEFT: Main content ── */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Stepper */}
-                <Stepper currentStep={3} />
+                <Stepper currentStep={isUpcoming ? 1 : 3} />
 
                 {/* Tab chuyển đổi bé nếu phòng có nhiều mèo */}
                 {resolvedPets.length > 1 && (
