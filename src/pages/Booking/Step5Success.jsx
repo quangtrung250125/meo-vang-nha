@@ -223,13 +223,10 @@ const Step5Success = ({ data, onBackToStep1 }) => {
 
       {/* ── Ghi chú thanh toán theo quy định đặt cọc ── */}
       {depositPaid && (
-        <div className="max-w-md mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-900 text-left">
-          <p className="font-bold">✅ Đã nhận tiền cọc {depositAmount.toLocaleString()}đ</p>
-          <p className="mt-1">
-            Số còn lại {Math.max(paymentTotal - depositAmount, 0).toLocaleString()}đ thanh toán khi hoàn thành dịch vụ.
-            Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.
-          </p>
-        </div>
+        <p className="max-w-md mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-900">
+          Số tiền còn lại phải thanh toán sau khi kết thúc dịch vụ là{' '}
+          <strong>{Math.max(paymentTotal - depositAmount, 0).toLocaleString()}đ</strong>
+        </p>
       )}
 
       {/* ── QR thanh toán chuyển khoản: điền sẵn số tiền và mã đặt phòng ── */}
