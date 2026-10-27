@@ -94,8 +94,9 @@ function generateUniqueCode() {
   return code;
 }
 
-// Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân)
-const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId'];
+// Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân).
+// paymentStatus để trang đặt phòng của khách tự hiện mã ngay khi admin xác nhận đã nhận cọc.
+const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount'];
 
 export function toPublicBookings(bookingsByRoom, viewerId = null) {
   const result = {};
