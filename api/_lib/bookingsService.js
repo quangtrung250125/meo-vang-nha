@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
+import { getDepositPolicy } from '../../src/utils/bookingDeposit.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -515,7 +516,18 @@ export async function handleAddBooking(req, res) {
 
   // Gắn đơn với tài khoản đang đăng nhập (nếu có) thay vì tin customerId do trình duyệt gửi lên
   const user = await getRequestUser(req);
-  const payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+  let payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+
+  // Tiền cọc do server tính theo ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được
+  if (!user?.isAdmin || !payload.paymentStatus) {
+    const deposit = getDepositPolicy({ checkIn: payload.checkIn, total: payload.totalPrice, todayStr: getTodayStr() });
+    payload = {
+      ...payload,
+      depositRequired: deposit.required,
+      depositAmount: deposit.amount,
+      paymentStatus: deposit.paymentStatus,
+    };
+  }
 
   const result = await scopeResult(req, await addBookingAtomic({ roomId, booking: payload }));
   if (result.invalid) {

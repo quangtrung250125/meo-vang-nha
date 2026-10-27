@@ -6,6 +6,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
+import { getDepositPolicy, DEPOSIT_FREE_MAX_DAYS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -57,6 +58,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     couponApplied: isCouponApplied,
     addCamera,
   });
+
+  // ── Đặt cọc: đặt trước hơn 5 ngày thì cọc 50% mới nhận mã đặt phòng ──
+  const deposit = getDepositPolicy({ checkIn: data.checkIn, total });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -124,6 +128,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       customerId: activeCustomer?.customerId || activeCustomer?.id || null,
       status: bookingStatus,
       totalPrice: total,
+      depositRequired: deposit.required,
+      depositAmount: deposit.amount,
+      paymentStatus: deposit.paymentStatus,
       createdAt: new Date().toISOString(),
     };
 
@@ -147,7 +154,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
     // Server có thể cấp mã mới nếu mã tạo ở trình duyệt bị trùng
     const confirmedCode = roomResult?.booking?.code || newId;
-    const confirmedBooking = { ...bookingPayload, id: confirmedCode, code: confirmedCode };
+    // Lấy trạng thái cọc do server tính (nếu có) để bước 5 hiện đúng
+    const confirmedBooking = { ...bookingPayload, ...(roomResult?.booking || {}), id: confirmedCode, code: confirmedCode };
 
     // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
     upsertBooking(confirmedBooking);
@@ -160,9 +168,15 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       });
     }
 
-    sendWebNotification('🎉 Đặt phòng thành công!', {
-      body: `Mã đặt phòng của bạn là ${confirmedCode}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
-    });
+    if (confirmedBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
+      sendWebNotification('🏠 Đã giữ phòng cho các bé!', {
+        body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ để nhận mã đặt phòng.`,
+      });
+    } else {
+      sendWebNotification('🎉 Đặt phòng thành công!', {
+        body: `Mã đặt phòng của bạn là ${confirmedCode}. Yêu cầu lưu trú của các bé đã được tiếp nhận thành công!`,
+      });
+    }
 
     setIsSubmitting(false);
     onNext();
@@ -353,6 +367,25 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         </div>
       </div>
 
+      {/* ── Ghi chú đặt cọc ── */}
+      {deposit.required ? (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 text-sm text-amber-900 space-y-1.5">
+          <p className="font-bold text-base">💰 Cần đặt cọc 50% để nhận mã đặt phòng</p>
+          <p>
+            Bạn đặt trước {deposit.leadDays} ngày (hơn {DEPOSIT_FREE_MAX_DAYS} ngày) nên cần chuyển khoản cọc{' '}
+            <strong>{deposit.amount.toLocaleString()}đ</strong>. Mèo Vàng Nhà giữ phòng cho bạn và gửi mã đặt phòng ngay khi nhận được tiền cọc.
+          </p>
+          <p>Số còn lại thanh toán khi đón bé. Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.</p>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900 space-y-1.5">
+          <p className="font-bold text-base">✅ Không cần đặt cọc trước</p>
+          <p>
+            Ngày gửi bé chỉ còn {Math.max(deposit.leadDays, 0)} ngày (không quá {DEPOSIT_FREE_MAX_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi đưa bé đến.
+          </p>
+        </div>
+      )}
+
       {/* Conflict Error Alert */}
       {conflictError && (
         <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-left animate-in fade-in slide-in-from-top-2">
@@ -403,7 +436,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           ) : (
             <>
               <Sparkles className="w-5 h-5" />
-              <span>GỬI YÊU CẦU ĐẶT LỊCH</span>
+              <span>{deposit.required ? 'GIỮ PHÒNG & ĐẶT CỌC' : 'GỬI YÊU CẦU ĐẶT LỊCH'}</span>
             </>
           )}
         </button>
