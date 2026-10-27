@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
 import { getDepositPolicy } from '../../src/utils/bookingDeposit.js';
+import { listStoredBookings, saveStoredBooking, updateStoredBooking } from './bookingsDb.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -195,6 +196,34 @@ function loadPersistedBookings() {
 
 globalBookings = loadPersistedBookings();
 
+const FINISHED_STATUSES = ['check-out', 'Đã hoàn tất', 'hoàn tất', 'cancelled', 'Đã hủy'];
+
+// Nạp lại đơn từ Supabase (tối đa 3 giây một lần) để mọi bản server đều thấy đủ đơn, kể cả sau khi khởi động lại
+const DB_SYNC_TTL_MS = 3000;
+let lastDbSync = 0;
+
+async function syncFromDb(force = false) {
+  if (!force && Date.now() - lastDbSync < DB_SYNC_TTL_MS) return;
+  const stored = await listStoredBookings();
+  lastDbSync = Date.now();
+  if (!stored) return;
+
+  stored.forEach((b) => {
+    const roomId = b.roomId || b.selectedRoom?.id;
+    const code = b.code || b.id;
+    if (!roomId || !globalBookings[roomId] || !code || code.includes('BK')) return;
+    const list = globalBookings[roomId];
+    const idx = list.findIndex((item) => item.code === code || item.id === code);
+    if (FINISHED_STATUSES.includes(b.status)) {
+      if (idx >= 0) list.splice(idx, 1);
+      return;
+    }
+    const merged = { ...(idx >= 0 ? list[idx] : {}), ...b, code, id: b.id || code, roomId };
+    if (idx >= 0) list[idx] = merged;
+    else list.push(merged);
+  });
+}
+
 function persistBookings() {
   try {
     fs.writeFileSync(STORE_PATH, JSON.stringify(globalBookings, null, 2), 'utf-8');
@@ -305,6 +334,8 @@ export async function addBookingAtomic({ roomId, booking }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
+        // Đọc đơn mới nhất từ database trước khi kiểm tra phòng trống
+        await syncFromDb(true);
         const room = ROOM_CONFIG.find((r) => r.id === roomId);
         if (!room) {
           return resolve({ success: false, message: `Không tìm thấy phòng ${roomId}` });
@@ -371,8 +402,9 @@ export async function addBookingAtomic({ roomId, booking }) {
           roomId,
           createdAt: booking.createdAt || new Date().toISOString(),
         };
+        updatedBooking.dbId = await saveStoredBooking(updatedBooking);
 
-        globalBookings[roomId] = [...currentList, updatedBooking];
+        globalBookings[roomId] = [...(globalBookings[roomId] || []), updatedBooking];
         persistBookings();
         syncToSyncStore(updatedBooking);
 
@@ -418,6 +450,7 @@ export async function updateBookingAtomic({ roomId, code, updates }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
+        await syncFromDb(true);
         let found = false;
         const targetRooms = roomId ? [roomId] : Object.keys(globalBookings);
         const isFinished =
@@ -464,7 +497,8 @@ export async function updateBookingAtomic({ roomId, code, updates }) {
         } catch (e) {}
 
         persistBookings();
-        return resolve({ success: true, allBookings: globalBookings, found });
+        const storedUpdated = await updateStoredBooking(code, updates);
+        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated });
       } catch (err) {
         return resolve({ success: false, error: err.message });
       }
@@ -481,6 +515,7 @@ export async function removeBookingAtomic({ roomId, code }) {
 
 export async function handleGetBookings(req, res) {
   const user = await getRequestUser(req);
+  await syncFromDb();
   const all = getAllBookings();
   const bookings = user?.isAdmin ? all : toPublicBookings(all, user?.id || null);
   res.setHeader('Content-Type', 'application/json');
