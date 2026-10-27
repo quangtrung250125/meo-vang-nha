@@ -7,6 +7,7 @@ import path from 'path';
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mvn-api-'));
 process.env.MVN_DATA_DIR = dataDir;
 process.env.ADMIN_EMAILS = 'admin@test.vn';
+process.env.MVN_BOOKINGS_DB = 'off';
 
 let api;
 let sync;
@@ -235,5 +236,52 @@ describe('Đặt cọc khi đặt phòng', () => {
     expect(ok.payload.success).toBe(true);
     const mine = await call(api.handleGetBookings, { token: 'token-a' });
     expect(mine.payload.bookings['VIP-01'].find((b) => b.code === code).paymentStatus).toBe('deposit_paid');
+  });
+});
+
+describe('Đơn đặt phòng lưu trên database', () => {
+  // Kho giả thay cho bảng bookings trên Supabase
+  const makeStore = (rows) => ({
+    rows,
+    async list() { return this.rows; },
+    async save(b) { this.rows.push({ ...b, dbId: 'db-1' }); return 'db-1'; },
+    async update(code, updates) {
+      const row = this.rows.find((r) => r.code === code);
+      if (!row) return false;
+      Object.assign(row, updates);
+      return true;
+    },
+  });
+
+  it('server mới khởi động vẫn thấy đơn đã lưu, kể cả trạng thái chờ cọc', async () => {
+    const store = makeStore([
+      { id: 'MVN-77777', code: 'MVN-77777', roomId: 'DELUXE-01', checkIn: addDays(18), checkOut: addDays(20), cats: 1, status: 'check-in', paymentStatus: 'awaiting_deposit', depositAmount: 150000, customerId: 'user-a' },
+      { id: 'MVN-77778', code: 'MVN-77778', roomId: 'DELUXE-01', checkIn: addDays(18), checkOut: addDays(20), cats: 1, status: 'cancelled' },
+    ]);
+    vi.resetModules();
+    const db = await import('../../api/_lib/bookingsDb.js');
+    db.setBookingsStore(store);
+    const freshAuth = await import('../../api/_lib/auth.js');
+    freshAuth.setTokenVerifier(async (token) => USERS[token] || null);
+    const fresh = await import('../../api/_lib/bookingsService.js');
+
+    const admin = await call(fresh.handleGetBookings, { token: 'token-admin' });
+    const deluxe = admin.payload.bookings['DELUXE-01'];
+    expect(deluxe.find((b) => b.code === 'MVN-77777').paymentStatus).toBe('awaiting_deposit');
+    expect(deluxe.find((b) => b.code === 'MVN-77778')).toBeUndefined();
+
+    // Admin xác nhận cọc thì database cũng được cập nhật
+    await call(fresh.handleUpdateBooking, {
+      method: 'PUT', token: 'token-admin', body: { roomId: 'DELUXE-01', code: 'MVN-77777', updates: { paymentStatus: 'deposit_paid' } },
+    });
+    expect(store.rows[0].paymentStatus).toBe('deposit_paid');
+
+    // Đơn mới được ghi xuống database
+    const created = await call(fresh.handleAddBooking, {
+      method: 'POST', token: 'token-b', body: { roomId: 'DELUXE-02', booking: newBooking({ totalPrice: 100000 }) },
+    });
+    expect(created.payload.success).toBe(true);
+    expect(created.payload.booking.dbId).toBe('db-1');
+    expect(store.rows.some((r) => r.code === created.payload.booking.code)).toBe(true);
   });
 });

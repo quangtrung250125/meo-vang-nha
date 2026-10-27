@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
+import { PAYMENT_STATUS } from '../src/utils/bookingDeposit';
 
 /**
  * RoomStatusPage - Trang "Tình trạng phòng" dành riêng cho Admin
@@ -387,6 +388,9 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                     <div className="flex items-center gap-1">
                       {isNew && <Zap className="h-3 w-3 text-yellow-500 shrink-0" />}
                       <span className={isNew ? 'text-yellow-900 font-bold' : st.bkCode}>{bk.code}</span>
+                      {bk.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950">Chờ cọc</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className={isNew ? 'text-yellow-800' : st.bkCat}>🐱 {bk.cats}</span>
@@ -459,6 +463,12 @@ const RoomStatusPage = () => {
       setActiveBooking({ booking: updated, roomId });
     }
   }, [bookings]);
+
+  // Mọi đơn đang chờ cọc, không phụ thuộc ngày đang xem
+  const awaitingDepositBookings = Object.entries(bookings || {})
+    .flatMap(([roomId, list]) => (list || []).map((b) => ({ booking: b, roomId })))
+    .filter(({ booking }) => booking?.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT)
+    .sort((a, b) => String(a.booking.checkIn).localeCompare(String(b.booking.checkIn)));
 
   const isAdminRoute = window.location.pathname.startsWith('/admin');
   const basePrefix = isAdminRoute ? '/admin' : '';
@@ -705,6 +715,53 @@ const RoomStatusPage = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Đơn chờ đặt cọc ── */}
+      {awaitingDepositBookings.length > 0 && (
+        <div className="px-4 sm:px-6 lg:px-8 pt-6">
+          <div id="awaiting-deposit-panel" className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
+            <h2 className="font-extrabold text-amber-900 flex items-center gap-2">
+              ⏳ Đơn chờ đặt cọc ({awaitingDepositBookings.length})
+            </h2>
+            <p className="text-xs text-amber-700 mt-0.5 mb-3">
+              Kiểm tra tài khoản MB Bank theo nội dung chuyển khoản, đúng số tiền thì bấm "Xác nhận đã nhận cọc" để khách nhận mã đặt phòng.
+            </p>
+            <div className="space-y-2">
+              {awaitingDepositBookings.map(({ booking, roomId }) => (
+                <div key={booking.code} className="bg-white rounded-xl border border-amber-200 px-3 py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800">
+                      {booking.code} · {roomId} · {booking.ownerName || booking.customerName || 'Khách'}
+                      {booking.ownerPhone ? <span className="font-normal text-gray-500"> · {booking.ownerPhone}</span> : null}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Gửi bé {booking.checkIn} → {booking.checkOut} · Nội dung CK: <strong className="text-gray-700">COC {booking.code}</strong>
+                    </div>
+                  </div>
+                  <div className="font-extrabold text-amber-700 whitespace-nowrap">
+                    {Number(booking.depositAmount || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleBookingClick(booking, roomId)}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50"
+                    >
+                      Xem đơn
+                    </button>
+                    <button
+                      id={`btn-panel-confirm-deposit-${booking.code}`}
+                      onClick={() => updateBooking(roomId, booking.code, { paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID, depositPaidAt: new Date().toISOString() })}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
+                    >
+                      Xác nhận đã nhận cọc
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Lưới phòng ── */}
       <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-8">
