@@ -189,3 +189,51 @@ describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('Đặt cọc khi đặt phòng', () => {
+  it('đặt trước hơn 5 ngày thì đơn chờ cọc 50%', async () => {
+    const res = await call(api.handleAddBooking, {
+      method: 'POST',
+      token: 'token-a',
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(30), checkOut: addDays(32), totalPrice: 600000 }) },
+    });
+    expect(res.payload.success).toBe(true);
+    expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
+    expect(res.payload.booking.depositAmount).toBe(300000);
+  });
+
+  it('đặt sát ngày (≤ 5 ngày) thì không cần cọc', async () => {
+    const res = await call(api.handleAddBooking, {
+      method: 'POST',
+      token: 'token-a',
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(2), checkOut: addDays(3), totalPrice: 300000 }) },
+    });
+    expect(res.payload.booking.paymentStatus).toBe('pay_at_checkin');
+    expect(res.payload.booking.depositAmount).toBe(0);
+  });
+
+  it('khách không tự đánh dấu đã cọc được', async () => {
+    const created = await call(api.handleAddBooking, {
+      method: 'POST',
+      token: 'token-a',
+      body: {
+        roomId: 'VIP-01',
+        booking: newBooking({ checkIn: addDays(40), checkOut: addDays(41), totalPrice: 200000, paymentStatus: 'deposit_paid' }),
+      },
+    });
+    expect(created.payload.booking.paymentStatus).toBe('awaiting_deposit');
+
+    const code = created.payload.booking.code;
+    const denied = await call(api.handleUpdateBooking, {
+      method: 'PUT', token: 'token-a', body: { roomId: 'VIP-01', code, updates: { paymentStatus: 'deposit_paid' } },
+    });
+    expect(denied.statusCode).toBe(403);
+
+    const ok = await call(api.handleUpdateBooking, {
+      method: 'PUT', token: 'token-admin', body: { roomId: 'VIP-01', code, updates: { paymentStatus: 'deposit_paid' } },
+    });
+    expect(ok.payload.success).toBe(true);
+    const mine = await call(api.handleGetBookings, { token: 'token-a' });
+    expect(mine.payload.bookings['VIP-01'].find((b) => b.code === code).paymentStatus).toBe('deposit_paid');
+  });
+});

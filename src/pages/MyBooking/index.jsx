@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { hasBookingCode } from '../../utils/bookingDeposit';
 
 const calculateBookingStatus = (booking) => {
   if (!booking) return 'Chưa rõ';
@@ -155,13 +156,24 @@ const MyBooking = () => {
                       <span className={`text-xs font-bold px-3 py-1 rounded-full w-max mx-auto sm:mx-0 ${getBadgeColor(booking.dynamicStatus)}`}>
                         {booking.dynamicStatus}
                       </span>
+                      {!hasBookingCode(booking) && (
+                        <span className="text-xs font-bold px-3 py-1 rounded-full w-max mx-auto sm:mx-0 bg-amber-100 text-amber-700">
+                          Chờ đặt cọc
+                        </span>
+                      )}
                     </div>
                     <p className="text-gray-600 text-sm font-medium mb-1">
                       {booking.selectedRoom?.name ? `Phòng ${booking.selectedRoom.name} • ` : ''} 
                       {packageDesc}
                     </p>
                     <p className="text-gray-500 text-sm font-medium">{formatDateRange(booking.checkIn, booking.checkOut)}</p>
-                    <p className="text-xs text-gray-400 mt-2">Mã booking: {booking.id}</p>
+                    {hasBookingCode(booking) ? (
+                      <p className="text-xs text-gray-400 mt-2">Mã booking: {booking.id}</p>
+                    ) : (
+                      <p className="text-xs text-amber-700 mt-2">
+                        Chuyển khoản cọc {Number(booking.depositAmount || 0).toLocaleString()}đ (nội dung: COC {booking.id}) để nhận mã đặt phòng.
+                      </p>
+                    )}
                   </div>
 
                   {/* Actions */}
