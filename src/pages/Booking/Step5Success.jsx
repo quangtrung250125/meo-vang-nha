@@ -143,7 +143,8 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   const depositAmount = Number(liveBooking?.depositAmount ?? data.confirmedBooking?.depositAmount) || 0;
   const awaitingDeposit = paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT;
   const depositPaid = paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID;
-  const qrAmount = awaitingDeposit ? depositAmount : depositPaid ? 0 : paymentTotal;
+  // Chỉ đơn cần cọc mới hiện QR chuyển khoản; đơn không cần cọc thanh toán khi hoàn thành dịch vụ
+  const qrAmount = awaitingDeposit ? depositAmount : 0;
   const qrMemo = awaitingDeposit ? `COC ${bookingId}` : bookingId;
 
   return (
@@ -214,6 +215,9 @@ const Step5Success = ({ data, onBackToStep1 }) => {
         <p className="text-sm text-gray-500 italic max-w-xs mx-auto">
           Vui lòng lưu lại mã QR này hoặc đưa cho nhân viên khi đến làm thủ tục check-in.
         </p>
+        {paymentStatus === PAYMENT_STATUS.PAY_AT_CHECKIN && (
+          <p className="text-xs text-gray-500 mt-3">Không cần đặt cọc trước, bạn thanh toán khi hoàn thành dịch vụ.</p>
+        )}
       </div>
       )}
 
@@ -222,15 +226,9 @@ const Step5Success = ({ data, onBackToStep1 }) => {
         <div className="max-w-md mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-900 text-left">
           <p className="font-bold">✅ Đã nhận tiền cọc {depositAmount.toLocaleString()}đ</p>
           <p className="mt-1">
-            Số còn lại {Math.max(paymentTotal - depositAmount, 0).toLocaleString()}đ thanh toán khi đón bé.
+            Số còn lại {Math.max(paymentTotal - depositAmount, 0).toLocaleString()}đ thanh toán khi hoàn thành dịch vụ.
             Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.
           </p>
-        </div>
-      )}
-      {paymentStatus === PAYMENT_STATUS.PAY_AT_CHECKIN && (
-        <div className="max-w-md mx-auto bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-900 text-left">
-          <p className="font-bold">✅ Không cần đặt cọc trước</p>
-          <p className="mt-1">Ngày gửi bé không quá 5 ngày nữa, bạn thanh toán khi đưa bé đến hoặc chuyển khoản trước bằng mã QR bên dưới.</p>
         </div>
       )}
 
@@ -240,7 +238,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
           <p className="text-sm text-gray-500 mb-1 font-semibold">{awaitingDeposit ? 'QUÉT MÃ ĐỂ ĐẶT CỌC 50%' : 'QUÉT MÃ ĐỂ THANH TOÁN'}</p>
           <p className="text-3xl font-black text-accent mb-4">{qrAmount.toLocaleString()}đ</p>
           {awaitingDeposit && (
-            <p className="text-xs text-gray-500 -mt-3 mb-4">Tổng đơn {paymentTotal.toLocaleString()}đ, số còn lại thanh toán khi đón bé.</p>
+            <p className="text-xs text-gray-500 -mt-3 mb-4">Tổng đơn {paymentTotal.toLocaleString()}đ, số còn lại thanh toán khi hoàn thành dịch vụ.</p>
           )}
           {isPaymentAccountReady(paymentAccount) ? (
             <>

@@ -375,13 +375,13 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             Bạn đặt trước {deposit.leadDays} ngày (hơn {DEPOSIT_FREE_MAX_DAYS} ngày) nên cần chuyển khoản cọc{' '}
             <strong>{deposit.amount.toLocaleString()}đ</strong>. Mèo Vàng Nhà giữ phòng cho bạn và gửi mã đặt phòng ngay khi nhận được tiền cọc.
           </p>
-          <p>Số còn lại thanh toán khi đón bé. Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.</p>
+          <p>Số còn lại thanh toán khi hoàn thành dịch vụ. Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.</p>
         </div>
       ) : (
         <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900 space-y-1.5">
           <p className="font-bold text-base">✅ Không cần đặt cọc trước</p>
           <p>
-            Ngày gửi bé chỉ còn {Math.max(deposit.leadDays, 0)} ngày (không quá {DEPOSIT_FREE_MAX_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi đưa bé đến.
+            Ngày gửi bé chỉ còn {Math.max(deposit.leadDays, 0)} ngày (không quá {DEPOSIT_FREE_MAX_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi hoàn thành dịch vụ.
           </p>
         </div>
       )}

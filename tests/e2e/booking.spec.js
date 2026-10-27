@@ -104,8 +104,8 @@ test.describe('Đặt phòng', () => {
 
     await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
     await expect(card.getByText(/^MVN-\d{5}$/).first()).toBeVisible();
-    await expect(card.getByText('Không cần đặt cọc trước')).toBeVisible();
-    await expect(card.getByText('QUÉT MÃ ĐỂ THANH TOÁN')).toBeVisible();
+    await expect(card.getByText('Không cần đặt cọc trước, bạn thanh toán khi hoàn thành dịch vụ.')).toBeVisible();
+    await expect(card.getByText(/QUÉT MÃ ĐỂ/)).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
 });
