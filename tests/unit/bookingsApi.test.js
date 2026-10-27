@@ -159,6 +159,38 @@ describe('Quyền truy cập /api/bookings', () => {
   });
 });
 
+describe('Khách tự hủy đơn', () => {
+  const cancel = (token, roomId, code) =>
+    call(api.handleUpdateBooking, { method: 'PUT', token, body: { roomId, code, updates: { status: 'cancelled' } } });
+
+  it('khách hủy được đơn sắp tới của chính mình, phòng được trả lại', async () => {
+    const created = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId: 'VIP-02', booking: newBooking({ checkIn: addDays(30), checkOut: addDays(32) }) } });
+    const code = created.payload.booking.code;
+    const res = await cancel('token-a', 'VIP-02', code);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.success).toBe(true);
+    expect(api.getAllBookings()['VIP-02'].some((b) => b.code === code)).toBe(false);
+  });
+
+  it('không hủy được đơn của người khác hoặc khi chưa đăng nhập', async () => {
+    const created = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId: 'VIP-02', booking: newBooking({ checkIn: addDays(50), checkOut: addDays(52) }) } });
+    const code = created.payload.booking.code;
+    expect((await cancel('token-b', 'VIP-02', code)).statusCode).toBe(403);
+    expect((await cancel(undefined, 'VIP-02', code)).statusCode).toBe(401);
+    expect(api.getAllBookings()['VIP-02'].some((b) => b.code === code)).toBe(true);
+  });
+
+  it('không tự hủy được khi bé đã nhận phòng hoặc đã qua ngày nhận phòng', () => {
+    const today = '2026-11-10';
+    const base = { customerId: 'user-a', status: 'check-in', checkIn: '2026-11-12' };
+    expect(api.canCustomerCancel(base, 'user-a', today)).toBe(true);
+    expect(api.canCustomerCancel({ ...base, checkIn: today }, 'user-a', today)).toBe(true);
+    expect(api.canCustomerCancel({ ...base, checkIn: '2026-11-09' }, 'user-a', today)).toBe(false);
+    expect(api.canCustomerCancel({ ...base, status: 'đang ở' }, 'user-a', today)).toBe(false);
+    expect(api.canCustomerCancel({ ...base, status: 'cancelled' }, 'user-a', today)).toBe(false);
+  });
+});
+
 describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
   it('mỗi khách chỉ thấy mèo và hồ sơ của mình', async () => {
     await call(sync.handleSync, { method: 'POST', token: 'token-a', body: { pets: [{ id: 'pa', name: 'Mochi' }], profiles: [{ id: 'user-a', fullName: 'A' }] } });
@@ -246,10 +278,9 @@ describe('Đơn đặt phòng lưu trên database', () => {
     async list() { return this.rows; },
     async save(b) { this.rows.push({ ...b, dbId: 'db-1' }); return 'db-1'; },
     async update(code, updates) {
-      const row = this.rows.find((r) => r.code === code);
-      if (!row) return false;
-      Object.assign(row, updates);
-      return true;
+      const matched = this.rows.filter((r) => r.code === code);
+      matched.forEach((row) => Object.assign(row, updates));
+      return matched.length > 0;
     },
   });
 
@@ -283,5 +314,22 @@ describe('Đơn đặt phòng lưu trên database', () => {
     expect(created.payload.success).toBe(true);
     expect(created.payload.booking.dbId).toBe('db-1');
     expect(store.rows.some((r) => r.code === created.payload.booking.code)).toBe(true);
+  });
+
+  it('dòng cũ còn "chờ cọc" trên database không làm đơn đã nhận cọc quay về chờ cọc', async () => {
+    const stale = { id: 'MVN-66666', code: 'MVN-66666', roomId: 'VVIP-02', checkIn: addDays(20), checkOut: addDays(22), cats: 1, status: 'check-in', customerId: 'user-a' };
+    const store = makeStore([
+      { ...stale, paymentStatus: 'deposit_paid' },
+      { ...stale, paymentStatus: 'awaiting_deposit' },
+    ]);
+    vi.resetModules();
+    const db = await import('../../api/_lib/bookingsDb.js');
+    db.setBookingsStore(store);
+    const freshAuth = await import('../../api/_lib/auth.js');
+    freshAuth.setTokenVerifier(async (token) => USERS[token] || null);
+    const fresh = await import('../../api/_lib/bookingsService.js');
+
+    const mine = await call(fresh.handleGetBookings, { token: 'token-a' });
+    expect(mine.payload.bookings['VVIP-02'].find((b) => b.code === 'MVN-66666').paymentStatus).toBe('deposit_paid');
   });
 });
