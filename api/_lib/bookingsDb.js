@@ -58,16 +58,18 @@ const supabaseStore = {
   },
 
   async update(code, updates) {
+    // Cập nhật mọi dòng cùng mã đơn, để không còn dòng cũ (vd. vẫn "chờ cọc") làm trang khách hiện sai
     const { data: existing, error } = await withTimeout(
-      supabaseAdmin.from('bookings').select('id, data').eq('code', code).limit(1)
+      supabaseAdmin.from('bookings').select('id, data').eq('code', code)
     );
     if (error) throw error;
     if (!existing || existing.length === 0) return false;
-    const row = existing[0];
-    const { error: updateError } = await withTimeout(
-      supabaseAdmin.from('bookings').update({ data: { ...(row.data || {}), ...updates } }).eq('id', row.id)
-    );
-    if (updateError) throw updateError;
+    for (const row of existing) {
+      const { error: updateError } = await withTimeout(
+        supabaseAdmin.from('bookings').update({ data: { ...(row.data || {}), ...updates } }).eq('id', row.id)
+      );
+      if (updateError) throw updateError;
+    }
     return true;
   },
 };

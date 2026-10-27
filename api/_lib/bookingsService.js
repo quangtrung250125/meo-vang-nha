@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
-import { getDepositPolicy } from '../../src/utils/bookingDeposit.js';
+import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking } from './bookingsDb.js';
 
 export const ROOM_CONFIG = [
@@ -219,6 +219,10 @@ async function syncFromDb(force = false) {
       return;
     }
     const merged = { ...(idx >= 0 ? list[idx] : {}), ...b, code, id: b.id || code, roomId };
+    // Không để một bản ghi cũ "chờ cọc" ghi đè đơn đã được admin xác nhận nhận cọc
+    if (idx >= 0 && list[idx].paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
+      merged.paymentStatus = PAYMENT_STATUS.DEPOSIT_PAID;
+    }
     if (idx >= 0) list[idx] = merged;
     else list.push(merged);
   });
@@ -575,9 +579,44 @@ export async function handleAddBooking(req, res) {
   return res.status(200).json(result);
 }
 
+// Khách được tự hủy đơn của chính mình khi chưa nhận phòng (chưa check-in và chưa qua ngày nhận phòng)
+export function canCustomerCancel(booking, userId, todayStr = getTodayStr()) {
+  if (!booking || !userId || booking.customerId !== userId) return false;
+  if (FINISHED_STATUSES.includes(booking.status)) return false;
+  if (['đang ở', 'Đang lưu trú'].includes(booking.status)) return false;
+  return Boolean(booking.checkIn) && booking.checkIn >= todayStr;
+}
+
+function findBooking(code) {
+  for (const list of Object.values(globalBookings)) {
+    const found = (list || []).find((b) => b.code === code || b.id === code);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function handleCustomerCancel(req, res, user) {
+  const { roomId, code } = req.body || {};
+  if (!code) {
+    return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
+  }
+  await syncFromDb(true);
+  if (!canCustomerCancel(findBooking(code), user.id)) {
+    return res.status(403).json({ success: false, message: 'Đơn này không thể tự hủy. Vui lòng liên hệ Mèo Vắng Nhà để được hỗ trợ.' });
+  }
+  const result = await updateBookingAtomic({ roomId, code, updates: { status: 'cancelled', cancelledBy: 'customer', cancelledAt: new Date().toISOString() } });
+  return res.status(200).json(await scopeResult(req, result));
+}
+
 export async function handleUpdateBooking(req, res) {
+  const user = await getRequestUser(req);
+  const updates = req.body?.updates;
+  const isCancelOnly = updates && Object.keys(updates).length === 1 && updates.status === 'cancelled';
+  if (user && !user.isAdmin && isCancelOnly) {
+    return handleCustomerCancel(req, res, user);
+  }
   if (!(await requireAdmin(req, res))) return;
-  const { roomId, code, updates } = req.body || {};
+  const { roomId, code } = req.body || {};
   const targetCode = code || req.body?.code;
   if (!targetCode) {
     return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
