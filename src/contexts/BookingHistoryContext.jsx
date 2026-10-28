@@ -19,6 +19,7 @@ import {
   REALTIME_CHANNEL,
 } from '../utils/bookingStatus';
 import { withoutDemoBookings } from '../utils/demoBookings';
+import { updateBookingRows } from '../utils/bookingRows';
 
 const BookingHistoryContext = createContext();
 
@@ -163,6 +164,12 @@ export const BookingHistoryProvider = ({ children }) => {
 
     syncInitialBookings();
 
+    // Đăng nhập khi trang đã mở sẵn (không F5): lần tải đầu chạy lúc chưa có phiên nên server/Supabase
+    // chưa trả đơn nào -> tải lại theo tài khoản vừa đăng nhập (admin thấy toàn bộ đơn ngay)
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) syncInitialBookings();
+    });
+
     // 2. Kênh Realtime lắng nghe mọi sự kiện INSERT, UPDATE, DELETE từ bảng bookings
     const realtimeChannel = supabase
       .channel('mvn_bookings_history_rt')
@@ -225,6 +232,7 @@ export const BookingHistoryProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
+      authSubscription?.unsubscribe();
       supabase.removeChannel(realtimeChannel);
     };
   }, []);
@@ -411,8 +419,14 @@ export const BookingHistoryProvider = ({ children }) => {
     // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
     broadcastEvent('BOOKINGS_UPDATED', { bookings: changedBooking ? [changedBooking] : updatedList });
 
+    // Ghi lên bảng bookings trên Supabase (lọc theo mã đơn, cột id là uuid)
+    const writeToSupabase = () =>
+      updateBookingRows(supabase, target?.code || bookingId, updatedData)
+        .catch((e) => console.warn('Lỗi update Supabase bookings:', e.message || e));
+
     // C. Đồng bộ kho phòng trung tâm (/api/bookings) để trang Tình trạng phòng cập nhật theo
     const roomId = target?.roomId || target?.selectedRoom?.id;
+    let waitForServer = false;
     if (syncRoom && roomId) {
       const roomFields = [
         'status', 'checkIn', 'checkOut', 'pending_changes', 'checkedInAt', 'checkedOutAt',
@@ -423,6 +437,7 @@ export const BookingHistoryProvider = ({ children }) => {
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
       );
       if (Object.keys(roomUpdates).length > 0) {
+        waitForServer = true;
         (async () => {
           try {
             const res = await fetch('/api/bookings', {
@@ -444,11 +459,15 @@ export const BookingHistoryProvider = ({ children }) => {
                 broadcastEvent('BOOKINGS_UPDATED', { bookings: [revertedBooking] });
               }
               toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.');
+              return;
             }
+            // Server đã chấp nhận thì mới ghi lên Supabase, tránh lệch dữ liệu khi bị từ chối
+            writeToSupabase();
           } catch (e) {}
         })();
       }
     }
+    if (!waitForServer) writeToSupabase();
 
     // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
     if (updatedData?.status === 'Đã hoàn tất' || updatedData?.status === 'check-out') {
@@ -458,25 +477,6 @@ export const BookingHistoryProvider = ({ children }) => {
         petNames: target?.catNames || target?.petName || 'Bé mèo',
       });
     }
-
-    // C. Cập nhật Supabase nền
-    (async () => {
-      try {
-        const { data: existingRows } = await supabase
-          .from('bookings')
-          .select('id, data')
-          .or(`id.eq.${bookingId},code.eq.${bookingId}`);
-
-        if (existingRows && existingRows.length > 0) {
-          const target = existingRows[0];
-          await supabase.from('bookings').update({
-            data: { ...(target.data || {}), ...updatedData },
-          }).eq('id', target.id);
-        }
-      } catch (e) {
-        console.warn('Lỗi update Supabase bookings:', e);
-      }
-    })();
   };
 
 

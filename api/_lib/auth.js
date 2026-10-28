@@ -15,16 +15,24 @@ export function setTokenVerifier(fn) {
 }
 
 /**
+ * Lấy access token từ header Authorization: Bearer <access_token> (hoặc null).
+ */
+export function getBearerToken(req) {
+  const header = req?.headers?.authorization || req?.headers?.Authorization || '';
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  return match ? match[1].trim() : null;
+}
+
+/**
  * Đọc header Authorization: Bearer <access_token> và trả về người dùng đã xác thực.
  * @returns {Promise<{ id: string, email: string, isAdmin: boolean } | null>}
  */
 export async function getRequestUser(req) {
-  const header = req?.headers?.authorization || req?.headers?.Authorization || '';
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) return null;
+  const token = getBearerToken(req);
+  if (!token) return null;
 
   try {
-    const user = await verifyToken(match[1].trim());
+    const user = await verifyToken(token);
     if (!user?.id) return null;
     const adminEmails = getAdminEmails({
       emails: process.env.ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS,

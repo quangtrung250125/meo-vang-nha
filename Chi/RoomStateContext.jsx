@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useCallback, useEffect, use
 import { supabase } from '../src/supabaseClient';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
 import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
+import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
 
 // Gọi /api/bookings kèm token đăng nhập (server chỉ cho admin sửa/xóa đơn và xem đầy đủ thông tin)
@@ -954,27 +955,9 @@ export const RoomStateProvider = ({ children }) => {
     // Đồng bộ trạng thái check-out lên Server API trung tâm
     callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out' } }).catch(() => {});
 
-    // Cập nhật lên Supabase Database realtime
-    (async () => {
-      try {
-        const { data: existingRows } = await supabase
-          .from('bookings')
-          .select('id, data')
-          .or(`id.eq.${code},code.eq.${code}`);
-
-        if (existingRows && existingRows.length > 0) {
-          const target = existingRows[0];
-          await supabase
-            .from('bookings')
-            .update({
-              data: { ...(target.data || {}), status: 'check-out' },
-            })
-            .eq('id', target.id);
-        }
-      } catch (err) {
-        console.warn('Lỗi cập nhật check-out lên Supabase:', err);
-      }
-    })();
+    // Cập nhật lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
+    updateBookingRows(supabase, code, { status: 'check-out' })
+      .catch((err) => console.warn('Lỗi cập nhật check-out lên Supabase:', err.message || err));
   }, [mirrorToHistory]);
 
   /**
@@ -996,27 +979,9 @@ export const RoomStateProvider = ({ children }) => {
       // Đồng bộ xóa/hủy đơn lên Server API trung tâm
       callBookingsApi('DELETE', { roomId, code }).catch(() => {});
 
-      // Cập nhật trạng thái hủy lên Supabase Database realtime
-      (async () => {
-        try {
-          const { data: existingRows } = await supabase
-            .from('bookings')
-            .select('id, data')
-            .or(`id.eq.${code},code.eq.${code}`);
-
-          if (existingRows && existingRows.length > 0) {
-            const target = existingRows[0];
-            await supabase
-              .from('bookings')
-              .update({
-                data: { ...(target.data || {}), status: 'cancelled' },
-              })
-              .eq('id', target.id);
-          }
-        } catch (err) {
-          console.warn('Lỗi cập nhật hủy đơn lên Supabase:', err);
-        }
-      })();
+      // Cập nhật trạng thái hủy lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
+      updateBookingRows(supabase, code, { status: 'cancelled' })
+        .catch((err) => console.warn('Lỗi cập nhật hủy đơn lên Supabase:', err.message || err));
 
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_REMOVED', roomId, code, allBookings: updated });

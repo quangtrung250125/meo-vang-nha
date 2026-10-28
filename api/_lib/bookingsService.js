@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { getRequestUser } from './auth.js';
+import { getRequestUser, getBearerToken } from './auth.js';
 import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
-import { listStoredBookings, saveStoredBooking, updateStoredBooking } from './bookingsDb.js';
+import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
 
 export const ROOM_CONFIG = [
@@ -211,24 +211,40 @@ async function syncFromDb(force = false) {
   lastDbSync = Date.now();
   if (!stored) return;
 
-  stored.forEach((b) => {
-    const roomId = b.roomId || b.selectedRoom?.id;
-    const code = b.code || b.id;
-    if (!roomId || !globalBookings[roomId] || !code || code.includes('BK')) return;
-    const list = globalBookings[roomId];
-    const idx = list.findIndex((item) => item.code === code || item.id === code);
-    if (FINISHED_STATUSES.includes(b.status)) {
-      if (idx >= 0) list.splice(idx, 1);
-      return;
-    }
-    const merged = { ...(idx >= 0 ? list[idx] : {}), ...b, code, id: b.id || code, roomId };
-    // Không để một bản ghi cũ "chờ cọc" ghi đè đơn đã được admin xác nhận nhận cọc
-    if (idx >= 0 && list[idx].paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
-      merged.paymentStatus = PAYMENT_STATUS.DEPOSIT_PAID;
-    }
-    if (idx >= 0) list[idx] = merged;
-    else list.push(merged);
-  });
+  stored.forEach(mergeStoredBooking);
+}
+
+// Gộp một đơn đọc từ database vào bộ nhớ server
+function mergeStoredBooking(b) {
+  const roomId = b.roomId || b.selectedRoom?.id;
+  const code = b.code || b.id;
+  if (!roomId || !globalBookings[roomId] || !code || code.includes('BK')) return;
+  const list = globalBookings[roomId];
+  const idx = list.findIndex((item) => item.code === code || item.id === code);
+  if (FINISHED_STATUSES.includes(b.status)) {
+    if (idx >= 0) list.splice(idx, 1);
+    return;
+  }
+  const merged = { ...(idx >= 0 ? list[idx] : {}), ...b, code, id: b.id || code, roomId };
+  // Không để một bản ghi cũ "chờ cọc" ghi đè đơn đã được admin xác nhận nhận cọc
+  if (idx >= 0 && list[idx].paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
+    merged.paymentStatus = PAYMENT_STATUS.DEPOSIT_PAID;
+  }
+  if (idx >= 0) list[idx] = merged;
+  else list.push(merged);
+}
+
+const isInMemory = (code) =>
+  Object.values(globalBookings).some((list) => (list || []).some((b) => b.code === code || b.id === code));
+
+/**
+ * Bộ nhớ server Vercel trống sau mỗi lần khởi động, và nếu thiếu service role key thì syncFromDb
+ * không đọc được đơn nào (RLS). Khi đó nạp đúng đơn cần sửa bằng token của người gửi request.
+ */
+async function loadBookingForRequester(code, accessToken) {
+  if (!code || !accessToken || isInMemory(code)) return;
+  const stored = await findStoredBookingForUser(code, accessToken);
+  if (stored) mergeStoredBooking(stored);
 }
 
 function persistBookings() {
@@ -453,7 +469,7 @@ function syncToSyncStore(booking) {
 /**
  * Cập nhật thông tin hoặc trạng thái của một booking (Check-in, Check-out, Hủy)
  */
-export async function updateBookingAtomic({ roomId, code, updates, validate }) {
+export async function updateBookingAtomic({ roomId, code, updates, validate, accessToken = null }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
@@ -511,7 +527,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate }) {
         } catch (e) {}
 
         persistBookings();
-        const storedUpdated = await updateStoredBooking(code, updates);
+        const storedUpdated = await updateStoredBooking(code, updates, accessToken);
         return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated });
       } catch (err) {
         return resolve({ success: false, error: err.message });
@@ -523,8 +539,8 @@ export async function updateBookingAtomic({ roomId, code, updates, validate }) {
 /**
  * Xóa hoặc hủy booking khỏi hệ thống
  */
-export async function removeBookingAtomic({ roomId, code }) {
-  return updateBookingAtomic({ roomId, code, updates: { status: 'cancelled' } });
+export async function removeBookingAtomic({ roomId, code, accessToken = null }) {
+  return updateBookingAtomic({ roomId, code, updates: { status: 'cancelled' }, accessToken });
 }
 
 export async function handleGetBookings(req, res) {
@@ -690,6 +706,9 @@ export async function handleUpdateBooking(req, res) {
     return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
   }
 
+  const accessToken = getBearerToken(req);
+  await loadBookingForRequester(targetCode, accessToken);
+
   if (!user.isAdmin) {
     if (!roomId || !updates || typeof updates !== 'object') {
       return res.status(400).json({ success: false, message: 'Thiếu roomId hoặc nội dung thay đổi' });
@@ -697,6 +716,7 @@ export async function handleUpdateBooking(req, res) {
     const result = await updateBookingAtomic({
       roomId,
       code: targetCode,
+      accessToken,
       validate: (bookingsByRoom) => checkCustomerUpdate({ userId: user.id, roomId, code: targetCode, updates }, bookingsByRoom),
     });
     if (result.ok === false) {
@@ -705,7 +725,7 @@ export async function handleUpdateBooking(req, res) {
     return res.status(200).json(await scopeResult(req, result));
   }
 
-  const result = await updateBookingAtomic({ roomId, code: targetCode, updates: updates || req.body });
+  const result = await updateBookingAtomic({ roomId, code: targetCode, updates: updates || req.body, accessToken });
   return res.status(200).json(result);
 }
 
@@ -716,6 +736,8 @@ export async function handleRemoveBooking(req, res) {
   if (!targetCode) {
     return res.status(400).json({ success: false, message: 'Thiếu mã booking' });
   }
-  const result = await removeBookingAtomic({ roomId, code: targetCode });
+  const accessToken = getBearerToken(req);
+  await loadBookingForRequester(targetCode, accessToken);
+  const result = await removeBookingAtomic({ roomId, code: targetCode, accessToken });
   return res.status(200).json(result);
 }
