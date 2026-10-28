@@ -18,197 +18,24 @@ import {
   isClosedStatus,
   REALTIME_CHANNEL,
 } from '../utils/bookingStatus';
+import { withoutDemoBookings } from '../utils/demoBookings';
 
 const BookingHistoryContext = createContext();
 
-// Dữ liệu mẫu chuẩn cho đầy đủ các trạng thái để kiểm thử nghiệm thu
-const INITIAL_DEMO_BOOKINGS = [
-  {
-    id: 'MVN-88219',
-    checkIn: '2026-10-28',
-    checkOut: '2026-11-02',
-    status: STORED_STATUS.UPCOMING,
-    previous_status: null,
-    pending_changes: null,
-    selectedPackage: {
-      id: 'pkg-royal',
-      name: 'Gói Hoàng Gia 5 Sao',
-      price: 350000,
-    },
-    selectedRoom: {
-      id: 'room-vip',
-      name: 'Sky-View Condo VIP',
-    },
-    petIds: ['pet-1'],
-    petProfiles: [
-      {
-        id: 'pet-1',
-        name: 'Miu Miu',
-        breed: 'Mèo Anh Lông Ngắn',
-        gender: 'Cái',
-        age: 2,
-        imagePreview: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=500&q=80',
-      }
-    ],
-    totalAmount: 1750000,
-    paymentStatus: 'Đã thanh toán',
-    createdAt: '2026-10-24T08:30:00.000Z',
-    customerName: 'Nguyễn Thu Trang',
-    customerPhone: '0987654321',
-  },
-  {
-    id: 'MVN-95104',
-    checkIn: '2026-10-26',
-    checkOut: '2026-10-30',
-    status: STORED_STATUS.UPCOMING,
-    previous_status: STORED_STATUS.UPCOMING,
-    pending_changes: {
-      type: 'RESCHEDULE',
-      proposedBy: 'admin',
-      oldCheckIn: '2026-10-26',
-      oldCheckOut: '2026-10-30',
-      newCheckIn: '2026-10-28',
-      newCheckOut: '2026-11-01',
-      reason: 'Phòng VIP đang trong đợt khử khuẩn định kỳ UV theo quy chuẩn y tế, xin phép dời lịch lùi 2 ngày.',
-      timestamp: new Date().toISOString(),
-    },
-    selectedPackage: {
-      id: 'pkg-deluxe',
-      name: 'Gói Deluxe Spa & Nghỉ Dưỡng',
-      price: 280000,
-    },
-    selectedRoom: {
-      id: 'room-condo-doi',
-      name: 'Phòng Condo Đôi Ban Công',
-    },
-    petIds: ['pet-2'],
-    petProfiles: [
-      {
-        id: 'pet-2',
-        name: 'Bánh Bao',
-        breed: 'Mèo Ba Tư',
-        gender: 'Đực',
-        age: 1,
-        imagePreview: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=500&q=80',
-      }
-    ],
-    totalAmount: 1120000,
-    paymentStatus: 'Chưa thanh toán',
-    createdAt: '2026-10-24T10:15:00.000Z',
-    customerName: 'Trần Văn Nam',
-    customerPhone: '0912345678',
-  },
-  {
-    id: 'MVN-73412',
-    checkIn: '2026-10-23',
-    checkOut: '2026-10-27',
-    status: STORED_STATUS.IN_HOUSE,
-    previous_status: STORED_STATUS.UPCOMING,
-    pending_changes: null,
-    selectedPackage: {
-      id: 'pkg-standard',
-      name: 'Gói Lưu Trú Tiêu Chuẩn',
-      price: 180000,
-    },
-    selectedRoom: {
-      id: 'room-standard',
-      name: 'Standard Cozy Room A-02',
-    },
-    petIds: ['pet-3'],
-    petProfiles: [
-      {
-        id: 'pet-3',
-        name: 'Cà Phê',
-        breed: 'Mèo Xiêm',
-        gender: 'Đực',
-        age: 3,
-        imagePreview: 'https://images.unsplash.com/photo-1513360309081-38f076273999?auto=format&fit=crop&w=500&q=80',
-      }
-    ],
-    totalAmount: 720000,
-    paymentStatus: 'Đã thanh toán',
-    createdAt: '2026-10-22T09:00:00.000Z',
-    customerName: 'Lê Hoàng Yến',
-    customerPhone: '0909888999',
-  },
-  {
-    id: 'MVN-61208',
-    checkIn: '2026-10-15',
-    checkOut: '2026-10-18',
-    status: STORED_STATUS.COMPLETED,
-    previous_status: STORED_STATUS.IN_HOUSE,
-    pending_changes: null,
-    selectedPackage: {
-      id: 'pkg-standard',
-      name: 'Gói Tiêu Chuẩn + Tắm Thảo Dược',
-      price: 220000,
-    },
-    selectedRoom: {
-      id: 'room-standard-1',
-      name: 'Standard Cozy Room A-05',
-    },
-    petIds: ['pet-4'],
-    petProfiles: [
-      {
-        id: 'pet-4',
-        name: 'Đậu Phộng',
-        breed: 'Mèo Ragdoll',
-        gender: 'Cái',
-        age: 2,
-        imagePreview: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=500&q=80',
-      }
-    ],
-    totalAmount: 660000,
-    paymentStatus: 'Đã thanh toán',
-    createdAt: '2026-10-14T14:20:00.000Z',
-    customerName: 'Phạm Minh Tuấn',
-    customerPhone: '0933221100',
-  },
-  {
-    id: 'MVN-50913',
-    checkIn: '2026-10-10',
-    checkOut: '2026-10-12',
-    status: STORED_STATUS.CANCELLED,
-    previous_status: STORED_STATUS.UPCOMING,
-    cancelReason: 'Khách có việc đột xuất dời lịch công tác.',
-    pending_changes: null,
-    selectedPackage: {
-      id: 'pkg-basic',
-      name: 'Gói Lưu Trú Cơ Bản',
-      price: 150000,
-    },
-    selectedRoom: {
-      id: 'room-standard-3',
-      name: 'Standard Room A-08',
-    },
-    petIds: ['pet-5'],
-    petProfiles: [
-      {
-        id: 'pet-5',
-        name: 'Mèo Mướp',
-        breed: 'Mèo Mướp Ta',
-        gender: 'Đực',
-        age: 1,
-        imagePreview: 'https://images.unsplash.com/photo-1561948955-570b270e7c36?auto=format&fit=crop&w=500&q=80',
-      }
-    ],
-    totalAmount: 300000,
-    paymentStatus: 'Chưa thanh toán',
-    createdAt: '2026-10-08T11:00:00.000Z',
-    customerName: 'Hoàng Anh Quân',
-    customerPhone: '0977665544',
-  }
-];
-
 export const BookingHistoryProvider = ({ children }) => {
-  const [globalBookingList, setGlobalBookingList] = useState(() => {
+  const [globalBookingList, setRawBookingList] = useState(() => {
     const saved = localStorage.getItem('bookingHistory');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
+          // Xoá các đơn mẫu cũ còn sót trong trình duyệt (không tồn tại trên server nên không hủy/đổi được)
+          const cleaned = withoutDemoBookings(parsed);
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('bookingHistory', JSON.stringify(cleaned));
+          }
           // Chuẩn hóa trạng thái cho các đơn hàng cũ
-          return parsed.map(b => ({
+          return cleaned.map(b => ({
             ...b,
             pending_changes: b.pending_changes || null,
           }));
@@ -217,10 +44,13 @@ export const BookingHistoryProvider = ({ children }) => {
         console.error('Lỗi phân tích bookingHistory:', e);
       }
     }
-    // Nếu chưa có dữ liệu thì nạp danh sách mẫu chuẩn
-    localStorage.setItem('bookingHistory', JSON.stringify(INITIAL_DEMO_BOOKINGS));
-    return INITIAL_DEMO_BOOKINGS;
+    return [];
   });
+
+  // Mọi nguồn dữ liệu (localStorage, server, Supabase, thiết bị khác) đều đi qua đây để lọc đơn mẫu
+  const setGlobalBookingList = useCallback((next) => {
+    setRawBookingList((prev) => withoutDemoBookings(typeof next === 'function' ? next(prev) : next));
+  }, []);
 
   const bookingListRef = useRef(globalBookingList);
   bookingListRef.current = globalBookingList;
@@ -455,11 +285,11 @@ export const BookingHistoryProvider = ({ children }) => {
     const updatedList = [bookingData, ...bookingListRef.current];
     commitList(updatedList);
 
-    // A. Đồng bộ Server API
-    pushServerSync({ bookings: updatedList });
+    // A. Đồng bộ Server API (chỉ đơn mới, tránh gửi kèm đơn khác đang có trong máy)
+    pushServerSync({ bookings: [bookingData] });
 
     // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
-    broadcastEvent('BOOKINGS_UPDATED', { bookings: updatedList });
+    broadcastEvent('BOOKINGS_UPDATED', { bookings: [bookingData] });
 
     // Gửi thông báo Web Push xác nhận đơn đặt phòng
     if (bookingData) {
@@ -504,6 +334,7 @@ export const BookingHistoryProvider = ({ children }) => {
   // ── 4. Upsert booking ──
   const upsertBooking = (bookingData) => {
     let updatedList = [];
+    let changedBooking = bookingData;
     {
       const prev = bookingListRef.current;
       const safeBooking = { ...bookingData };
@@ -520,18 +351,20 @@ export const BookingHistoryProvider = ({ children }) => {
       if (index >= 0) {
         updatedList = [...prev];
         updatedList[index] = { ...updatedList[index], ...safeBooking };
+        changedBooking = updatedList[index];
       } else {
         updatedList = [safeBooking, ...prev];
+        changedBooking = safeBooking;
       }
 
       commitList(updatedList);
     }
 
-    // A. Đồng bộ Server API
-    pushServerSync({ bookings: updatedList });
+    // A. Đồng bộ Server API (chỉ đơn vừa thêm / cập nhật)
+    pushServerSync({ bookings: [changedBooking] });
 
     // B. Broadcast tức thì qua Cloud WebSockets tới Điện thoại
-    broadcastEvent('BOOKINGS_UPDATED', { bookings: updatedList });
+    broadcastEvent('BOOKINGS_UPDATED', { bookings: [changedBooking] });
 
     // C. Lưu vào Supabase nền nếu có session
     (async () => {
@@ -873,13 +706,6 @@ export const BookingHistoryProvider = ({ children }) => {
     return true;
   };
 
-  // Reset về dữ liệu mẫu để thuận tiện kiểm thử
-  const resetDefaultBookings = () => {
-    commitList(INITIAL_DEMO_BOOKINGS);
-    broadcastSync('RESET', null, 'Đã đặt lại danh sách đơn hàng về mặc định!');
-    toast.success('Đã khôi phục dữ liệu mẫu kiểm thử.');
-  };
-
   return (
     <BookingHistoryContext.Provider
       value={{
@@ -896,7 +722,6 @@ export const BookingHistoryProvider = ({ children }) => {
         customerReschedule,
         customerCancel,
         customerUpdateNote,
-        resetDefaultBookings,
       }}
     >
       {children}

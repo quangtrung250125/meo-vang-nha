@@ -29,8 +29,7 @@ const AdminPage = () => {
     adminCheckIn, 
     adminCheckOut, 
     adminProposeChange, 
-    adminCancelProposal,
-    resetDefaultBookings 
+    adminCancelProposal
   } = useBookingHistory();
 
   const { notifications } = useUI();
@@ -121,14 +120,6 @@ const AdminPage = () => {
               <span>Xem trang Khách hàng (Tab mới)</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
-            <button
-              onClick={resetDefaultBookings}
-              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow cursor-pointer"
-              title="Khôi phục lại dữ liệu mẫu"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset dữ liệu</span>
-            </button>
           </div>
         </div>
       </header>
