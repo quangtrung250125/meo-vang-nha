@@ -402,6 +402,47 @@ describe('Đơn đặt phòng lưu trên database', () => {
     expect(store.rows.some((r) => r.code === created.payload.booking.code)).toBe(true);
   });
 
+  it('server thiếu service role key (không đọc được hết đơn) thì khách vẫn hủy được đơn của mình', async () => {
+    const owned = { id: 'MVN-71590', code: 'MVN-71590', roomId: 'VIP-01', checkIn: addDays(1), checkOut: addDays(3), cats: 1, status: 'check-in', customerId: 'user-a' };
+    // Giống Supabase có RLS: quyền server không thấy dòng nào, mỗi khách chỉ đọc / sửa được đơn của mình
+    const store = {
+      rows: [owned],
+      async list() { return []; },
+      async save() { return null; },
+      async update() { return false; },
+      async findForUser(code, token) {
+        const userId = USERS[token]?.id;
+        return this.rows.find((r) => r.code === code && r.customerId === userId) || null;
+      },
+      async updateForUser(code, updates, token) {
+        const userId = USERS[token]?.id;
+        const matched = this.rows.filter((r) => r.code === code && r.customerId === userId);
+        matched.forEach((row) => Object.assign(row, updates));
+        return matched.length > 0;
+      },
+    };
+    vi.resetModules();
+    const db = await import('../../api/_lib/bookingsDb.js');
+    db.setBookingsStore(store);
+    const freshAuth = await import('../../api/_lib/auth.js');
+    freshAuth.setTokenVerifier(async (token) => USERS[token] || null);
+    const fresh = await import('../../api/_lib/bookingsService.js');
+
+    const cancel = (token) => call(fresh.handleUpdateBooking, {
+      method: 'PUT', token, body: { roomId: 'VIP-01', code: 'MVN-71590', updates: { status: 'cancelled', cancelReason: 'Hủy' } },
+    });
+
+    // Khách khác không đọc được đơn này nên không hủy được
+    expect((await cancel('token-b')).statusCode).toBe(404);
+    expect(store.rows[0].status).toBe('check-in');
+
+    const res = await cancel('token-a');
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.success).toBe(true);
+    expect(store.rows[0].status).toBe('cancelled');
+    expect(store.rows[0].cancelledBy).toBe('customer');
+  });
+
   it('dòng cũ còn "chờ cọc" trên database không làm đơn đã nhận cọc quay về chờ cọc', async () => {
     const stale = { id: 'MVN-66666', code: 'MVN-66666', roomId: 'VVIP-02', checkIn: addDays(20), checkOut: addDays(22), cats: 1, status: 'check-in', customerId: 'user-a' };
     const store = makeStore([
