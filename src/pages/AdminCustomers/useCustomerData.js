@@ -5,6 +5,7 @@ import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { buildCustomers } from './customerUtils';
+import { fromPetRow } from '../../utils/petRows';
 
 const REFRESH_MS = 15000;
 const QUERY_TIMEOUT_MS = 8000;
@@ -37,18 +38,7 @@ async function loadFromSupabase() {
       email: p.email,
       createdAt: p.created_at,
     })),
-    pets: pets.map((p) => ({
-      id: p.id,
-      ownerId: p.user_id,
-      name: p.name,
-      breed: p.type,
-      age: p.age,
-      weight: p.weight,
-      gender: p.gender,
-      notes: p.notes,
-      imagePreview: p.avatar,
-      createdAt: p.created_at,
-    })),
+    pets: pets.map(fromPetRow),
     bookings: bookings.map((row) => ({
       id: row.id,
       code: row.code,

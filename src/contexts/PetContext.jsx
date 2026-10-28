@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useCustomerProfile } from './CustomerContext';
+import { fromPetRow, toPetRow, isUuid, newUuid } from '../utils/petRows';
 import {
   fetchServerSync,
   pushServerSync,
@@ -160,21 +161,11 @@ export const PetProvider = ({ children }) => {
           const { data, error } = await supabase
             .from('pets')
             .select('*')
-            .eq('user_id', session.user.id);
+            .eq('customer_id', session.user.id);
 
+          if (error) console.warn('Lỗi đọc bảng pets từ Supabase:', error.message);
           if (!error && data && data.length > 0 && isMounted) {
-            const mappedPets = data.map(p => ({
-              id: p.id,
-              name: p.name,
-              age: p.age || '',
-              weight: p.weight || '',
-              breed: p.type || 'Mèo',
-              gender: p.gender || 'Đực',
-              notes: p.notes || '',
-              imagePreview: p.avatar || null,
-              createdAt: p.created_at,
-              ownerId: p.user_id || session.user.id,
-            }));
+            const mappedPets = data.map(fromPetRow);
             const normalized = keepOwnPets(normalizePetList(mappedPets));
             setPetList((prev) => {
               const merged = mergePets(prev, normalized);
@@ -242,30 +233,20 @@ export const PetProvider = ({ children }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         ownerId = ownerId || session.user.id;
-        if (petData.id && typeof petData.id === 'string' && petData.id.includes('-') && petData.id.length > 20) {
-          await supabase.from('pets').update({
-            name: petData.name,
-            type: petData.breed || 'Mèo',
-            age: petData.age ? String(petData.age) : null,
-            weight: petData.weight ? String(petData.weight) : null,
-            gender: petData.gender || null,
-            notes: petData.notes || petData.habits || null,
-            avatar: petData.imagePreview || null,
-          }).eq('id', petData.id);
+        // Admin lưu hồ sơ hộ khách thì giữ chủ là khách, còn lại là tài khoản đang đăng nhập
+        const customerId = isUuid(ownerId) ? ownerId : session.user.id;
+        if (isUuid(petData.id)) {
+          // Không đổi chủ của bé khi cập nhật, chỉ cập nhật tên và thông tin chi tiết
+          const { customer_id: _owner, ...changes } = toPetRow(petData, customerId);
+          const { error } = await supabase.from('pets').update(changes).eq('id', petData.id);
+          if (error) console.warn('Lỗi cập nhật pet trên Supabase:', error.message);
         } else {
-          const { data: inserted, error } = await supabase.from('pets').insert({
-            user_id: session.user.id,
-            name: petData.name || 'Bé cưng',
-            type: petData.breed || 'Mèo',
-            age: petData.age ? String(petData.age) : null,
-            weight: petData.weight ? String(petData.weight) : null,
-            gender: petData.gender || null,
-            notes: petData.notes || petData.habits || null,
-            avatar: petData.imagePreview || null,
-          }).select();
-
-          if (!error && inserted?.[0]?.id) {
-            savedId = inserted[0].id;
+          const newId = newUuid();
+          const { error } = await supabase.from('pets').insert({ id: newId, ...toPetRow(petData, customerId) });
+          if (error) {
+            console.warn('Lỗi thêm pet vào Supabase:', error.message);
+          } else {
+            savedId = newId;
           }
         }
       }
