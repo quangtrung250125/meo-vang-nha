@@ -106,8 +106,7 @@ const MyBooking = () => {
     adminCheckIn,
     adminCheckOut,
     adminProposeChange,
-    adminCancelProposal,
-    resetDefaultBookings
+    adminCancelProposal
   } = useBookingHistory();
   const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
   const { bookings: roomBookings } = useRoomState();
@@ -275,6 +274,7 @@ const MyBooking = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
         
         {/* Banner điều hướng kiểm thử Admin & Realtime Sync */}
+        {isAdmin && (
         <div className="mb-8 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-indigo-500/20">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
@@ -304,15 +304,9 @@ const MyBooking = () => {
               <span>Mở Admin Quản Trị (Tab mới)</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
-            <button
-              onClick={resetDefaultBookings}
-              className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-semibold transition cursor-pointer"
-              title="Khôi phục lại dữ liệu mẫu 5 trạng thái"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
           </div>
         </div>
+        )}
 
         {/* Page Title */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">

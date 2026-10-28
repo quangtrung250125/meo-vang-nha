@@ -3,6 +3,7 @@ import path from 'path';
 import { getRequestUser } from './auth.js';
 import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking } from './bookingsDb.js';
+import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -82,7 +83,9 @@ export function validateNewBooking(booking, room, todayStr = getTodayStr()) {
   return null;
 }
 
+// Mã đơn mẫu cũ coi như đã dùng để đơn thật không bị trùng (trình duyệt cũ có thể còn giữ đơn mẫu)
 const isCodeTaken = (code) =>
+  DEMO_BOOKING_IDS.includes(code) ||
   Object.values(globalBookings).some((list) =>
     (list || []).some((b) => b.code === code || b.id === code)
   );

@@ -113,6 +113,15 @@ describe('POST /api/bookings: kiểm tra dữ liệu đơn', () => {
     expect(stored.ownerName).toBe('Chủ thật');
   });
 
+  it('không cấp mã của đơn mẫu kiểm thử cho đơn thật', async () => {
+    const res = await call(api.handleAddBooking, {
+      method: 'POST',
+      body: { roomId: 'VIP-01', booking: newBooking({ id: 'MVN-88219', code: 'MVN-88219', checkIn: addDays(120), checkOut: addDays(121) }) },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.booking.code).not.toBe('MVN-88219');
+  });
+
   it('gắn đơn với tài khoản đang đăng nhập', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
@@ -273,6 +282,25 @@ describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
     await call(sync.handleSync, { method: 'POST', token: 'token-b', body: { pets: [{ id: 'pa', name: 'Bị đổi tên' }] } });
     const a = await call(sync.handleSync, { token: 'token-a' });
     expect(a.payload.data.pets.find((p) => p.id === 'pa').name).toBe('Mochi');
+  });
+
+  it('không lưu đơn mẫu kiểm thử khách gửi kèm, và ẩn đơn mẫu đã lỡ gán cho khách', async () => {
+    await call(sync.handleSync, {
+      method: 'POST',
+      token: 'token-a',
+      body: { bookings: [{ id: 'MVN-88219', code: 'MVN-88219', roomId: 'room-vip' }, { id: 'REAL-A1', code: 'REAL-A1' }] },
+    });
+    // Dữ liệu cũ: đơn mẫu đã bị gán customerId của khách trước khi có bản sửa
+    sync.getSyncData().bookings.push({ id: 'MVN-95104', code: 'MVN-95104', customerId: 'user-a' });
+
+    const a = await call(sync.handleSync, { token: 'token-a' });
+    const ids = a.payload.data.bookings.map((b) => b.id);
+    expect(ids).toContain('REAL-A1');
+    expect(ids).not.toContain('MVN-88219');
+    expect(ids).not.toContain('MVN-95104');
+
+    const admin = await call(sync.handleSync, { token: 'token-admin' });
+    expect(admin.payload.data.bookings.some((b) => b.id === 'MVN-95104')).toBe(false);
   });
 
   it('khách vãng lai không ghi được dữ liệu', async () => {
