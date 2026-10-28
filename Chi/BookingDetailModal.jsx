@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { PAYMENT_STATUS } from "../src/utils/bookingDeposit";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
@@ -57,6 +58,7 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
   const vat = Math.round(subtotal * 0.1);
   const total = subtotal + vat;
   const pts = Math.floor(total / 10000);
+  const depositPaid = booking?.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID ? Number(booking.depositAmount) || 0 : 0;
   const fmtVND = (n) => n.toLocaleString("vi-VN") + " đ";
 
   return (
@@ -96,6 +98,16 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
               <span className="font-extrabold text-gray-800 text-base">Tổng cộng</span>
               <span className="font-black text-xl text-orange-600">{fmtVND(total)}</span>
             </div>
+            {depositPaid > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex justify-between text-sm text-emerald-700"><span>Đã đặt cọc</span><span>- {fmtVND(depositPaid)}</span></div>
+                {total >= depositPaid ? (
+                  <div className="flex justify-between text-sm font-bold text-gray-800"><span>Còn phải thu</span><span>{fmtVND(total - depositPaid)}</span></div>
+                ) : (
+                  <div className="flex justify-between text-sm font-bold text-blue-700"><span>Hoàn lại khách</span><span>{fmtVND(depositPaid - total)}</span></div>
+                )}
+              </div>
+            )}
           </div>
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-amber-400 flex items-center justify-center shrink-0"><Star className="h-5 w-5 text-white fill-white" /></div>
@@ -434,6 +446,11 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     setTimeout(() => onClose(), 1200);
   };
 
+  const handleConfirmDeposit = () => {
+    onUpdate(roomId, code, { paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID, depositPaidAt: new Date().toISOString() });
+    showToast(`💰 Đã xác nhận nhận cọc cho ${code}. Khách sẽ thấy mã đặt phòng.`);
+  };
+
   const handleSaveEdit = ({ reason, ...updates }) => {
     const datesChanged = updates.checkIn !== checkIn || updates.checkOut !== checkOut;
     setShowEdit(false);
@@ -536,6 +553,23 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
               </div>
             )}
           </div>
+
+          {/* Đặt cọc */}
+          {effectiveBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
+            <div className="shrink-0 mx-4 mb-3 rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-sm">
+              <div className="font-bold text-amber-800">⏳ Chờ đặt cọc {Number(effectiveBooking.depositAmount || 0).toLocaleString("vi-VN")} đ</div>
+              <div className="text-xs text-amber-700 mt-0.5">Nội dung chuyển khoản: COC {code}. Kiểm tra tài khoản rồi bấm xác nhận để cấp mã cho khách.</div>
+              <button id={`btn-confirm-deposit-${code}`} onClick={handleConfirmDeposit}
+                className="mt-2 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
+                Xác nhận đã nhận cọc
+              </button>
+            </div>
+          )}
+          {effectiveBooking.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID && (
+            <div className="shrink-0 mx-4 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+              ✅ Đã nhận cọc {Number(effectiveBooking.depositAmount || 0).toLocaleString("vi-VN")} đ
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="shrink-0 border-t border-gray-100 p-4 bg-gray-50/60">

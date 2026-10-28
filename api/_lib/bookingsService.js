@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
+import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
+import { listStoredBookings, saveStoredBooking, updateStoredBooking } from './bookingsDb.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -93,8 +95,9 @@ function generateUniqueCode() {
   return code;
 }
 
-// Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân)
-const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId'];
+// Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân).
+// paymentStatus để trang đặt phòng của khách tự hiện mã ngay khi admin xác nhận đã nhận cọc.
+const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount'];
 
 export function toPublicBookings(bookingsByRoom, viewerId = null) {
   const result = {};
@@ -192,6 +195,38 @@ function loadPersistedBookings() {
 }
 
 globalBookings = loadPersistedBookings();
+
+const FINISHED_STATUSES = ['check-out', 'Đã hoàn tất', 'hoàn tất', 'cancelled', 'Đã hủy'];
+
+// Nạp lại đơn từ Supabase (tối đa 3 giây một lần) để mọi bản server đều thấy đủ đơn, kể cả sau khi khởi động lại
+const DB_SYNC_TTL_MS = 3000;
+let lastDbSync = 0;
+
+async function syncFromDb(force = false) {
+  if (!force && Date.now() - lastDbSync < DB_SYNC_TTL_MS) return;
+  const stored = await listStoredBookings();
+  lastDbSync = Date.now();
+  if (!stored) return;
+
+  stored.forEach((b) => {
+    const roomId = b.roomId || b.selectedRoom?.id;
+    const code = b.code || b.id;
+    if (!roomId || !globalBookings[roomId] || !code || code.includes('BK')) return;
+    const list = globalBookings[roomId];
+    const idx = list.findIndex((item) => item.code === code || item.id === code);
+    if (FINISHED_STATUSES.includes(b.status)) {
+      if (idx >= 0) list.splice(idx, 1);
+      return;
+    }
+    const merged = { ...(idx >= 0 ? list[idx] : {}), ...b, code, id: b.id || code, roomId };
+    // Không để một bản ghi cũ "chờ cọc" ghi đè đơn đã được admin xác nhận nhận cọc
+    if (idx >= 0 && list[idx].paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
+      merged.paymentStatus = PAYMENT_STATUS.DEPOSIT_PAID;
+    }
+    if (idx >= 0) list[idx] = merged;
+    else list.push(merged);
+  });
+}
 
 function persistBookings() {
   try {
@@ -303,6 +338,8 @@ export async function addBookingAtomic({ roomId, booking }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
+        // Đọc đơn mới nhất từ database trước khi kiểm tra phòng trống
+        await syncFromDb(true);
         const room = ROOM_CONFIG.find((r) => r.id === roomId);
         if (!room) {
           return resolve({ success: false, message: `Không tìm thấy phòng ${roomId}` });
@@ -369,8 +406,9 @@ export async function addBookingAtomic({ roomId, booking }) {
           roomId,
           createdAt: booking.createdAt || new Date().toISOString(),
         };
+        updatedBooking.dbId = await saveStoredBooking(updatedBooking);
 
-        globalBookings[roomId] = [...currentList, updatedBooking];
+        globalBookings[roomId] = [...(globalBookings[roomId] || []), updatedBooking];
         persistBookings();
         syncToSyncStore(updatedBooking);
 
@@ -416,6 +454,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
+        await syncFromDb(true);
         // Kiểm tra quyền / sức chứa ngay trong khóa để không bị chen ngang giữa các request
         if (validate) {
           const check = validate(globalBookings);
@@ -469,7 +508,8 @@ export async function updateBookingAtomic({ roomId, code, updates, validate }) {
         } catch (e) {}
 
         persistBookings();
-        return resolve({ success: true, allBookings: globalBookings, found });
+        const storedUpdated = await updateStoredBooking(code, updates);
+        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated });
       } catch (err) {
         return resolve({ success: false, error: err.message });
       }
@@ -486,6 +526,7 @@ export async function removeBookingAtomic({ roomId, code }) {
 
 export async function handleGetBookings(req, res) {
   const user = await getRequestUser(req);
+  await syncFromDb();
   const all = getAllBookings();
   const bookings = user?.isAdmin ? all : toPublicBookings(all, user?.id || null);
   res.setHeader('Content-Type', 'application/json');
@@ -522,7 +563,18 @@ export async function handleAddBooking(req, res) {
 
   // Gắn đơn với tài khoản đang đăng nhập (nếu có) thay vì tin customerId do trình duyệt gửi lên
   const user = await getRequestUser(req);
-  const payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+  let payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+
+  // Tiền cọc do server tính theo ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được
+  if (!user?.isAdmin || !payload.paymentStatus) {
+    const deposit = getDepositPolicy({ checkIn: payload.checkIn, total: payload.totalPrice, todayStr: getTodayStr() });
+    payload = {
+      ...payload,
+      depositRequired: deposit.required,
+      depositAmount: deposit.amount,
+      paymentStatus: deposit.paymentStatus,
+    };
+  }
 
   const result = await scopeResult(req, await addBookingAtomic({ roomId, booking: payload }));
   if (result.invalid) {
@@ -532,6 +584,14 @@ export async function handleAddBooking(req, res) {
     return res.status(409).json(result);
   }
   return res.status(200).json(result);
+}
+
+// Khách được tự hủy đơn của chính mình khi chưa nhận phòng (chưa check-in và chưa qua ngày nhận phòng)
+export function canCustomerCancel(booking, userId, todayStr = getTodayStr()) {
+  if (!booking || !userId || booking.customerId !== userId) return false;
+  if (FINISHED_STATUSES.includes(booking.status)) return false;
+  if (['đang ở', 'Đang lưu trú'].includes(booking.status)) return false;
+  return Boolean(booking.checkIn) && booking.checkIn >= todayStr;
 }
 
 // Trạng thái lưu trữ dùng chung với src/utils/bookingStatus.js (STORED_STATUS)
@@ -569,14 +629,18 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     if (key in updates) allowed[key] = typeof updates[key] === 'string' ? updates[key].slice(0, 500) : updates[key];
   });
 
-  // Hủy đơn: khách tự hủy (chưa Check-in) hoặc đồng ý đề xuất hủy của Admin
+  // Hủy đơn: khách tự hủy (theo canCustomerCancel) hoặc đồng ý đề xuất hủy của Admin
   if ('status' in updates) {
     if (updates.status !== 'cancelled') return fail(403, 'Chỉ Admin mới được Check-in / Check-out.');
     if (!isUpcoming) return fail(409, 'Chỉ được hủy đơn khi chưa Check-in.');
+    const acceptingAdminCancel = pending?.type === 'CANCEL';
+    if (!acceptingAdminCancel && !canCustomerCancel(booking, userId, todayStr)) {
+      return fail(403, 'Đơn này không thể tự hủy. Vui lòng liên hệ Mèo Vắng Nhà để được hỗ trợ.');
+    }
     allowed.status = 'cancelled';
-    ['cancelReason', 'cancelledAt', 'cancelledBy'].forEach((key) => {
-      if (key in updates) allowed[key] = updates[key];
-    });
+    allowed.cancelledBy = acceptingAdminCancel ? 'admin' : 'customer';
+    allowed.cancelledAt = new Date().toISOString();
+    if (typeof updates.cancelReason === 'string') allowed.cancelReason = updates.cancelReason.slice(0, 500);
   }
 
   // Đổi lịch: khách tự đổi hoặc đồng ý đề xuất đổi lịch -> luôn kiểm tra ngày & sức chứa phòng

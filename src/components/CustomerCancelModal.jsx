@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, XCircle } from 'lucide-react';
+import { PAYMENT_STATUS } from '../utils/bookingDeposit';
 
 const CustomerCancelModal = ({ isOpen, onClose, booking, onConfirm }) => {
   const [reason, setReason] = useState('');
@@ -42,6 +43,12 @@ const CustomerCancelModal = ({ isOpen, onClose, booking, onConfirm }) => {
           <p className="text-sm text-gray-700 leading-relaxed">
             Bạn có chắc chắn muốn hủy đơn đặt phòng cho bé <strong className="text-text-dark">{petsName}</strong>? Hành động này sẽ chuyển trạng thái đơn sang <strong className="text-rose-600">Đã hủy</strong>.
           </p>
+
+          {booking.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID && (
+            <p className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-3">
+              Đơn này đã đặt cọc {Number(booking.depositAmount || 0).toLocaleString()}đ. Vui lòng liên hệ Mèo Vắng Nhà để được hỗ trợ về tiền cọc.
+            </p>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">

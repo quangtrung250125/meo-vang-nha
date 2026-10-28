@@ -25,7 +25,7 @@ export default defineConfig({
     command: `npx vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
-    env: { MVN_DATA_DIR: dataDir },
+    env: { MVN_DATA_DIR: dataDir, MVN_BOOKINGS_DB: 'off' },
     timeout: 120_000,
   },
 });

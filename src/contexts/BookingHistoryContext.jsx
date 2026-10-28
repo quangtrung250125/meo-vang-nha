@@ -597,10 +597,20 @@ export const BookingHistoryProvider = ({ children }) => {
               headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
               body: JSON.stringify({ roomId, code: target.code || target.id, updates: roomUpdates }),
             });
-            // Server từ chối (VD: phòng vừa hết chỗ, chưa đăng nhập) -> báo để người dùng tải lại
+            // Server từ chối (VD: phòng vừa hết chỗ, đã qua ngày nhận phòng) -> trả đơn về như trước
             if (!res.ok) {
               const json = await res.json().catch(() => ({}));
-              toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng tải lại trang.');
+              const restored = Object.fromEntries(Object.keys(updatedData).map((key) => [key, target[key] ?? null]));
+              const revertedList = bookingListRef.current.map(b =>
+                (b.id === bookingId || b.code === bookingId) ? { ...b, ...restored } : b
+              );
+              commitList(revertedList);
+              const revertedBooking = revertedList.find(b => b.id === bookingId || b.code === bookingId);
+              if (revertedBooking) {
+                pushServerSync({ bookings: [revertedBooking] });
+                broadcastEvent('BOOKINGS_UPDATED', { bookings: [revertedBooking] });
+              }
+              toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.');
             }
           } catch (e) {}
         })();

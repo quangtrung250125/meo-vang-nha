@@ -34,6 +34,7 @@ import {
   PROPOSAL_TYPE,
   getBookingStatus,
   normalizeStatusValue,
+  isClosedStatus,
   formatDateRange,
   formatDateSingle
 } from '../../utils/bookingStatus';
@@ -41,7 +42,22 @@ import CustomerApprovalModal from '../../components/CustomerApprovalModal';
 import CustomerRescheduleModal from '../../components/CustomerRescheduleModal';
 import CustomerCancelModal from '../../components/CustomerCancelModal';
 import AdminProposeChangeModal from '../../components/AdminProposeChangeModal';
+import { hasBookingCode, todayInVietnam, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { toast } from 'react-hot-toast';
+
+// Nhãn thanh toán: trạng thái cọc do server tính + "Đã thanh toán" khi khách trả đủ
+const getPaymentBadge = (booking) => {
+  if (booking.paymentStatus === 'Đã thanh toán') {
+    return { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-700' };
+  }
+  if (booking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
+    return { label: 'Chờ đặt cọc', className: 'bg-amber-100 text-amber-700' };
+  }
+  if (booking.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
+    return { label: `Đã cọc ${Number(booking.depositAmount || 0).toLocaleString()}đ`, className: 'bg-sky-100 text-sky-700' };
+  }
+  return { label: 'Chưa thanh toán', className: 'bg-orange-100 text-orange-700' };
+};
 
 // Khách gửi yêu cầu đặc biệt cho đơn (Admin thấy ngay ở Tình trạng phòng)
 const SpecialNoteModal = ({ booking, onClose, onSave }) => {
@@ -179,7 +195,22 @@ const MyBooking = () => {
     ? globalBookingList.filter((booking) => isBookingOfCustomer(booking, activeCustomer, isAdmin))
     : globalBookingList;
 
-  const processedBookings = myBookings.map(booking => {
+  // Trạng thái cọc / trạng thái đơn lấy từ kho phòng trên server (cập nhật mỗi 2 giây), để khi admin
+  // xác nhận cọc hay Check-in thì trang của khách đổi theo ngay, không phụ thuộc bản lưu cũ trên trình duyệt
+  const liveByCode = {};
+  Object.values(roomBookings || {}).flat().forEach((b) => {
+    if (b?.code) liveByCode[b.code] = b;
+  });
+
+  const processedBookings = myBookings.map(rawBooking => {
+    const live = liveByCode[rawBooking.code || rawBooking.id];
+    const booking = { ...rawBooking };
+    // Đơn đã kết thúc thì giữ nguyên: server không còn trả về đơn đã hủy / đã trả phòng
+    if (live && !isClosedStatus(rawBooking.status)) {
+      ['paymentStatus', 'depositAmount', 'status'].forEach((key) => {
+        if (live[key] !== undefined) booking[key] = live[key];
+      });
+    }
     const normalizedStatus = getBookingStatus(booking);
     return {
       ...booking,
@@ -441,13 +472,11 @@ const MyBooking = () => {
                         </span>
 
                         {/* Payment Badge */}
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                          booking.paymentStatus === 'Đã thanh toán' 
-                            ? 'bg-emerald-100 text-emerald-700' 
-                            : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {booking.paymentStatus || 'Chưa thanh toán'}
-                        </span>
+                        {!isCancelled && (
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${getPaymentBadge(booking).className}`}>
+                            {getPaymentBadge(booking).label}
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-gray-600 text-sm font-medium mb-1">
@@ -462,7 +491,13 @@ const MyBooking = () => {
                           {formatDateRange(booking.checkIn, booking.checkOut)}
                         </span>
                         <span className="text-gray-300">•</span>
-                        <span className="font-mono text-gray-400">Mã đơn: #{booking.id}</span>
+                        {hasBookingCode(booking) || isCancelled ? (
+                          <span className="font-mono text-gray-400">Mã đơn: #{booking.id}</span>
+                        ) : (
+                          <span className="text-amber-700">
+                            Chuyển khoản cọc {Number(booking.depositAmount || 0).toLocaleString()}đ (nội dung: COC {booking.id}) để nhận mã đặt phòng
+                          </span>
+                        )}
                         {booking.totalAmount && (
                           <>
                             <span className="text-gray-300">•</span>
@@ -540,7 +575,7 @@ const MyBooking = () => {
                       )}
 
                       {/* 2b. QUYỀN THAO TÁC CỦA KHÁCH HÀNG: CHỈ ĐƯỢC ĐỔI LỊCH & HỦY ĐƠN KHI UPCOMING */}
-                      {!isAdmin && isUpcoming && (
+                      {!isAdmin && isUpcoming && booking.checkIn >= todayInVietnam() && (
                         <>
                           <button
                             onClick={() => setSelectedBookingForReschedule(booking)}
@@ -579,7 +614,7 @@ const MyBooking = () => {
                       )}
 
                       {/* Nút thanh toán nếu chưa thanh toán */}
-                      {booking.paymentStatus !== 'Đã thanh toán' && !isCancelled && (
+                      {booking.paymentStatus !== 'Đã thanh toán' && !isCancelled && hasBookingCode(booking) && (
                         <button 
                           onClick={() => handlePayment(booking.id)}
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-1 cursor-pointer"
@@ -596,6 +631,7 @@ const MyBooking = () => {
           </div>
         )}
       </div>
+
     </div>
   );
 };

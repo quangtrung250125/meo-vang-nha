@@ -38,12 +38,11 @@ test.describe('Đặt phòng', () => {
     await expect(page.getByText('Hạng VIP', { exact: true })).toHaveCount(0);
   });
 
-  test('đi hết 5 bước và thấy trang đặt lịch thành công', async ({ page, pageErrors }, testInfo) => {
+  // Đi từ bước 1 đến bước 4 với gói Sang Chảnh (405.000đ cho 1 bé × 3 ngày) rồi gửi đơn
+  const bookUntilStep5 = async (page, offset) => {
     await loginAs(page);
     await page.goto('/booking');
     const card = bookingCard(page);
-    // Mỗi project dùng ngày khác nhau để không tranh phòng của nhau
-    const offset = testInfo.project.name === 'mobile' ? 100 : 90;
 
     // Bước 1: ngày & phòng
     await fillStep1(page, { checkIn: isoDate(offset), checkOut: isoDate(offset + 3) });
@@ -68,22 +67,45 @@ test.describe('Đặt phòng', () => {
     await expect(card.getByRole('heading', { name: /Xác nhận/ })).toBeVisible();
     await expect(card.getByText('Đã gồm trong gói')).toBeVisible();
     await expect(card.getByText('405,000đ').last()).toBeVisible();
-    await card.getByRole('button', { name: /gửi yêu cầu/i }).click();
+    return card;
+  };
 
-    // Bước 5: thành công, không bị tải lại trang về bước 1
-    await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
+  test('đặt trước hơn 5 ngày thì giữ phòng và chờ cọc 50% mới có mã', async ({ page, pageErrors }, testInfo) => {
+    // Mỗi project dùng ngày khác nhau để không tranh phòng của nhau
+    const card = await bookUntilStep5(page, testInfo.project.name === 'mobile' ? 100 : 90);
+    await expect(card.getByText('Cần đặt cọc 50% để nhận mã đặt phòng')).toBeVisible();
+    await card.getByRole('button', { name: /giữ phòng & đặt cọc/i }).click();
+
+    // Bước 5: giữ phòng, chưa có mã đặt phòng, không bị tải lại trang về bước 1
+    await expect(card.getByRole('heading', { name: 'Đã Giữ Phòng, Chờ Đặt Cọc' })).toBeVisible();
     await page.waitForTimeout(1500);
-    await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
-    await expect(card.getByText(/MVN-\d{5}/)).toBeVisible();
+    await expect(card.getByRole('heading', { name: 'Đã Giữ Phòng, Chờ Đặt Cọc' })).toBeVisible();
+    await expect(card.getByText('QUÉT MÃ ĐỂ ĐẶT CỌC 50%')).toBeVisible();
+    await expect(card.getByText('202,500đ')).toBeVisible();
+    await expect(card.getByText(/^COC MVN-\d{5}$/)).toBeVisible();
+    await expect(card.getByText('Sẽ hiện tại đây ngay khi Mèo Vàng Nhà nhận được tiền cọc.')).toBeVisible();
     expect(pageErrors).toEqual([]);
 
-    // Đơn xuất hiện ở "Lịch của tôi"
+    // Đơn xuất hiện ở "Lịch của tôi" với nhãn chờ cọc
     await page.goto('/my-booking');
     await expect(page.getByText('Bé E2E').first()).toBeVisible();
+    await expect(page.getByText('Chờ đặt cọc').first()).toBeVisible();
 
     // "Theo dõi lưu trú" hiện đúng là đơn sắp tới, không phải đang lưu trú
     await page.goto('/tracking');
     await expect(page.getByText('Sắp tới', { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/Còn \d+ ngày đến ngày gửi bé/)).toBeVisible();
+  });
+
+  test('đặt sát ngày (≤ 5 ngày) thì không cần cọc và nhận mã ngay', async ({ page, pageErrors }, testInfo) => {
+    const card = await bookUntilStep5(page, testInfo.project.name === 'mobile' ? 4 : 2);
+    await expect(card.getByText('Không cần đặt cọc trước').first()).toBeVisible();
+    await card.getByRole('button', { name: /gửi yêu cầu/i }).click();
+
+    await expect(card.getByRole('heading', { name: 'Đặt Lịch Thành Công!' })).toBeVisible();
+    await expect(card.getByText(/^MVN-\d{5}$/).first()).toBeVisible();
+    await expect(card.getByText('Không cần đặt cọc trước, bạn thanh toán khi hoàn thành dịch vụ.')).toBeVisible();
+    await expect(card.getByText(/QUÉT MÃ ĐỂ/)).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
   });
 });
