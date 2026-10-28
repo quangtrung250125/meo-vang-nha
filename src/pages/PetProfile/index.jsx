@@ -11,6 +11,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
+import { BOOKING_STATUS, getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
 import AuthModal from '../../components/AuthModal';
 
 // ─────────────────────────────────────────────
@@ -66,25 +67,6 @@ const getStatusBadge = (status) => {
   }
 };
 
-const calculateStatus = (checkIn, checkOut, status) => {
-  if (
-    status === 'check-out' ||
-    status === 'Đã hoàn tất' ||
-    status === 'hoàn tất' ||
-    status === 'cancelled' ||
-    status === 'Đã hủy'
-  ) {
-    return 'Đã hoàn tất';
-  }
-  if (!checkIn || !checkOut) return 'Chưa rõ';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
-  const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
-  if (today > outDate) return 'Đã hoàn tất';
-  if (today < inDate) return 'Sắp tới';
-  return 'Đang lưu trú';
-};
-
 // ─────────────────────────────────────────────
 // Component: Booking Card kèm nhật ký
 // ─────────────────────────────────────────────
@@ -95,7 +77,8 @@ const BookingCard = ({ booking, petList }) => {
   const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
   const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
   const firstPetImage = resolvedPets[0]?.imagePreview;
-  const status = calculateStatus(booking.checkIn, booking.checkOut, booking.status);
+  const normalizedStatus = getBookingStatus(booking);
+  const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
   const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
 
   return (
@@ -111,8 +94,8 @@ const BookingCard = ({ booking, petList }) => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="text-lg font-bold text-text-dark">{petsName}</h3>
-            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${getStatusBadge(status)}`}>
-              {status}
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${statusConfig.badgeClass}`}>
+              {statusConfig.label}
             </span>
           </div>
           <p className="text-sm text-gray-500 font-medium">
@@ -296,7 +279,7 @@ const PetProfile = () => {
   const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
   const bookings = myBookings.map(b => ({
     ...b,
-    dynamicStatus: calculateStatus(b.checkIn, b.checkOut, b.status),
+    dynamicStatus: getBookingStatus(b),
   }));
 
   return (
@@ -399,8 +382,8 @@ const PetProfile = () => {
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   {[
                     { label: 'Tổng lần gửi', value: bookings.length, color: 'text-primary', bg: 'bg-primary-light/50' },
-                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === 'Đang lưu trú').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === 'Đã hoàn tất').length, color: 'text-gray-600', bg: 'bg-gray-100' },
+                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.IN_HOUSE).length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.COMPLETED).length, color: 'text-gray-600', bg: 'bg-gray-100' },
                   ].map((stat, i) => (
                     <div key={i} className={`${stat.bg} rounded-2xl p-4 text-center border border-white/60`}>
                       <p className={`text-2xl font-black ${stat.color}`}>{stat.value}</p>

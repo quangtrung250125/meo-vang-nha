@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { BOOKING_STATUS, normalizeStatusValue } from '../../utils/bookingStatus';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCareLog } from '../../contexts/CareLogContext';
 import { activeBookings as mockActiveBookings } from '../../mockData/activeBookings';
@@ -21,15 +22,10 @@ const AdminDashboard = () => {
   const [selectedCat, setSelectedCat] = useState(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
-  // Filter active real bookings
-  const activeRealBookings = globalBookingList.filter(b => {
-    if (b.status === 'Đang lưu trú') return true;
-    if (!b.checkIn || !b.checkOut) return false;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const inDate = new Date(b.checkIn); inDate.setHours(0, 0, 0, 0);
-    const outDate = new Date(b.checkOut); outDate.setHours(23, 59, 59, 999);
-    return today >= inDate && today <= outDate;
-  });
+  // Đơn đang lưu trú: chỉ những đơn Admin đã Check-in và chưa Check-out
+  const activeRealBookings = globalBookingList.filter(
+    b => normalizeStatusValue(b.status) === BOOKING_STATUS.IN_HOUSE
+  );
 
   // Extract cats from real bookings
   let catsInHotel = activeRealBookings.flatMap(booking => {

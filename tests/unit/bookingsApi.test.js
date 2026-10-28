@@ -159,6 +159,64 @@ describe('Quyền truy cập /api/bookings', () => {
   });
 });
 
+describe('Khách tự thay đổi đơn của chính mình qua PUT /api/bookings', () => {
+  // Tạo đơn gắn với user-a (khách đăng nhập) trong phòng riêng cho từng test
+  const createOwnBooking = async (roomId, overrides = {}) => {
+    const res = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId, booking: newBooking(overrides) } });
+    return res.payload.booking.code;
+  };
+  const put = (roomId, code, updates, token = 'token-a') =>
+    call(api.handleUpdateBooking, { method: 'PUT', token, body: { roomId, code, updates } });
+  const stored = (roomId, code) => api.getAllBookings()[roomId].find((b) => b.code === code);
+
+  it('khách tự đổi lịch đơn chưa Check-in', async () => {
+    const code = await createOwnBooking('VIP-05', { checkIn: addDays(80), checkOut: addDays(82) });
+    const res = await put('VIP-05', code, { checkIn: addDays(81), checkOut: addDays(84), pending_changes: null });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VIP-05', code).checkIn).toBe(addDays(81));
+  });
+
+  it('không cho đổi lịch sang khoảng ngày phòng đã kín chỗ', async () => {
+    await call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VIP-06', booking: newBooking({ checkIn: addDays(90), checkOut: addDays(92), cats: 2 }) } });
+    const code = await createOwnBooking('VIP-06', { checkIn: addDays(95), checkOut: addDays(96) });
+    const res = await put('VIP-06', code, { checkIn: addDays(90), checkOut: addDays(91) });
+    expect(res.statusCode).toBe(409);
+    expect(stored('VIP-06', code).checkIn).toBe(addDays(95));
+  });
+
+  it('khách tự hủy đơn chưa Check-in', async () => {
+    const code = await createOwnBooking('VVIP-03');
+    const res = await put('VVIP-03', code, { status: 'cancelled', cancelReason: 'Bận đột xuất' });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VVIP-03', code)).toBeUndefined();
+  });
+
+  it('không cho khách hủy hoặc đổi lịch khi đơn đã Check-in, cũng không tự Check-in', async () => {
+    const code = await createOwnBooking('DELUXE-02');
+    expect((await put('DELUXE-02', code, { status: 'đang ở' })).statusCode).toBe(403);
+    await put('DELUXE-02', code, { status: 'đang ở' }, 'token-admin');
+    expect((await put('DELUXE-02', code, { status: 'cancelled' })).statusCode).toBe(409);
+    expect((await put('DELUXE-02', code, { checkIn: addDays(11), checkOut: addDays(13) })).statusCode).toBe(409);
+    expect(stored('DELUXE-02', code).status).toBe('đang ở');
+  });
+
+  it('không cho khách sửa đơn của người khác hoặc tự tạo đề xuất', async () => {
+    const code = await createOwnBooking('VVIP-02', { checkIn: addDays(100), checkOut: addDays(101) });
+    expect((await put('VVIP-02', code, { status: 'cancelled' }, 'token-b')).statusCode).toBe(403);
+    expect((await put('VVIP-02', code, { pending_changes: { type: 'CANCEL' } })).statusCode).toBe(403);
+    expect(stored('VVIP-02', code).status).not.toBe('cancelled');
+  });
+
+  it('khách chỉ nhận đúng gói dịch vụ Admin đã đề xuất', async () => {
+    const code = await createOwnBooking('VIP-01', { checkIn: addDays(110), checkOut: addDays(111), packages: ['Gói Mèo Tự Túc'] });
+    await put('VIP-01', code, { pending_changes: { type: 'UPDATE', newPackageName: 'Gói Mèo Sang Chảnh' } }, 'token-admin');
+    const res = await put('VIP-01', code, { packages: ['Gói Mèo Thượng Đế'], pending_changes: null });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VIP-01', code).packages[0]).toBe('Gói Mèo Sang Chảnh');
+    expect(stored('VIP-01', code).pending_changes).toBeNull();
+  });
+});
+
 describe('Khách tự hủy đơn', () => {
   const cancel = (token, roomId, code) =>
     call(api.handleUpdateBooking, { method: 'PUT', token, body: { roomId, code, updates: { status: 'cancelled' } } });

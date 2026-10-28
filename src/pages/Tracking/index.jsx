@@ -25,27 +25,9 @@ import {
   testPhoneNotification
 } from '../../utils/notifications';
 import cameraFeed from '../../assets/images/camera_feed.png';
+import { BOOKING_STATUS, BOOKING_STATUS_CONFIG, getBookingStatus, normalizeStatusValue } from '../../utils/bookingStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-const calculateStatus = (checkIn, checkOut, status) => {
-  if (
-    status === 'check-out' ||
-    status === 'Đã hoàn tất' ||
-    status === 'hoàn tất' ||
-    status === 'cancelled' ||
-    status === 'Đã hủy'
-  ) {
-    return 'Đã hoàn tất';
-  }
-  if (!checkIn || !checkOut) return 'Chưa rõ';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
-  const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
-  if (today > outDate) return 'Đã hoàn tất';
-  if (today < inDate) return 'Sắp tới';
-  return 'Đang lưu trú';
-};
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -785,11 +767,11 @@ const TrackingPage = () => {
   const myBookings = activeCustomer
     ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
     : globalBookingList;
-  // Ưu tiên đơn đang lưu trú, nếu không có thì lấy đơn sắp tới gần nhất (không hiển thị đơn đã hoàn tất)
-  const realActiveBooking = myBookings.find(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Đang lưu trú')
+  // Ưu tiên đơn đang lưu trú, nếu không có thì lấy đơn sắp tới gần nhất (không hiển thị đơn đã hoàn tất/đã hủy)
+  const realActiveBooking = myBookings.find(b => getBookingStatus(b) === BOOKING_STATUS.IN_HOUSE)
     || myBookings
-      .filter(b => calculateStatus(b.checkIn, b.checkOut, b.status) === 'Sắp tới')
-      .sort((a, b) => a.checkIn.localeCompare(b.checkIn))[0];
+      .filter(b => [BOOKING_STATUS.UPCOMING, BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL].includes(getBookingStatus(b)))
+      .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''))[0];
 
   // Booking mẫu nếu máy chưa có booking thực tế để người dùng có thể test đồng bộ với Admin ngay lập tức
   const demoBooking = {
@@ -819,8 +801,10 @@ const TrackingPage = () => {
 
   const activeStatus = activeBooking === demoBooking
     ? 'Đang lưu trú'
-    : activeBooking ? calculateStatus(activeBooking.checkIn, activeBooking.checkOut, activeBooking.status) : '';
-  const isUpcoming = activeStatus === 'Sắp tới';
+    : activeBooking ? (BOOKING_STATUS_CONFIG[getBookingStatus(activeBooking)]?.label || 'Sắp tới') : '';
+  // Đơn chưa Check-in (kể cả đang chờ khách xác nhận đề xuất) vẫn là đơn sắp tới
+  const isUpcoming = activeBooking !== demoBooking && Boolean(activeBooking)
+    && normalizeStatusValue(activeBooking.status) === BOOKING_STATUS.UPCOMING;
   // Đơn sắp tới: đếm ngày đến hôm gửi bé; đơn đang lưu trú: đếm ngày đến hôm đón bé
   const daysRemaining = activeBooking ? getDaysRemaining(isUpcoming ? activeBooking.checkIn : activeBooking.checkOut) : 0;
   const firstPet = resolvedPets[0];

@@ -11,6 +11,7 @@ import { toast, Toaster } from 'react-hot-toast';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
+import { BOOKING_STATUS_CONFIG, getBookingStatus } from '../../utils/bookingStatus';
 import InvoiceModal from '../../components/InvoiceModal';
 import {
   getPushSubscriptionStatus,
@@ -332,7 +333,7 @@ const CustomerProfile = () => {
       packageDesc: b.selectedPackage?.name || b.serviceType || 'Lưu trú Khách Sạn',
       checkIn: b.checkIn || b.checkInDate || '2026-09-20',
       checkOut: b.checkOut || b.checkOutDate || '2026-09-24',
-      status: b.status === 'đang ở' ? 'Đang lưu trú' : (b.status || 'Đang lưu trú'),
+      status: BOOKING_STATUS_CONFIG[getBookingStatus(b)]?.label || 'Sắp tới',
       image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
       invoiceId: b.code || b.id || 'MVN-2026-8891'
     }))),

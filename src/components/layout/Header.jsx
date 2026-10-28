@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
+import BookingNotificationBell from '../BookingNotificationBell';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
@@ -95,17 +96,9 @@ const Header = () => {
                 <Search className="h-5 w-5 text-gray-600" />
               </button>
 
-              {/* Notification Bell with Badge */}
-              <div className="relative">
-                <Link 
-                  to="/customer-profile?tab=notifications"
-                  className="hover:text-primary transition-colors p-2 rounded-full hover:bg-orange-50 cursor-pointer flex items-center justify-center" 
-                  title="Cài đặt thông báo Web Push"
-                >
-                  <Bell className="h-5 w-5 text-gray-600" />
-                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-orange-400 rounded-full ring-2 ring-white animate-pulse" />
-                </Link>
-              </div>
+              {/* Notification Bell: đề xuất từ Admin chờ khách xác nhận */}
+              <BookingNotificationBell />
+
 
               {/* Admin CRM Shortcut Badge if logged in as Admin */}
               {isAdmin && (

@@ -6,12 +6,23 @@ import {
 } from 'lucide-react';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useUI } from '../../contexts/UIContext';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
+import { usePetProfile } from '../../contexts/PetContext';
+import { useBookingHistory } from '../../contexts/BookingHistoryContext';
+import { calculateMembership } from '../../utils/membership';
 import { promotionsList } from '../../mockData/promotionsData';
 import { articlesList } from '../../mockData/newsData';
 
 const Home = () => {
   const [activeBanner, setActiveBanner] = useState(0);
+  const { customerProfile } = useCustomerProfile();
+  const { petList } = usePetProfile();
+  const { globalBookingList } = useBookingHistory();
   const { openPolicy } = useUI();
+
+  const { tier, points } = calculateMembership(globalBookingList);
+  const displayOwner = customerProfile?.fullName || 'Khách Hàng Mới';
+  const displayPetCode = petList && petList.length > 0 ? `MVN-${String(petList[0].id).slice(-5)}` : 'MVN-XXXXX';
 
   const banners = [
     {
@@ -503,16 +514,16 @@ const Home = () => {
                   <PawPrint className="text-3xl opacity-80" />
                 </div>
                 <div className="mb-8 text-xs space-y-1">
-                  <p className="text-amber-100">Chủ nuôi: <span className="font-bold text-white">Khách Hàng Thân Thiết</span></p>
-                  <p className="text-amber-100">Mã bé cưng: <span className="font-mono text-white">MVN-88992</span></p>
+                  <p className="text-amber-100">Chủ nuôi: <span className="font-semibold text-white">{displayOwner}</span></p>
+                  <p className="text-amber-100">Mã bé cưng: <span className="font-mono text-white">{displayPetCode}</span></p>
                 </div>
                 <div className="flex justify-between items-end border-t border-amber-300/40 pt-4">
                   <div>
                     <p className="text-[10px] text-amber-100 uppercase">Điểm tích lũy</p>
-                    <p className="text-2xl font-black">850 <span className="text-xs font-normal">Điểm</span></p>
+                    <p className="text-2xl font-black">{points.toLocaleString()} <span className="text-xs font-normal">Điểm</span></p>
                   </div>
                   <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold border border-white/30">
-                    👑 HẠNG VÀNG
+                    {tier}
                   </span>
                 </div>
               </div>
