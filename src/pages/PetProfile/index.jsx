@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Info, Plus, Lock, PawPrint, BookOpen, History,
   ChevronDown, ChevronUp, CalendarDays, Utensils,
   Heart, Star, CheckCircle2, Clock, Sparkles, User2,
-  Camera, Cat
+  Camera, Cat, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { usePetProfile } from '../../contexts/PetContext';
@@ -58,15 +58,6 @@ const formatDate = (dateStr) => {
   return `${day}/${month}/${year}`;
 };
 
-const getStatusBadge = (status) => {
-  switch (status) {
-    case 'Đang lưu trú': return 'bg-primary-light text-primary';
-    case 'Sắp tới': return 'bg-red-50 text-red-500';
-    case 'Đã hoàn tất': return 'bg-green-50 text-green-600';
-    default: return 'bg-gray-100 text-gray-500';
-  }
-};
-
 // ─────────────────────────────────────────────
 // Component: Booking Card kèm nhật ký
 // ─────────────────────────────────────────────
@@ -80,6 +71,9 @@ const BookingCard = ({ booking, petList }) => {
   const normalizedStatus = getBookingStatus(booking);
   const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
   const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
+
+  // Lấy danh sách các giai đoạn lưu trú (để hiện hóa đơn chi tiết)
+  const stayPeriods = booking.stayPeriods || [];
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -108,6 +102,17 @@ const BookingCard = ({ booking, petList }) => {
             <span className="ml-2 text-gray-300">|</span>
             <span className="text-gray-400">#{booking.id?.slice(-6)}</span>
           </p>
+
+          {/* Hiển thị các giai đoạn lưu trú nếu có thay đổi phòng/gói */}
+          {stayPeriods.length > 1 && (
+            <div className="mt-2 space-y-1">
+              {stayPeriods.map((period, idx) => (
+                <p key={idx} className="text-xs text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  📅 {formatDate(period.checkIn)} – {formatDate(period.checkOut)}: {period.roomName || 'Phòng cũ'} · {period.packageName || 'Gói cũ'}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Journal Toggle Button */}
@@ -276,11 +281,33 @@ const PetProfile = () => {
   // ── LOGGED IN VIEW ──────────────────────────
   const activeCustomer = authenticatedCustomer || customerProfile;
   const displayName = activeCustomer?.fullName || activeCustomer?.name || 'bạn';
-  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
-  const bookings = myBookings.map(b => ({
-    ...b,
-    dynamicStatus: getBookingStatus(b),
-  }));
+
+  // Lọc đơn của khách hàng hiện tại và loại bỏ duplicate theo id
+  const seenIds = new Set();
+  const myBookings = globalBookingList
+    .filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
+    .filter(b => {
+      const key = b.id || b.code;
+      if (!key || seenIds.has(key)) return false;
+      seenIds.add(key);
+      return true;
+    });
+
+  // Sắp xếp theo thời gian: gần đây nhất lên đầu (checkIn mới nhất trước)
+  const bookings = myBookings
+    .map(b => ({
+      ...b,
+      dynamicStatus: getBookingStatus(b),
+    }))
+    .sort((a, b) => {
+      // Ưu tiên đang lưu trú lên đầu
+      if (a.dynamicStatus === BOOKING_STATUS.IN_HOUSE && b.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return -1;
+      if (b.dynamicStatus === BOOKING_STATUS.IN_HOUSE && a.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return 1;
+      // Sau đó sort theo checkIn giảm dần (gần đây nhất trước)
+      const dateA = a.checkIn || a.createdAt || '';
+      const dateB = b.checkIn || b.createdAt || '';
+      return dateB.localeCompare(dateA);
+    });
 
   return (
     <div className="w-full min-h-screen bg-bg-cream pb-16">
@@ -352,6 +379,23 @@ const PetProfile = () => {
                         </span>
                       </div>
                     </div>
+
+                    {/* Tình trạng lưu trú hiện tại của bé */}
+                    {(() => {
+                      const currentStay = bookings.find(b =>
+                        b.dynamicStatus === BOOKING_STATUS.IN_HOUSE &&
+                        ((b.petIds || []).includes(pet.id) ||
+                          (b.petProfiles || []).some(p => p.id === pet.id))
+                      );
+                      if (!currentStay) return null;
+                      return (
+                        <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                          Đang lưu trú · Phòng {currentStay.selectedRoom?.name || '—'}
+                        </div>
+                      );
+                    })()}
+
                     <div className="mt-auto pt-4 border-t border-gray-50">
                       <button
                         onClick={() => { setEditingPet(pet); setIsEditing(true); }}
@@ -392,6 +436,7 @@ const PetProfile = () => {
                   ))}
                 </div>
 
+                {/* Sắp xếp: mới nhất trước (đã sort ở trên) */}
                 {bookings.map((booking, idx) => (
                   <BookingCard key={booking.id || idx} booking={booking} petList={petList} />
                 ))}

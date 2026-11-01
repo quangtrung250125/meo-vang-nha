@@ -9,17 +9,49 @@ import {
   subscribeSyncEvents,
   getAuthHeaders,
 } from '../services/crossDeviceSync';
-import {
-  BOOKING_STATUS,
-  STORED_STATUS,
-  PROPOSAL_TYPE,
-  PROPOSAL_LABEL,
-  normalizeStatusValue,
-  isClosedStatus,
-  REALTIME_CHANNEL,
-} from '../utils/bookingStatus';
+import { BOOKING_STATUS, STORED_STATUS, PROPOSAL_TYPE, PROPOSAL_LABEL, normalizeStatusValue, isClosedStatus, REALTIME_CHANNEL } from '../utils/bookingStatus';
 import { withoutDemoBookings } from '../utils/demoBookings';
 import { updateBookingRows } from '../utils/bookingRows';
+
+// ─── Helper: Merge hai danh sách booking, ưu tiên bản mới nhất (theo updatedAt / createdAt)
+// Giải quyết lỗi đếm khác nhau giữa 2 thiết bị: nếu cùng id/code, chọn cái có timestamp mới hơn
+const mergeBookings = (base, incoming) => {
+  const map = new Map();
+
+  const getKey = (b) => b?.id || b?.code || null;
+  const getTimestamp = (b) => {
+    const t = b?.updatedAt || b?.extendedAt || b?.createdAt || b?.bookingDate || '';
+    return t ? new Date(t).getTime() : 0;
+  };
+
+  // Đưa base vào map
+  for (const b of base) {
+    const key = getKey(b);
+    if (key) map.set(key, b);
+  }
+
+  // Merge incoming: nếu cùng key thì chọn cái mới hơn
+  for (const ib of incoming) {
+    const key = getKey(ib);
+    if (!key) continue;
+    if (map.has(key)) {
+      const existing = map.get(key);
+      const existTs = getTimestamp(existing);
+      const incomingTs = getTimestamp(ib);
+      // Merge fields, ưu tiên cái mới hơn làm base
+      if (incomingTs >= existTs) {
+        map.set(key, { ...existing, ...ib });
+      } else {
+        map.set(key, { ...ib, ...existing });
+      }
+    } else {
+      map.set(key, ib);
+    }
+  }
+
+  return Array.from(map.values());
+};
+
 
 const BookingHistoryContext = createContext();
 
@@ -106,20 +138,8 @@ export const BookingHistoryProvider = ({ children }) => {
         const serverData = await fetchServerSync();
         if (serverData && Array.isArray(serverData.bookings) && serverData.bookings.length > 0 && isMounted) {
           setGlobalBookingList((prev) => {
-            const merged = [...prev];
-            serverData.bookings.forEach((sb) => {
-              const idx = merged.findIndex(
-                (b) => (b.id && b.id === sb.id) || (b.code && b.code === sb.code)
-              );
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...sb };
-              } else {
-                merged.push(sb);
-              }
-            });
-            try {
-              localStorage.setItem('bookingHistory', JSON.stringify(merged));
-            } catch (e) {}
+            const merged = mergeBookings(prev, serverData.bookings);
+            try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
             return merged;
           });
         }
@@ -136,24 +156,13 @@ export const BookingHistoryProvider = ({ children }) => {
             code: row.code,
             customerId: row.customer_id,
             createdAt: row.created_at,
+            updatedAt: row.updated_at || row.created_at,
             ...(row.data || {}),
           }));
 
           setGlobalBookingList((prev) => {
-            const merged = [...prev];
-            dbBookings.forEach((dbItem) => {
-              const idx = merged.findIndex(
-                (b) => (b.id && b.id === dbItem.id) || (b.code && b.code === dbItem.code)
-              );
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...dbItem };
-              } else {
-                merged.push(dbItem);
-              }
-            });
-            try {
-              localStorage.setItem('bookingHistory', JSON.stringify(merged));
-            } catch (e) {}
+            const merged = mergeBookings(prev, dbBookings);
+            try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
             return merged;
           });
         }
@@ -244,20 +253,8 @@ export const BookingHistoryProvider = ({ children }) => {
         const incomingBookings = payload?.bookings;
         if (Array.isArray(incomingBookings) && incomingBookings.length > 0) {
           setGlobalBookingList((prev) => {
-            const merged = [...prev];
-            incomingBookings.forEach((ib) => {
-              const idx = merged.findIndex(
-                (b) => (b.id && b.id === ib.id) || (b.code && b.code === ib.code)
-              );
-              if (idx >= 0) {
-                merged[idx] = { ...merged[idx], ...ib };
-              } else {
-                merged.unshift(ib);
-              }
-            });
-            try {
-              localStorage.setItem('bookingHistory', JSON.stringify(merged));
-            } catch (e) {}
+            const merged = mergeBookings(prev, incomingBookings);
+            try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
             window.dispatchEvent(new Event('mvn_booking_sync'));
             return merged;
           });
@@ -407,8 +404,10 @@ export const BookingHistoryProvider = ({ children }) => {
   // options.syncRoom = false khi thao tác xuất phát từ trang Tình trạng phòng (đã tự cập nhật kho phòng)
   const updateBooking = (bookingId, updatedData, { syncRoom = true } = {}) => {
     const target = bookingListRef.current.find(b => b.id === bookingId || b.code === bookingId);
+    // Đánh timestamp để mergeBookings trên thiết bị khác luôn chọn bản mới nhất
+    const dataWithTimestamp = { ...updatedData, updatedAt: new Date().toISOString() };
     const updatedList = bookingListRef.current.map(booking =>
-      (booking.id === bookingId || booking.code === bookingId) ? { ...booking, ...updatedData } : booking
+      (booking.id === bookingId || booking.code === bookingId) ? { ...booking, ...dataWithTimestamp } : booking
     );
     commitList(updatedList);
     const changedBooking = updatedList.find(b => b.id === bookingId || b.code === bookingId);
