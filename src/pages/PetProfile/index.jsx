@@ -6,6 +6,7 @@ import {
   Camera, Cat, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
@@ -58,15 +59,38 @@ const formatDate = (dateStr) => {
   return `${day}/${month}/${year}`;
 };
 
+// So khớp id mèo không phân biệt kiểu (số / chuỗi), vì id lưu trong đơn và trong hồ sơ có thể khác kiểu
+const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+// Các bé mèo của một đơn: lấy theo petIds/petProfiles đã lưu trong đơn (giống nhau trên mọi máy),
+// hồ sơ mèo hiện tại (nếu có) chỉ dùng để cập nhật tên/ảnh mới nhất
+const getBookingPets = (booking, petList = []) => {
+  const result = [];
+  const add = (pet) => {
+    if (!pet) return;
+    const idx = result.findIndex(p => sameId(p.id, pet.id));
+    if (idx >= 0) result[idx] = { ...result[idx], ...pet };
+    else result.push(pet);
+  };
+  (booking.petProfiles || []).forEach(add);
+  (booking.petIds || []).forEach(id => {
+    const fromProfile = petList.find(p => sameId(p.id, id));
+    if (fromProfile) add(fromProfile);
+  });
+  return result;
+};
+
+const getRoomName = (booking) =>
+  booking?.selectedRoom?.name || booking?.roomName || booking?.roomId || '';
+
 // ─────────────────────────────────────────────
 // Component: Booking Card kèm nhật ký
 // ─────────────────────────────────────────────
 const BookingCard = ({ booking, petList }) => {
   const [showJournal, setShowJournal] = useState(false);
 
-  const dynamicPets = (booking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean);
-  const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
-  const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
+  const resolvedPets = getBookingPets(booking, petList);
+  const petsName = resolvedPets.map(p => p.name).filter(Boolean).join(', ') || booking.catNames || 'Chưa rõ';
   const firstPetImage = resolvedPets[0]?.imagePreview;
   const normalizedStatus = getBookingStatus(booking);
   const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
@@ -94,7 +118,7 @@ const BookingCard = ({ booking, petList }) => {
           </div>
           <p className="text-sm text-gray-500 font-medium">
             {booking.selectedPackage?.name || 'Gói lưu trú'} 
-            {booking.selectedRoom?.name ? ` • Phòng ${booking.selectedRoom.name}` : ''}
+            {getRoomName(booking) ? ` • Phòng ${getRoomName(booking)}` : ''}
           </p>
           <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
             <CalendarDays className="w-3.5 h-3.5" />
@@ -187,6 +211,7 @@ const BookingCard = ({ booking, petList }) => {
 // Main Page
 // ─────────────────────────────────────────────
 const PetProfile = () => {
+  const navigate = useNavigate();
   const { petList, savePet } = usePetProfile();
   const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile, isAuthenticated } = useCustomerProfile();
   const { globalBookingList } = useBookingHistory();
@@ -282,31 +307,29 @@ const PetProfile = () => {
   const activeCustomer = authenticatedCustomer || customerProfile;
   const displayName = activeCustomer?.fullName || activeCustomer?.name || 'bạn';
 
-  // Lọc đơn của khách hàng hiện tại và loại bỏ duplicate theo id
+  // Lọc đơn của khách hàng hiện tại và loại bỏ trùng theo mã đơn (một mã đơn = một lần lưu trú)
   const seenIds = new Set();
   const myBookings = globalBookingList
     .filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
     .filter(b => {
-      const key = b.id || b.code;
+      const key = b.code || b.id;
       if (!key || seenIds.has(key)) return false;
       seenIds.add(key);
       return true;
     });
 
-  // Sắp xếp theo thời gian: gần đây nhất lên đầu (checkIn mới nhất trước)
+  // Sắp xếp theo thời gian gửi bé từ xa đến gần: ngày gửi (check-in) cũ nhất lên đầu,
+  // cùng ngày gửi thì đơn đặt trước đứng trước
   const bookings = myBookings
     .map(b => ({
       ...b,
       dynamicStatus: getBookingStatus(b),
     }))
     .sort((a, b) => {
-      // Ưu tiên đang lưu trú lên đầu
-      if (a.dynamicStatus === BOOKING_STATUS.IN_HOUSE && b.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return -1;
-      if (b.dynamicStatus === BOOKING_STATUS.IN_HOUSE && a.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return 1;
-      // Sau đó sort theo checkIn giảm dần (gần đây nhất trước)
-      const dateA = a.checkIn || a.createdAt || '';
-      const dateB = b.checkIn || b.createdAt || '';
-      return dateB.localeCompare(dateA);
+      const dateA = String(a.checkIn || a.createdAt || '');
+      const dateB = String(b.checkIn || b.createdAt || '');
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
     });
 
   return (
@@ -384,14 +407,21 @@ const PetProfile = () => {
                     {(() => {
                       const currentStay = bookings.find(b =>
                         b.dynamicStatus === BOOKING_STATUS.IN_HOUSE &&
-                        ((b.petIds || []).includes(pet.id) ||
-                          (b.petProfiles || []).some(p => p.id === pet.id))
+                        ((b.petIds || []).some(id => sameId(id, pet.id)) ||
+                          (b.petProfiles || []).some(p => sameId(p.id, pet.id)))
                       );
                       if (!currentStay) return null;
                       return (
                         <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                          Đang lưu trú · Phòng {currentStay.selectedRoom?.name || '—'}
+                          Đang lưu trú · Phòng {getRoomName(currentStay) || '—'}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/tracking?pet=${encodeURIComponent(pet.id)}`)}
+                            className="ml-auto underline hover:text-emerald-900 cursor-pointer"
+                          >
+                            Theo dõi
+                          </button>
                         </div>
                       );
                     })()}
@@ -436,7 +466,7 @@ const PetProfile = () => {
                   ))}
                 </div>
 
-                {/* Sắp xếp: mới nhất trước (đã sort ở trên) */}
+                {/* Sắp xếp: lần gửi cũ nhất trước (đã sort ở trên) */}
                 {bookings.map((booking, idx) => (
                   <BookingCard key={booking.id || idx} booking={booking} petList={petList} />
                 ))}

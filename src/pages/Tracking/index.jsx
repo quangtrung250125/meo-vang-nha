@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PawPrint, CalendarDays, Clock, CheckCircle2,
   AlertTriangle, ChevronRight, MessageCircle,
@@ -762,13 +762,60 @@ const TrackingPage = () => {
 
   const [useDemoStay, setUseDemoStay] = useState(true);
   const [selectedPetIdx, setSelectedPetIdx] = useState(0);
+  // Mở từ Hồ sơ mèo (nút "Theo dõi"): /tracking?pet=<id> -> chọn sẵn bé đó
+  const [requestedPetId] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('pet'); } catch { return null; }
+  });
 
   // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin, hoặc nếu chưa đăng nhập thì xem các đơn đã đồng bộ)
   const myBookings = activeCustomer
     ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
     : globalBookingList;
-  // Ưu tiên đơn đang lưu trú, nếu không có thì lấy đơn sắp tới gần nhất (không hiển thị đơn đã hoàn tất/đã hủy)
-  const realActiveBooking = myBookings.find(b => getBookingStatus(b) === BOOKING_STATUS.IN_HOUSE)
+
+  // So khớp id mèo không phân biệt số / chuỗi (giống trang Hồ sơ mèo)
+  const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+  const getBookingPets = (booking) => {
+    if (!booking) return [];
+    const result = [];
+    const add = (pet) => {
+      if (!pet) return;
+      const idx = result.findIndex(p => sameId(p.id, pet.id));
+      if (idx >= 0) result[idx] = { ...result[idx], ...pet };
+      else result.push(pet);
+    };
+    (booking.petProfiles || []).forEach(add);
+    (booking.petIds || []).forEach(id => add(petList.find(p => sameId(p.id, id))));
+    return result;
+  };
+
+  // Tất cả đơn đang lưu trú (khách có thể gửi nhiều bé ở nhiều đơn / phòng khác nhau cùng lúc).
+  // Trước đây chỉ lấy đơn đang lưu trú đầu tiên, nên bé ở đơn thứ hai (vd. Vừng) không hiện ở đây
+  // dù Hồ sơ mèo vẫn báo "Đang lưu trú".
+  const inHouseBookings = myBookings
+    .filter(b => getBookingStatus(b) === BOOKING_STATUS.IN_HOUSE)
+    .sort((a, b) => String(a.checkIn || '').localeCompare(String(b.checkIn || '')));
+  const seenStayPets = new Set();
+  const inHousePets = inHouseBookings.flatMap(booking =>
+    getBookingPets(booking).map(pet => ({ pet, booking }))
+  ).filter(({ pet }) => {
+    const key = String(pet.id ?? pet.name);
+    if (seenStayPets.has(key)) return false;
+    seenStayPets.add(key);
+    return true;
+  });
+  const requestedIdx = requestedPetId ? inHousePets.findIndex(({ pet }) => sameId(pet.id, requestedPetId)) : -1;
+  const [petIdxFromUrlApplied, setPetIdxFromUrlApplied] = useState(false);
+  useEffect(() => {
+    if (!petIdxFromUrlApplied && requestedIdx >= 0) {
+      setSelectedPetIdx(requestedIdx);
+      setPetIdxFromUrlApplied(true);
+    }
+  }, [requestedIdx, petIdxFromUrlApplied]);
+  const selectedStay = inHousePets[selectedPetIdx] || inHousePets[0];
+
+  // Ưu tiên đơn đang lưu trú (của bé đang chọn), nếu không có thì lấy đơn sắp tới gần nhất (không hiển thị đơn đã hoàn tất/đã hủy)
+  const realActiveBooking = selectedStay?.booking
+    || inHouseBookings[0]
     || myBookings
       .filter(b => [BOOKING_STATUS.UPCOMING, BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL].includes(getBookingStatus(b)))
       .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''))[0];
@@ -810,10 +857,12 @@ const TrackingPage = () => {
 
   const activeBooking = realActiveBooking || (useDemoStay ? demoBooking : null);
 
-  const resolvedPets = activeBooking
-    ? (activeBooking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean)
-        .concat(activeBooking.petProfiles || []).filter((p, i, arr) => arr.findIndex(q => q.id === p.id) === i)
-    : [];
+  // Các bé của đơn đang xem (dùng cho tên ở đầu trang, gia hạn)
+  const resolvedPets = getBookingPets(activeBooking);
+  // Danh sách bé để chọn xem nhật ký: khi đang lưu trú là mọi bé đang ở khách sạn (kể cả khác đơn / khác phòng)
+  const switcherPets = inHousePets.length > 0 && activeBooking !== demoBooking
+    ? inHousePets.map(({ pet }) => pet)
+    : resolvedPets;
 
   const activeStatus = activeBooking === demoBooking
     ? 'Đang lưu trú'
@@ -823,8 +872,9 @@ const TrackingPage = () => {
     && normalizeStatusValue(activeBooking.status) === BOOKING_STATUS.UPCOMING;
   // Đơn sắp tới: đếm ngày đến hôm gửi bé; đơn đang lưu trú: đếm ngày đến hôm đón bé
   const daysRemaining = activeBooking ? getDaysRemaining(isUpcoming ? activeBooking.checkIn : activeBooking.checkOut) : 0;
-  const firstPet = resolvedPets[0];
-  const currentPet = resolvedPets[selectedPetIdx] || firstPet;
+  const firstPet = switcherPets[0];
+  const currentPet = switcherPets[selectedPetIdx] || firstPet;
+  const activeRoomName = activeBooking?.selectedRoom?.name || activeBooking?.roomName || activeBooking?.roomId || '';
 
 
 
@@ -1008,8 +1058,8 @@ const TrackingPage = () => {
         ) : (
           /* ── Active Stay ── */
           <>
-            {/* Banner chế độ Demo (nếu đang xem thử nghiệm) */}
-            {useDemoStay && (
+            {/* Banner chế độ Demo: chỉ hiện khi đang xem đơn mẫu, không hiện khi bé thật đang lưu trú */}
+            {useDemoStay && activeBooking === demoBooking && (
               <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-2xl mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-semibold shadow-xs">
                 <div className="flex items-center gap-2">
                   <span className="bg-amber-200 text-amber-800 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md">
@@ -1054,7 +1104,7 @@ const TrackingPage = () => {
                 </div>
                 <p className="text-gray-600 text-sm mb-3">
                   {(activeBooking.selectedPackage?.name && activeBooking.selectedPackage.name !== 'Gói Tiêu Chuẩn') ? activeBooking.selectedPackage.name : 'Gói Mèo Quý Tộc'}
-                  {activeBooking.selectedRoom?.name ? ` • Phòng ${activeBooking.selectedRoom.name}` : ''}
+                  {activeRoomName ? ` • Phòng ${activeRoomName}` : ''}
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <div className="flex items-center gap-1.5 text-gray-600">
@@ -1119,11 +1169,11 @@ const TrackingPage = () => {
                 {/* Stepper */}
                 <Stepper currentStep={isUpcoming ? 1 : 3} />
 
-                {/* Tab chuyển đổi bé nếu phòng có nhiều mèo */}
-                {resolvedPets.length > 1 && (
+                {/* Tab chuyển đổi bé nếu có nhiều mèo đang lưu trú (cùng phòng hoặc khác đơn) */}
+                {switcherPets.length > 1 && (
                   <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2 overflow-x-auto">
                     <span className="text-xs font-bold text-gray-500 mr-1 whitespace-nowrap">Xem nhật ký của:</span>
-                    {resolvedPets.map((p, idx) => (
+                    {switcherPets.map((p, idx) => (
                       <button
                         key={p.id || idx}
                         onClick={() => setSelectedPetIdx(idx)}
