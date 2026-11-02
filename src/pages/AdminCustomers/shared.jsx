@@ -1,6 +1,6 @@
 import React from 'react';
 import { Users } from 'lucide-react';
-import { SEGMENTS, BOOKING_STAGES, initialsOf } from './customerUtils';
+import { SEGMENTS, BOOKING_STAGES, PAYMENT_STATES, initialsOf } from './customerUtils';
 
 export const Card = ({ className = '', children }) => (
   <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 ${className}`}>{children}</div>
@@ -34,6 +34,15 @@ export const StageBadge = ({ stage }) => {
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-bold whitespace-nowrap ${cls}`}>
       {label}
     </span>
+  );
+};
+
+// Tình trạng thanh toán: Đã thanh toán / Đã đặt cọc / Chưa thanh toán / Chờ đặt cọc
+export const PaymentBadge = ({ state }) => {
+  const config = PAYMENT_STATES[state];
+  if (!config) return <span className="text-xs text-gray-400">—</span>;
+  return (
+    <span className={`inline-block px-2.5 py-0.5 rounded-full border text-xs font-bold whitespace-nowrap ${config.cls}`}>{config.label}</span>
   );
 };
 

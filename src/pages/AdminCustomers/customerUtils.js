@@ -1,5 +1,7 @@
 // Gom dữ liệu từ giao diện khách hàng (hồ sơ, mèo, đơn đặt phòng) thành danh sách khách hàng cho Admin.
 // Các hàm ở đây không phụ thuộc React để dễ kiểm thử.
+import { buildInvoice } from '../../utils/bookingInvoice';
+import { ADDONS } from '../../components/ServiceManagement';
 
 const DONE_STATUSES = ['check-out', 'đã hoàn tất', 'hoàn tất', 'completed'];
 const CANCELLED_STATUSES = ['cancelled', 'đã hủy', 'đã huỷ'];
@@ -37,8 +39,45 @@ export const bookingStage = (booking) => {
 export const PAID_STATUS = 'Đã thanh toán';
 export const isFullyPaid = (booking) => String(booking?.paymentStatus || '').trim() === PAID_STATUS;
 
-// Đơn được ghi nhận doanh thu: đã thanh toán đủ và không bị hủy
-export const isRevenueBooking = (booking) => isFullyPaid(booking) && bookingStage(booking) !== 'cancelled';
+// Hóa đơn của đơn: tự cập nhật theo yêu cầu khách (thêm dịch vụ, đổi lịch) và check-out sớm
+export const invoiceOf = (booking) => buildInvoice(booking, ADDONS);
+
+// Số tiền cuối cùng của đơn theo hóa đơn
+export const invoiceTotalOf = (booking) => invoiceOf(booking)?.total || 0;
+
+// Đơn được ghi nhận doanh thu: khách đã thanh toán đủ hóa đơn VÀ đã check-out (Admin trả mèo).
+// Trong lúc gửi mèo hóa đơn còn có thể tăng (mua thêm dịch vụ) hoặc giảm (check-out sớm),
+// nên chỉ tới khi check-out mới cộng tổng hóa đơn cuối cùng vào doanh thu.
+export const isRevenueBooking = (booking) =>
+  isFullyPaid(booking) && bookingStage(booking) === 'completed' && Boolean(invoiceOf(booking)?.isPaidInFull);
+
+// Tình trạng thanh toán của từng đơn (hiển thị cho Admin)
+export const PAYMENT_STATES = {
+  paid: { label: 'Đã thanh toán', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', rank: 0 },
+  deposit: { label: 'Đã đặt cọc', cls: 'bg-sky-50 text-sky-700 border-sky-200', rank: 1 },
+  partial: { label: 'Còn thiếu tiền', cls: 'bg-rose-50 text-rose-700 border-rose-200', rank: 2 },
+  unpaid: { label: 'Chưa thanh toán', cls: 'bg-orange-50 text-orange-700 border-orange-200', rank: 3 },
+  awaitingDeposit: { label: 'Chờ đặt cọc', cls: 'bg-amber-50 text-amber-700 border-amber-200', rank: 4 },
+  cancelled: { label: 'Đã hủy', cls: 'bg-gray-50 text-gray-500 border-gray-200', rank: -1 },
+};
+
+export const paymentStateOf = (booking) => {
+  if (bookingStage(booking) === 'cancelled') return 'cancelled';
+  // Đã thanh toán nhưng sau đó khách thêm dịch vụ làm hóa đơn tăng -> còn thiếu tiền
+  if (isFullyPaid(booking)) return invoiceOf(booking)?.isPaidInFull === false ? 'partial' : 'paid';
+  const status = String(booking?.paymentStatus || '').trim();
+  if (status === 'deposit_paid' || status === 'Đã thanh toán cọc') return 'deposit';
+  if (status === 'awaiting_deposit') return 'awaitingDeposit';
+  return 'unpaid';
+};
+
+// Tình trạng thanh toán chung của khách: đơn còn nợ "nặng" nhất (Chờ đặt cọc > Chưa thanh toán > Đã cọc),
+// hết nợ thì "Đã thanh toán"; chưa có đơn nào (hoặc chỉ có đơn hủy) thì null
+export const customerPaymentStateOf = (bookings = []) => {
+  const states = bookings.map(paymentStateOf).filter((s) => s !== 'cancelled');
+  if (states.length === 0) return null;
+  return states.reduce((worst, s) => (PAYMENT_STATES[s].rank > PAYMENT_STATES[worst].rank ? s : worst), 'paid');
+};
 
 // Tháng ghi nhận doanh thu = tháng của ngày gửi mèo (check-in), dạng 'YYYY-MM'.
 // VD gửi 25/10 → đón 08/11, thanh toán lúc nào cũng tính cho tháng 10.
@@ -77,16 +116,18 @@ const dedupe = (list, keyOf) => {
     if (isFullyPaid(prev) && !isFullyPaid(item)) {
       merged.paymentStatus = prev.paymentStatus;
       if (prev.paidAt) merged.paidAt = prev.paidAt;
+      if (prev.paidAmount !== undefined) merged.paidAmount = prev.paidAmount;
     }
     map.set(key, merged);
   });
   return [...map.values()];
 };
 
+// VIP: chi tiêu đã thanh toán từ 3 triệu VÀ là khách quay lại (từ 2 đơn trở lên)
 export const segmentOf = (customer) => {
   const active = customer.bookingCount;
   if (active === 0) return 'new';
-  if (customer.totalSpent >= VIP_SPENT || active >= VIP_BOOKINGS) return 'vip';
+  if (customer.totalSpent >= VIP_SPENT && active >= 2) return 'vip';
   if (active >= 2) return 'returning';
   return 'first';
 };
@@ -188,9 +229,11 @@ export function buildCustomers({ profiles = [], bookings = [], pets = [], exclud
         bookingCount: active.length,
         completedCount: active.filter((b) => bookingStage(b) === 'completed').length,
         isStaying: active.some((b) => bookingStage(b) === 'staying'),
-        // Chỉ cộng các đơn khách đã thanh toán đủ
-        totalSpent: active.filter(isFullyPaid).reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0),
+        // Chỉ cộng các đơn khách đã thanh toán đủ và đã check-out (tổng hóa đơn cuối cùng)
+        totalSpent: active.filter(isRevenueBooking).reduce((sum, b) => sum + invoiceTotalOf(b), 0),
         paidCount: active.filter(isFullyPaid).length,
+        revenueCount: active.filter(isRevenueBooking).length,
+        paymentState: customerPaymentStateOf(active),
         lastBookingAt: active[0]?.createdAt || active[0]?.checkIn || null,
       };
       customer.segment = segmentOf(customer);
@@ -205,7 +248,7 @@ export function buildCustomers({ profiles = [], bookings = [], pets = [], exclud
 }
 
 /**
- * Doanh thu theo tháng gửi mèo: chỉ các đơn đã thanh toán đủ, gom theo tháng của ngày check-in.
+ * Doanh thu theo tháng gửi mèo: chỉ các đơn đã thanh toán đủ và đã check-out, gom theo tháng của ngày check-in.
  * @returns {{ month: string, revenue: number, bookings: number }[]} tháng mới nhất đứng đầu
  */
 export function computeRevenueByMonth(customers) {
@@ -215,7 +258,7 @@ export function computeRevenueByMonth(customers) {
     const month = revenueMonthOf(b);
     if (!month) return;
     const row = months.get(month) || { month, revenue: 0, bookings: 0 };
-    row.revenue += Number(b.totalPrice) || 0;
+    row.revenue += invoiceTotalOf(b);
     row.bookings += 1;
     months.set(month, row);
   }));
@@ -237,6 +280,7 @@ export function computeStats(customers, now = new Date()) {
     bookings: customers.reduce((sum, c) => sum + c.bookingCount, 0),
     revenue,
     paidBookings: customers.reduce((sum, c) => sum + (c.paidCount || 0), 0),
+    revenueBookings: customers.reduce((sum, c) => sum + (c.revenueCount || 0), 0),
     avgSpent: booked.length ? revenue / booked.length : 0,
     revenueByMonth: computeRevenueByMonth(customers),
     segments: Object.keys(SEGMENTS).map((key) => ({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCustomers, computeFunnel, computeRevenueByMonth, computeStats, revenueMonthOf } from '../../src/pages/AdminCustomers/customerUtils';
+import { buildCustomers, computeFunnel, computeRevenueByMonth, computeStats, customerPaymentStateOf, paymentStateOf, revenueMonthOf } from '../../src/pages/AdminCustomers/customerUtils';
 
 const profiles = [
   { id: 'user-a', fullName: 'Nguyễn An', phone: '0901 111 111', email: 'an@example.com', createdAt: '2026-10-01T00:00:00Z' },
@@ -36,7 +36,8 @@ describe('Admin > Khách hàng: gom dữ liệu từ giao diện khách', () => 
 
   it('không tính đơn đã hủy vào số đơn và chi tiêu', () => {
     expect(byId['user-a'].bookingCount).toBe(2);
-    expect(byId['user-a'].totalSpent).toBe(750000);
+    // Chỉ đơn đã check-out (MVN-1) mới được cộng; MVN-2 chưa check-out nên chưa tính
+    expect(byId['user-a'].totalSpent).toBe(300000);
     expect(byId['user-a'].completedCount).toBe(1);
     expect(byId['user-a'].segment).toBe('returning');
   });
@@ -57,14 +58,14 @@ describe('Admin > Khách hàng: gom dữ liệu từ giao diện khách', () => 
     expect(stats.total).toBe(3);
     expect(stats.pets).toBe(2);
     expect(stats.staying).toBe(1);
-    expect(stats.revenue).toBe(1050000);
+    expect(stats.revenue).toBe(300000);
 
     const funnel = computeFunnel(customers);
     expect(funnel.map((s) => s.count)).toEqual([3, 2, 3, 1, 1]);
   });
 });
 
-describe('Admin > Khách hàng: chỉ ghi nhận doanh thu khi khách đã thanh toán, theo tháng gửi mèo', () => {
+describe('Admin > Khách hàng: chỉ ghi nhận doanh thu khi khách đã check-out và thanh toán, theo tháng gửi mèo', () => {
   const list = [
     // Gửi 25/10 → đón 08/11, thanh toán đầu tháng 11 vẫn tính cho tháng 10
     { code: 'P-1', customerId: 'u1', status: 'check-out', checkIn: '2026-10-25', checkOut: '2026-11-08', totalPrice: 1400000, paymentStatus: 'Đã thanh toán', paidAt: '2026-11-08T10:00:00Z' },
@@ -79,23 +80,38 @@ describe('Admin > Khách hàng: chỉ ghi nhận doanh thu khi khách đã thanh
   it('đơn chưa thanh toán đủ (mới đặt, chờ cọc, đã cọc) chưa cộng vào chi tiêu của khách', () => {
     expect(byId.u1.totalSpent).toBe(1400000);
     expect(byId.u1.bookingCount).toBe(3);
-    expect(byId.u2.totalSpent).toBe(500000);
+  });
+
+  it('đã thanh toán nhưng mèo còn đang ở (chưa check-out) thì chưa cộng doanh thu', () => {
+    expect(byId.u2.totalSpent).toBe(0);
+    expect(byId.u2.paidCount).toBe(1);
   });
 
   it('doanh thu gán cho tháng của ngày gửi mèo, không phải tháng thanh toán', () => {
     expect(revenueMonthOf(list[0])).toBe('2026-10');
     expect(computeRevenueByMonth(customers)).toEqual([
-      { month: '2026-11', revenue: 500000, bookings: 1 },
       { month: '2026-10', revenue: 1400000, bookings: 1 },
     ]);
-    expect(computeStats(customers).revenue).toBe(1900000);
+    expect(computeStats(customers).revenue).toBe(1400000);
   });
 
-  it('khách thanh toán xong thì doanh thu tăng ngay', () => {
+  it('khách thanh toán xong nhưng chưa check-out thì chưa cộng; check-out rồi mới cộng số tiền chốt', () => {
     const paid = list.map((b) => (b.code === 'P-3' ? { ...b, paymentStatus: 'Đã thanh toán' } : b));
-    const after = buildCustomers({ bookings: paid });
-    expect(after.find((c) => c.id === 'u1').totalSpent).toBe(1650000);
-    expect(computeRevenueByMonth(after).find((r) => r.month === '2026-11').revenue).toBe(750000);
+    expect(buildCustomers({ bookings: paid }).find((c) => c.id === 'u1').totalSpent).toBe(1400000);
+
+    // Trong lúc gửi mèo hóa đơn tăng từ 250.000đ lên 400.000đ (mua thêm dịch vụ), rồi check-out
+    const checkedOut = paid.map((b) => (b.code === 'P-3' ? { ...b, totalPrice: 400000, status: 'check-out' } : b));
+    const after = buildCustomers({ bookings: checkedOut });
+    expect(after.find((c) => c.id === 'u1').totalSpent).toBe(1800000);
+    expect(computeRevenueByMonth(after).find((r) => r.month === '2026-11').revenue).toBe(400000);
+  });
+
+  it('tình trạng thanh toán của từng đơn và của khách', () => {
+    expect(list.map(paymentStateOf)).toEqual(['paid', 'deposit', 'unpaid', 'paid', 'cancelled']);
+    expect(paymentStateOf({ status: 'check-in', paymentStatus: 'awaiting_deposit' })).toBe('awaitingDeposit');
+    expect(byId.u1.paymentState).toBe('unpaid');
+    expect(byId.u2.paymentState).toBe('paid');
+    expect(customerPaymentStateOf([])).toBeNull();
   });
 
   it('bản đơn cũ ở nguồn khác không đè mất trạng thái đã thanh toán', () => {

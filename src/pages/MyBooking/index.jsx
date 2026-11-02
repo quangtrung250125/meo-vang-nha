@@ -44,10 +44,17 @@ import CustomerCancelModal from '../../components/CustomerCancelModal';
 import AdminProposeChangeModal from '../../components/AdminProposeChangeModal';
 import { hasBookingCode, todayInVietnam, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { toast } from 'react-hot-toast';
+import { buildInvoice } from '../../utils/bookingInvoice';
+import { ADDONS } from '../../components/ServiceManagement';
 
 // Nhãn thanh toán: trạng thái cọc do server tính + "Đã thanh toán" khi khách trả đủ
 const getPaymentBadge = (booking) => {
   if (booking.paymentStatus === 'Đã thanh toán') {
+    // Thanh toán xong rồi mới thêm dịch vụ -> hóa đơn tăng, còn thiếu phần chênh lệch
+    const invoice = buildInvoice(booking, ADDONS);
+    if (invoice && invoice.outstanding > 0) {
+      return { label: `Còn thiếu ${invoice.outstanding.toLocaleString('vi-VN')}đ`, className: 'bg-rose-100 text-rose-700' };
+    }
     return { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-700' };
   }
   if (booking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
@@ -227,7 +234,14 @@ const MyBooking = () => {
 
   const handlePayment = (bookingId) => {
     // paidAt chỉ để tra cứu; doanh thu vẫn tính cho tháng của ngày gửi mèo (check-in)
-    updateBooking(bookingId, { paymentStatus: 'Đã thanh toán', paidAt: new Date().toISOString() });
+    // paidAmount = tổng hóa đơn lúc thanh toán (đã gồm dịch vụ thêm, đổi lịch)
+    const booking = globalBookingList.find(b => b.id === bookingId || b.code === bookingId);
+    const invoiceTotal = buildInvoice(booking, ADDONS)?.total;
+    updateBooking(bookingId, {
+      paymentStatus: 'Đã thanh toán',
+      paidAt: new Date().toISOString(),
+      ...(invoiceTotal !== undefined ? { paidAmount: invoiceTotal } : {}),
+    });
     toast.success('Thanh toán thành công! Hệ thống đã ghi nhận tích lũy điểm VIP.');
   };
 
@@ -611,7 +625,7 @@ const MyBooking = () => {
                       )}
 
                       {/* Nút thanh toán nếu chưa thanh toán */}
-                      {booking.paymentStatus !== 'Đã thanh toán' && !isCancelled && hasBookingCode(booking) && (
+                      {(booking.paymentStatus !== 'Đã thanh toán' || (buildInvoice(booking, ADDONS)?.outstanding || 0) > 0) && !isCancelled && hasBookingCode(booking) && (
                         <button 
                           onClick={() => handlePayment(booking.id)}
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-1 cursor-pointer"

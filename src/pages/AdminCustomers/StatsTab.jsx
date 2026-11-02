@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import {
   Users, UserPlus, Repeat, PawPrint, BedDouble, Wallet, CalendarCheck, PieChart, Clock, ChevronRight, CalendarRange,
 } from 'lucide-react';
-import { computeStats, formatMoney, formatPercent, formatDate, formatMonth, SEGMENTS, VIP_SPENT, VIP_BOOKINGS } from './customerUtils';
+import { computeStats, formatMoney, formatPercent, formatDate, formatMonth, SEGMENTS, VIP_SPENT } from './customerUtils';
 import { Card, SectionTitle, SegmentBadge, Avatar, EmptyState } from './shared';
 
 const SEGMENT_BAR = {
@@ -31,8 +31,8 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
     { label: 'Hồ sơ mèo', value: stats.pets, sub: `TB ${(stats.total ? stats.pets / stats.total : 0).toFixed(1)} bé/khách`, icon: PawPrint, color: 'from-amber-400 to-orange-500' },
     { label: 'Khách đang lưu trú', value: stats.staying, sub: 'Có mèo đang ở khách sạn', icon: BedDouble, color: 'from-emerald-500 to-green-600' },
     { label: 'Đơn đặt phòng', value: stats.bookings, sub: 'Không tính đơn đã hủy', icon: CalendarCheck, color: 'from-rose-400 to-pink-500' },
-    { label: 'Doanh thu từ khách', value: formatMoney(stats.revenue), sub: `Chỉ tính ${stats.paidBookings} đơn khách đã thanh toán`, icon: Wallet, color: 'from-orange-400 to-red-500' },
-    { label: 'Chi tiêu TB / khách', value: formatMoney(stats.avgSpent), sub: 'Đã thanh toán, trên khách đã đặt phòng', icon: Wallet, color: 'from-teal-400 to-cyan-500' },
+    { label: 'Doanh thu từ khách', value: formatMoney(stats.revenue), sub: `${stats.revenueBookings} đơn đã check-out & thanh toán`, icon: Wallet, color: 'from-orange-400 to-red-500' },
+    { label: 'Chi tiêu TB / khách', value: formatMoney(stats.avgSpent), sub: 'Đơn đã chốt, trên khách đã đặt phòng', icon: Wallet, color: 'from-teal-400 to-cyan-500' },
   ];
 
   const recent = customers.slice(0, 5);
@@ -59,17 +59,17 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
         <SectionTitle
           icon={CalendarRange}
           title="Doanh thu theo tháng gửi mèo"
-          subtitle="Chỉ ghi nhận khi khách đã thanh toán hóa đơn. Doanh thu tính cho tháng của ngày gửi mèo (VD: gửi 25/10 → đón 08/11 tính vào tháng 10)."
+          subtitle="Chỉ cộng khi khách đã check-out và thanh toán hóa đơn (số tiền chốt sau khi mua thêm dịch vụ hoặc trả mèo sớm). Doanh thu tính cho tháng của ngày gửi mèo đầu tiên (VD: gửi 25/10 → đón 08/11 tính vào tháng 10)."
         />
         {stats.revenueByMonth.length === 0 ? (
-          <p className="text-sm text-gray-500">Chưa có đơn nào được thanh toán.</p>
+          <p className="text-sm text-gray-500">Chưa có đơn nào đã check-out và thanh toán.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[420px]">
               <thead>
                 <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-wide bg-gray-50/60">
                   <th className="px-4 py-2.5">Tháng gửi mèo</th>
-                  <th className="px-4 py-2.5 text-right">Đơn đã thanh toán</th>
+                  <th className="px-4 py-2.5 text-right">Đơn đã chốt</th>
                   <th className="px-4 py-2.5 text-right">Doanh thu</th>
                 </tr>
               </thead>
@@ -92,7 +92,7 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
           <SectionTitle
             icon={PieChart}
             title="Phân loại khách hàng"
-            subtitle={`VIP: từ ${VIP_BOOKINGS} đơn hoặc chi tiêu từ ${formatMoney(VIP_SPENT)}. Quay lại: từ 2 đơn.`}
+            subtitle={`VIP: khách quay lại (từ 2 đơn) và chi tiêu đã thanh toán từ ${formatMoney(VIP_SPENT)}. Quay lại: từ 2 đơn.`}
           />
           <div className="space-y-4">
             {stats.segments.map(({ key, count }) => (

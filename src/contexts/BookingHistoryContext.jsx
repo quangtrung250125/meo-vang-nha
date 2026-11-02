@@ -622,6 +622,9 @@ export const BookingHistoryProvider = ({ children }) => {
       updatedFields.cancelledAt = new Date().toISOString();
       updatedFields.cancelledBy = 'admin';
     } else if (changes.type === PROPOSAL_TYPE.RESCHEDULE) {
+      // Giữ lịch lúc đặt để hóa đơn tính phần chênh lệch số đêm
+      updatedFields.originalCheckIn = booking.originalCheckIn || booking.checkIn;
+      updatedFields.originalCheckOut = booking.originalCheckOut || booking.checkOut;
       updatedFields.checkIn = changes.newCheckIn;
       updatedFields.checkOut = changes.newCheckOut;
       updatedFields.rescheduledAt = new Date().toISOString();
@@ -664,6 +667,9 @@ export const BookingHistoryProvider = ({ children }) => {
     const booking = findBooking(bookingId);
     if (!booking || !ensureCustomerCanModify(booking, 'đổi lịch')) return false;
     updateBooking(bookingId, {
+      // Giữ lịch lúc đặt để hóa đơn tính phần chênh lệch số đêm
+      originalCheckIn: booking.originalCheckIn || booking.checkIn,
+      originalCheckOut: booking.originalCheckOut || booking.checkOut,
       checkIn: newCheckIn,
       checkOut: newCheckOut,
       rescheduledAt: new Date().toISOString(),
