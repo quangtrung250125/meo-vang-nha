@@ -12,6 +12,7 @@ import {
 import { BOOKING_STATUS, STORED_STATUS, PROPOSAL_TYPE, PROPOSAL_LABEL, normalizeStatusValue, isClosedStatus, REALTIME_CHANNEL } from '../utils/bookingStatus';
 import { withoutDemoBookings } from '../utils/demoBookings';
 import { updateBookingRows } from '../utils/bookingRows';
+import { bookingFromDbRow, bookingKey, dedupeBookingsByCode, buildAuthoritativeBookings } from '../utils/bookingSync';
 
 // ─── Helper: Merge hai danh sách booking, ưu tiên bản mới nhất (theo updatedAt / createdAt)
 // Giải quyết lỗi đếm khác nhau giữa 2 thiết bị: nếu cùng id/code, chọn cái có timestamp mới hơn
@@ -133,42 +134,37 @@ export const BookingHistoryProvider = ({ children }) => {
     let isMounted = true;
 
     const syncInitialBookings = async () => {
-      // 1.1 Tải từ server sync store (Đồng bộ đa thiết bị Desktop <-> Mobile)
+      let hasSession = false;
       try {
-        const serverData = await fetchServerSync();
-        if (serverData && Array.isArray(serverData.bookings) && serverData.bookings.length > 0 && isMounted) {
-          setGlobalBookingList((prev) => {
-            const merged = mergeBookings(prev, serverData.bookings);
-            try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
-            return merged;
-          });
-        }
-      } catch (err) {
-        console.warn('Lỗi lấy bookings từ server sync:', err);
-      }
+        const { data: sessionData } = await supabase.auth.getSession();
+        hasSession = Boolean(sessionData?.session?.user);
+      } catch (e) {}
 
-      // 1.2 Tải danh sách đơn đặt từ Supabase DB
-      try {
-        const { data, error } = await supabase.from('bookings').select('*');
-        if (!error && Array.isArray(data) && isMounted && data.length > 0) {
-          const dbBookings = data.map((row) => ({
-            id: row.id,
-            code: row.code,
-            customerId: row.customer_id,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at || row.created_at,
-            ...(row.data || {}),
-          }));
+      // 1.1 Server sync store (bộ nhớ tạm của server, mỗi bản server Vercel giữ một bộ riêng -> chỉ dùng bổ sung)
+      // 1.2 Bảng bookings trên Supabase (nguồn chuẩn, RLS chỉ trả về đơn của tài khoản đang đăng nhập)
+      const [serverData, dbResult] = await Promise.all([
+        fetchServerSync().catch(() => null),
+        Promise.resolve(supabase.from('bookings').select('*')).catch((error) => ({ data: null, error })),
+      ]);
+      if (!isMounted) return;
 
-          setGlobalBookingList((prev) => {
-            const merged = mergeBookings(prev, dbBookings);
-            try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
-            return merged;
-          });
+      const serverBookings = Array.isArray(serverData?.bookings) ? serverData.bookings : [];
+      const dbOk = !dbResult?.error && Array.isArray(dbResult?.data);
+      if (dbResult?.error) console.warn('Lỗi đọc bảng bookings từ Supabase:', dbResult.error);
+      const dbBookings = dbOk ? dbResult.data.map(bookingFromDbRow) : [];
+
+      setGlobalBookingList((prev) => {
+        let next;
+        if (hasSession && dbOk) {
+          // Đã đăng nhập: mọi trình duyệt / thiết bị cùng tài khoản thấy đúng một danh sách như trên Supabase
+          next = buildAuthoritativeBookings(prev, dbBookings, serverBookings);
+        } else {
+          // Chưa đăng nhập hoặc Supabase lỗi: giữ cách gộp cũ để không mất dữ liệu đang có
+          next = mergeBookings(mergeBookings(prev, serverBookings), dedupeBookingsByCode(dbBookings));
         }
-      } catch (err) {
-        console.warn('Lỗi đọc bảng bookings từ Supabase:', err);
-      }
+        try { localStorage.setItem('bookingHistory', JSON.stringify(next)); } catch (e) {}
+        return next;
+      });
     };
 
     syncInitialBookings();
@@ -187,14 +183,7 @@ export const BookingHistoryProvider = ({ children }) => {
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
           if (payload.eventType === 'INSERT' && payload.new) {
-            const row = payload.new;
-            const newBooking = {
-              id: row.id,
-              code: row.code,
-              customerId: row.customer_id,
-              createdAt: row.created_at,
-              ...(row.data || {}),
-            };
+            const newBooking = bookingFromDbRow(payload.new);
             setGlobalBookingList((prev) => {
               if (prev.some((b) => b.id === newBooking.id || b.code === newBooking.code)) {
                 return prev;
@@ -207,13 +196,7 @@ export const BookingHistoryProvider = ({ children }) => {
               return next;
             });
           } else if (payload.eventType === 'UPDATE' && payload.new) {
-            const row = payload.new;
-            const updated = {
-              id: row.id,
-              code: row.code,
-              customerId: row.customer_id,
-              ...(row.data || {}),
-            };
+            const updated = bookingFromDbRow(payload.new);
             setGlobalBookingList((prev) => {
               const next = prev.map((b) =>
                 b.id === updated.id || b.code === updated.code ? { ...b, ...updated } : b
@@ -227,7 +210,7 @@ export const BookingHistoryProvider = ({ children }) => {
           } else if (payload.eventType === 'DELETE' && payload.old) {
             const delId = payload.old.id;
             setGlobalBookingList((prev) => {
-              const next = prev.filter((b) => b.id !== delId && b.code !== delId);
+              const next = prev.filter((b) => b.id !== delId && b.code !== delId && b.dbId !== delId);
               try {
                 localStorage.setItem('bookingHistory', JSON.stringify(next));
               } catch (e) {}
@@ -253,7 +236,14 @@ export const BookingHistoryProvider = ({ children }) => {
         const incomingBookings = payload?.bookings;
         if (Array.isArray(incomingBookings) && incomingBookings.length > 0) {
           setGlobalBookingList((prev) => {
-            const merged = mergeBookings(prev, incomingBookings);
+            // FULL_SYNC_RESPONSE là toàn bộ danh sách trong trình duyệt khác (có thể còn đơn cũ đã bị xóa trên
+            // Supabase) -> chỉ cập nhật đơn đã có, không thêm đơn lạ vào để các máy không lệch số lượng nhau
+            const prevKeys = new Set(prev.map(bookingKey));
+            const accepted = type === 'FULL_SYNC_RESPONSE'
+              ? incomingBookings.filter((b) => prevKeys.has(bookingKey(b)))
+              : incomingBookings;
+            if (accepted.length === 0) return prev;
+            const merged = mergeBookings(prev, accepted);
             try { localStorage.setItem('bookingHistory', JSON.stringify(merged)); } catch (e) {}
             window.dispatchEvent(new Event('mvn_booking_sync'));
             return merged;
