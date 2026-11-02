@@ -616,12 +616,16 @@ export function canCustomerCancel(booking, userId, todayStr = getTodayStr()) {
 // Trạng thái lưu trữ dùng chung với src/utils/bookingStatus.js (STORED_STATUS)
 const UPCOMING_STATUSES = ['check-in', 'Sắp tới', 'UPCOMING', undefined, null, ''];
 const CLOSED_STATUSES = ['check-out', 'Đã hoàn tất', 'hoàn tất', 'cancelled', 'Đã hủy', 'COMPLETED', 'CANCELLED'];
+const IN_HOUSE_STATUSES = ['đang ở', 'Đang lưu trú', 'IN_HOUSE'];
+// Khách tự gia hạn tối đa 15 ngày mỗi lần (dài hơn thì liên hệ nhân viên)
+const MAX_SELF_EXTEND_DAYS = 15;
 
 /**
  * Kiểm tra thao tác khách tự làm trên đơn của chính mình. Khách được:
  * - tự đổi lịch / hủy đơn khi đơn còn "Sắp tới" (chưa Check-in)
  * - đồng ý / từ chối đề xuất Admin gửi (pending_changes)
  * - gửi yêu cầu đặc biệt khi đơn chưa kết thúc
+ * - tự gia hạn (dời ngày trả muộn hơn) khi bé đang lưu trú và phòng còn chỗ
  * Trả về { ok, updates } với các trường đã lọc, hoặc { ok: false, statusCode, message }.
  */
 export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsByRoom, todayStr = getTodayStr()) {
@@ -662,8 +666,33 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     if (typeof updates.cancelReason === 'string') allowed.cancelReason = updates.cancelReason.slice(0, 500);
   }
 
-  // Đổi lịch: khách tự đổi hoặc đồng ý đề xuất đổi lịch -> luôn kiểm tra ngày & sức chứa phòng
-  if ('checkIn' in updates || 'checkOut' in updates) {
+  // Gia hạn khi bé đang lưu trú: chỉ dời ngày trả muộn hơn, kiểm tra phòng còn chỗ cho những ngày thêm
+  const isInHouse = IN_HOUSE_STATUSES.includes(booking.status);
+  if (isInHouse && ('checkIn' in updates || 'checkOut' in updates)) {
+    if ('checkIn' in updates && updates.checkIn !== booking.checkIn) {
+      return fail(409, 'Bé đã check-in, không thể đổi ngày gửi bé.');
+    }
+    const checkOut = updates.checkOut;
+    if (!isValidDateStr(checkOut) || !booking.checkOut || checkOut <= booking.checkOut) {
+      return fail(400, 'Ngày trả mới phải sau ngày trả hiện tại.');
+    }
+    const extraDays = Math.round((Date.parse(`${checkOut}T00:00:00Z`) - Date.parse(`${booking.checkOut}T00:00:00Z`)) / 86400000);
+    if (extraDays > MAX_SELF_EXTEND_DAYS) {
+      return fail(400, `Chỉ được tự gia hạn tối đa ${MAX_SELF_EXTEND_DAYS} ngày, vui lòng liên hệ nhân viên.`);
+    }
+    const room = ROOM_CONFIG.find((r) => r.id === roomId);
+    if (room) {
+      const occupied = getPeakOccupancyForRoom(roomId, bookingsByRoom, booking.checkOut, checkOut, [booking.code, booking.id].filter(Boolean));
+      if (occupied + (Number(booking.cats) || 1) > room.capacity) {
+        return fail(409, `Phòng ${roomId} không còn đủ chỗ trong những ngày gia hạn.`);
+      }
+    }
+    allowed.checkOut = checkOut;
+    allowed.extendedAt = new Date().toISOString();
+    allowed.extensionDays = (Number(booking.extensionDays) || 0) + extraDays;
+    if (typeof updates.extensionNote === 'string') allowed.extensionNote = updates.extensionNote.slice(0, 500);
+  } else if ('checkIn' in updates || 'checkOut' in updates) {
+    // Đổi lịch: khách tự đổi hoặc đồng ý đề xuất đổi lịch -> luôn kiểm tra ngày & sức chứa phòng
     if (!isUpcoming) return fail(409, 'Chỉ được đổi lịch khi chưa Check-in.');
     const checkIn = updates.checkIn ?? booking.checkIn;
     const checkOut = updates.checkOut ?? booking.checkOut;

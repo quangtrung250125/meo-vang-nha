@@ -426,18 +426,21 @@ export const BookingHistoryProvider = ({ children }) => {
     // C. Đồng bộ kho phòng trung tâm (/api/bookings) để trang Tình trạng phòng cập nhật theo
     const roomId = target?.roomId || target?.selectedRoom?.id;
     let waitForServer = false;
+    // Kết quả máy chủ trả về: nơi gọi có thể chờ để chỉ báo thành công khi máy chủ đã ghi nhận
+    let serverResult = Promise.resolve({ ok: true });
     if (syncRoom && roomId) {
       const roomFields = [
         'status', 'checkIn', 'checkOut', 'pending_changes', 'checkedInAt', 'checkedOutAt',
         'rescheduledAt', 'cancelReason', 'cancelledAt', 'cancelledBy',
         'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
+        'extendedAt', 'extensionDays', 'extensionNote',
       ];
       const roomUpdates = Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
       );
       if (Object.keys(roomUpdates).length > 0) {
         waitForServer = true;
-        (async () => {
+        serverResult = (async () => {
           try {
             const res = await fetch('/api/bookings', {
               method: 'PUT',
@@ -457,12 +460,16 @@ export const BookingHistoryProvider = ({ children }) => {
                 pushServerSync({ bookings: [revertedBooking] });
                 broadcastEvent('BOOKINGS_UPDATED', { bookings: [revertedBooking] });
               }
-              toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.');
-              return;
+              const message = json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.';
+              toast.error(message);
+              return { ok: false, message };
             }
             // Server đã chấp nhận thì mới ghi lên Supabase, tránh lệch dữ liệu khi bị từ chối
             writeToSupabase();
-          } catch (e) {}
+            return { ok: true };
+          } catch (e) {
+            return { ok: true, offline: true };
+          }
         })();
       }
     }
@@ -476,6 +483,7 @@ export const BookingHistoryProvider = ({ children }) => {
         petNames: target?.catNames || target?.petName || 'Bé mèo',
       });
     }
+    return serverResult;
   };
 
 

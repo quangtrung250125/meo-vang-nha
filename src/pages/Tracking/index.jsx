@@ -6,7 +6,7 @@ import {
   ArrowRight, Home, Phone, Video,
   Package, Plus, ChevronDown, X, RefreshCw,
   Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2,
-  CalendarCheck, StickyNote, PhoneCall, Building2
+  CalendarCheck, StickyNote, PhoneCall, Building2, Loader2
 } from 'lucide-react';
 import { packagesList } from '../../mockData/servicesData';
 import { useNavigate } from 'react-router-dom';
@@ -378,6 +378,7 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
   const [roomAvailable, setRoomAvailable] = useState(null); // null=unchecked, true/false
   const [miniCallOpen, setMiniCallOpen] = useState(false);
   const [alternativeRooms, setAlternativeRooms] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -401,10 +402,16 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
   const newCheckOutISO = newCheckOutDate ? newCheckOutDate.toISOString().split('T')[0] : '';
 
   // Get package price
+  // Giá/ngày lấy đúng giá đã chốt lúc đặt (đã tính theo hạng phòng), nhân số bé như hoá đơn đặt phòng
   const pkgId = booking?.selectedPackage?.id;
-  const pkg = packagesList.find(p => p.id === pkgId) || packagesList[0];
-  const pricePerDay = pkg?.price || 0;
-  const totalExtend = pricePerDay * days;
+  const pkgName = booking?.selectedPackage?.name;
+  // Đơn cũ mang tên "Gói Tiêu Chuẩn" (không còn trong bảng giá) được quy về gói đầu tiên, giống thẻ "Gói đang sử dụng"
+  const pkg = packagesList.find(p => p.id === pkgId)
+    || packagesList.find(p => p.name === pkgName)
+    || (pkgName && pkgName !== 'Gói Tiêu Chuẩn' ? booking.selectedPackage : null)
+    || packagesList[0];
+  const pricePerDay = Number(booking?.selectedPackage?.price) || Number(pkg?.price) || 0;
+  const totalExtend = pricePerDay * days * catCount;
   const formatMoney = (n) => n.toLocaleString('vi-VN');
 
   // Kiểm tra phòng thực tế
@@ -445,11 +452,16 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
     }, 1200);
   };
 
-  const handleConfirm = () => {
-    // Nếu phòng còn chỗ: xác nhận ngay, không cần chờ admin
+  const handleConfirm = async () => {
+    // Nếu phòng còn chỗ: gửi lên máy chủ, chỉ báo thành công khi máy chủ đã ghi nhận
     if (roomAvailable === true) {
-      onConfirm({ days, newCheckOut: newCheckOutISO, note, autoConfirmed: true });
-      setStep(2);
+      setSubmitting(true);
+      try {
+        const result = await onConfirm({ days, newCheckOut: newCheckOutISO, note, autoConfirmed: true });
+        if (result?.ok !== false) setStep(2);
+      } finally {
+        setSubmitting(false);
+      }
     } else {
       // Cần kiểm tra phòng trước
       handleCheckRoom();
@@ -645,6 +657,12 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
                   <span className="text-gray-600">Gói {pkg?.name || 'hiện tại'}</span>
                   <span className="font-semibold text-gray-800">{formatMoney(pricePerDay)}đ/ngày</span>
                 </div>
+                {catCount > 1 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Số bé</span>
+                    <span className="font-semibold text-gray-800">× {catCount} bé</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Số ngày gia hạn</span>
                   <span className="font-semibold text-gray-800">× {days} ngày</span>
@@ -693,11 +711,13 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
               ) : (
                 <button
                   onClick={handleConfirm}
-                  disabled={checking}
+                  disabled={checking || submitting}
                   className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-primary/30 active:scale-[0.98] cursor-pointer text-base disabled:opacity-60"
                 >
-                  <CalendarCheck className="w-5 h-5" />
-                  {roomAvailable === null ? `Kiểm tra & Gia hạn ${days} ngày` : `Xác nhận gia hạn ${days} ngày`}
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CalendarCheck className="w-5 h-5" />}
+                  {submitting
+                    ? 'Đang gửi gia hạn...'
+                    : roomAvailable === null ? `Kiểm tra & Gia hạn ${days} ngày` : `Xác nhận gia hạn ${days} ngày`}
                 </button>
               )}
               <button
@@ -785,6 +805,8 @@ const TrackingPage = () => {
   const { petList } = usePetProfile();
   const { globalBookingList, updateBooking } = useBookingHistory();
   const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile } = useCustomerProfile();
+  // Danh sách đơn theo phòng: dùng để kiểm tra phòng còn chỗ khi gia hạn
+  const { bookings: roomBookings } = useRoomState();
   const activeCustomer = authenticatedCustomer || customerProfile;
   const isLoggedIn = Boolean(activeCustomer);
 
@@ -807,19 +829,23 @@ const TrackingPage = () => {
     }, 3000);
   };
 
-  const handleExtendConfirm = ({ days, newCheckOut, note, autoConfirmed }) => {
+  const handleExtendConfirm = async ({ days, newCheckOut, note, autoConfirmed }) => {
     if (autoConfirmed && extendTargetBookingId) {
-      // Phòng còn chỗ: cập nhật booking tự động ngay không cần chờ admin
-      updateBooking(extendTargetBookingId, {
+      // Phòng còn chỗ: gửi gia hạn lên máy chủ; máy chủ kiểm tra lại sức chứa phòng rồi mới ghi nhận
+      const target = globalBookingList.find(b => b.id === extendTargetBookingId || b.code === extendTargetBookingId);
+      const result = await updateBooking(extendTargetBookingId, {
         checkOut: newCheckOut,
         extendedAt: new Date().toISOString(),
         extensionNote: note || '',
-        extensionDays: (days || 0),
+        extensionDays: (Number(target?.extensionDays) || 0) + (days || 0),
       });
+      // Máy chủ từ chối: updateBooking đã trả đơn về như cũ và báo lỗi
+      if (result?.ok === false) return result;
       toast.success(`Đã gia hạn thêm ${days} ngày thành công! Ngày trả mới: ${formatDate(newCheckOut)}`, { duration: 5000 });
-    } else {
-      toast.success(`Đã gửi yêu cầu gia hạn ${days} ngày! Nhân viên sẽ xác nhận sớm.`, { duration: 4000 });
+      return { ok: true };
     }
+    toast.success(`Đã gửi yêu cầu gia hạn ${days} ngày! Nhân viên sẽ xác nhận sớm.`, { duration: 4000 });
+    return { ok: true };
   };
 
   // Camera is always included in the booking — no unlock needed
@@ -942,7 +968,9 @@ const TrackingPage = () => {
   const activeBooking = !hasInHouse ? (realActiveBooking || (useDemoStay ? demoBooking : null)) : null;
 
   // Dùng group hiện tại được chọn (khi có nhiều phòng)
-  const activeGroup = hasInHouse ? (roomGroups[selectedRoomGroupIdx] || roomGroups[0]) : null;
+  // Nếu một phòng vừa check-out làm danh sách ngắn lại thì quay về phòng đầu tiên
+  const activeGroupIdx = selectedRoomGroupIdx < roomGroups.length ? selectedRoomGroupIdx : 0;
+  const activeGroup = hasInHouse ? roomGroups[activeGroupIdx] : null;
   const activePrimaryBooking = activeGroup?.primaryBooking || activeBooking;
 
   const resolvedPets = activeGroup
@@ -956,13 +984,16 @@ const TrackingPage = () => {
   const activeStatus = activePrimaryBooking === demoBooking
     ? 'Đang lưu trú'
     : activePrimaryBooking ? (BOOKING_STATUS_CONFIG[getBookingStatus(activePrimaryBooking)]?.label || 'Sắp tới') : '';
-  // Đơn chưa Check-in (ả đang chờ khách xác nhận đề xuất) vẫn là đơn sắp tới
+  // Đơn chưa Check-in (kể cả đang chờ khách xác nhận đề xuất của Admin) vẫn là đơn sắp tới
   const isUpcoming = !hasInHouse && activePrimaryBooking !== demoBooking && Boolean(activePrimaryBooking)
-    && normalizeStatusValue(activePrimaryBooking.status) === BOOKING_STATUS.UPCOMING;
+    && normalizeStatusValue(activePrimaryBooking.status) !== BOOKING_STATUS.IN_HOUSE;
+  const isPendingApproval = Boolean(activePrimaryBooking) && activePrimaryBooking !== demoBooking
+    && getBookingStatus(activePrimaryBooking) === BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL;
   // Đơn sắp tới: đếm ngày đến hôm gửi bé; đơn đang lưu trú: đếm ngày đến hôm đón bé
   const daysRemaining = activePrimaryBooking ? getDaysRemaining(isUpcoming ? activePrimaryBooking.checkIn : activePrimaryBooking.checkOut) : 0;
   const firstPet = resolvedPets[0];
   const currentPet = resolvedPets[selectedPetIdx] || firstPet;
+  const activePetIdx = resolvedPets[selectedPetIdx] ? selectedPetIdx : 0;
 
 
 
@@ -1172,7 +1203,7 @@ const TrackingPage = () => {
                     key={group.roomKey}
                     onClick={() => { setSelectedRoomGroupIdx(idx); setSelectedPetIdx(0); }}
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      selectedRoomGroupIdx === idx
+                      activeGroupIdx === idx
                         ? 'bg-primary text-white shadow-sm'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
@@ -1210,7 +1241,7 @@ const TrackingPage = () => {
                   >
                     {resolvedPets.map(p => p.name).join(', ') || 'Bé mèo'}
                   </button>
-                  <span className={`${isUpcoming ? 'bg-amber-500' : 'bg-primary'} text-white text-xs font-bold px-2.5 py-0.5 rounded-full`}>{activeStatus}</span>
+                  <span className={`${isPendingApproval ? 'bg-purple-500' : isUpcoming ? 'bg-amber-500' : 'bg-primary'} text-white text-xs font-bold px-2.5 py-0.5 rounded-full`}>{activeStatus}</span>
                 </div>
                 <p className="text-gray-600 text-sm mb-3">
                   {(activePrimaryBooking?.selectedPackage?.name && activePrimaryBooking.selectedPackage.name !== 'Gói Tiêu Chuẩn') ? activePrimaryBooking.selectedPackage.name : 'Gói Mèo Quý Tộc'}
@@ -1234,16 +1265,27 @@ const TrackingPage = () => {
 
 
               <div className="flex flex-col gap-2 w-full sm:w-auto shrink-0">
-                <button
-                  onClick={() => {
-                    setExtendTargetBookingId(activePrimaryBooking?.id || null);
-                    setShowExtendModal(true);
-                  }}
-                  className="flex items-center justify-center gap-2 bg-primary text-white font-bold px-5 py-2.5 rounded-xl hover:bg-secondary transition-colors shadow-md shadow-primary/25 cursor-pointer text-sm"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Gia hạn lưu trú
-                </button>
+                {isUpcoming ? (
+                  // Bé chưa check-in: đổi lịch / xác nhận đề xuất làm ở trang Lịch đặt của tôi
+                  <button
+                    onClick={() => navigate('/my-booking')}
+                    className={`flex items-center justify-center gap-2 ${isPendingApproval ? 'bg-purple-500 hover:bg-purple-600 shadow-purple-400/25' : 'bg-primary hover:bg-secondary shadow-primary/25'} text-white font-bold px-5 py-2.5 rounded-xl transition-colors shadow-md cursor-pointer text-sm`}
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                    {isPendingApproval ? 'Xem đề xuất cần xác nhận' : 'Xem / đổi lịch đặt'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setExtendTargetBookingId(activePrimaryBooking?.id || null);
+                      setShowExtendModal(true);
+                    }}
+                    className="flex items-center justify-center gap-2 bg-primary text-white font-bold px-5 py-2.5 rounded-xl hover:bg-secondary transition-colors shadow-md shadow-primary/25 cursor-pointer text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Gia hạn lưu trú
+                  </button>
+                )}
               </div>
 
             </div>
@@ -1287,7 +1329,7 @@ const TrackingPage = () => {
                         key={p.id || idx}
                         onClick={() => setSelectedPetIdx(idx)}
                         className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          selectedPetIdx === idx
+                          activePetIdx === idx
                             ? 'bg-primary text-white shadow-sm shadow-primary/25'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
@@ -1313,20 +1355,30 @@ const TrackingPage = () => {
                     Camera trực tiếp
                   </h3>
 
-                  {/* Status — always live */}
-                  <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium bg-primary-light text-primary">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    Camera đang hoạt động
-                  </div>
-
-                  {/* Feed — always visible */}
-                  <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-100 aspect-video flex items-center justify-center border border-gray-200">
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                      LIVE
+                  {isUpcoming ? (
+                    // Bé chưa tới khách sạn: chưa có hình camera để xem
+                    <div className="rounded-xl mb-4 bg-gray-50 aspect-video flex flex-col items-center justify-center border border-dashed border-gray-200 text-center px-4">
+                      <Video className="w-8 h-8 text-gray-300 mb-2" />
+                      <p className="text-sm font-semibold text-gray-600">Camera sẽ mở khi bé được check-in</p>
+                      <p className="text-xs text-gray-400 mt-1">Ngày gửi bé: {formatDate(activePrimaryBooking?.checkIn)}</p>
                     </div>
-                    <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />
-                  </div>
+                  ) : (
+                    <>
+                      {/* Status — live while staying */}
+                      <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium bg-primary-light text-primary">
+                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        Camera đang hoạt động
+                      </div>
+
+                      <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-100 aspect-video flex items-center justify-center border border-gray-200">
+                        <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                          LIVE
+                        </div>
+                        <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />
+                      </div>
+                    </>
+                  )}
 
                   <div className="text-center text-xs text-gray-500 font-medium">
                     ✅ Camera đã bao gồm trong gói dịch vụ
