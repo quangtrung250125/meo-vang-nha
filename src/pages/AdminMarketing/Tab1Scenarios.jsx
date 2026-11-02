@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Play, Search, Filter, Plus, Edit2, Zap, Users, Mail, MessageSquare, Phone, Bell, ToggleLeft, ToggleRight, TrendingUp, MousePointerClick, ShoppingCart, Activity } from 'lucide-react';
+import { Play, Search, Filter, Plus, Edit2, Zap, Users, Mail, MessageSquare, Phone, Bell, ToggleLeft, ToggleRight, TrendingUp, MousePointerClick, ShoppingCart, Activity, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { CUSTOMER_SEGMENTS, CHANNELS, SEGMENT_COLORS, MKT_STORAGE_KEYS, saveToStorage, formatPercent } from './marketingStore';
 
@@ -80,7 +80,7 @@ const ScenarioModal = ({ scenario, onClose, onSave }) => {
   );
 };
 
-const Tab1Scenarios = ({ scenarios, setScenarios }) => {
+const Tab1Scenarios = ({ scenarios = [], setScenarios = () => {}, realRecipients = [], customers = [] }) => {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterChannel, setFilterChannel] = useState('all');
@@ -124,9 +124,9 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
 
   const statCards = [
     { label: 'Đang chạy', value: stats.running, unit: 'kịch bản', icon: Activity, color: 'bg-emerald-50 text-emerald-600' },
-    { label: 'Tỉ lệ mở', value: formatPercent(stats.openRate), unit: 'trung bình', icon: TrendingUp, color: 'bg-sky-50 text-sky-600' },
-    { label: 'Tỉ lệ bấm', value: formatPercent(stats.clickRate), unit: 'trung bình', icon: MousePointerClick, color: 'bg-purple-50 text-purple-600' },
-    { label: 'Đơn chuyển đổi (30 ngày)', value: stats.converted, unit: 'đơn', icon: ShoppingCart, color: 'bg-orange-50 text-orange-600' },
+    { label: 'Tỉ lệ mở', value: formatPercent(stats.openRate), unit: 'trung bình (mô phỏng)', icon: TrendingUp, color: 'bg-sky-50 text-sky-600' },
+    { label: 'Tỉ lệ bấm', value: formatPercent(stats.clickRate), unit: 'trung bình (mô phỏng)', icon: MousePointerClick, color: 'bg-purple-50 text-purple-600' },
+    { label: 'Đơn chuyển đổi', value: stats.converted, unit: 'đơn (mô phỏng)', icon: ShoppingCart, color: 'bg-orange-50 text-orange-600' },
   ];
 
   return (
@@ -163,7 +163,7 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
             {CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <select value={filterSegment} onChange={e => setFilterSegment(e.target.value)} className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
-            <option value="all">Đối tượng: Tất cả</option>
+            <option value="all">Đối tượng: Tất cả phân khúc</option>
             {CUSTOMER_SEGMENTS.filter(s => s.id !== 'all').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
           <button onClick={() => { setEditingScenario(null); setModalOpen(true); }}
@@ -177,13 +177,13 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
       {/* Bảng kịch bản */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
+          <table className="w-full min-w-[750px]">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-gray-100 bg-gray-50/50">
                 <th className="text-left px-5 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kích hoạt / Hành động</th>
                 <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Kênh</th>
-                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Đối tượng</th>
-                <th className="text-right px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Gửi/tuần</th>
+                <th className="text-left px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Đối tượng thật</th>
+                <th className="text-right px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Khách phù hợp</th>
                 <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Bật/Tắt</th>
                 <th className="text-center px-4 py-3.5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Thao tác</th>
               </tr>
@@ -191,42 +191,60 @@ const Tab1Scenarios = ({ scenarios, setScenarios }) => {
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
                 <tr><td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-400">Không tìm thấy kịch bản nào.</td></tr>
-              ) : filtered.map(sc => (
-                <tr key={sc.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-bold text-gray-800 leading-snug">{sc.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{sc.action}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 italic">{sc.trigger}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {sc.channels.map(ch => (
-                        <span key={ch} className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${CHANNEL_COLORS[ch] || 'bg-gray-100 text-gray-600'}`}>{CHANNELS.find(c => c.id === ch)?.label || ch}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${SEGMENT_COLORS[sc.segment] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>{segmentLabel(sc.segment)}</span>
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <span className="text-sm font-bold text-gray-700">{sc.weekSent}</span>
-                    <span className="text-xs text-gray-400 ml-1">tin</span>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <button onClick={() => handleToggle(sc.id)} title={sc.enabled ? 'Tắt kịch bản' : 'Bật kịch bản'}
-                      className={`relative inline-flex w-11 h-6 rounded-full transition-colors cursor-pointer ${sc.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${sc.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <button onClick={() => { setEditingScenario(sc); setModalOpen(true); }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:border-emerald-300 hover:text-emerald-700 transition-all cursor-pointer">
-                      <Edit2 className="h-3.5 w-3.5" />
-                      Sửa
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              ) : filtered.map(sc => {
+                // Tính số lượng khách hàng thật phù hợp với kịch bản
+                const isAbandonedCart = sc.id === 'sc-2';
+                const matchingRealCount = realRecipients.filter(r => {
+                  if (r.scenarioId === sc.id) return true;
+                  if (sc.segment && sc.segment !== 'all' && r.segment === sc.segment) return true;
+                  return false;
+                }).length;
+
+                return (
+                  <tr key={sc.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-bold text-gray-800 leading-snug">{sc.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{sc.action}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 italic">{sc.trigger}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {sc.channels.map(ch => (
+                          <span key={ch} className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${CHANNEL_COLORS[ch] || 'bg-gray-100 text-gray-600'}`}>{CHANNELS.find(c => c.id === ch)?.label || ch}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${SEGMENT_COLORS[sc.segment] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>{segmentLabel(sc.segment)}</span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      {isAbandonedCart ? (
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200">
+                          chưa có dữ liệu
+                        </span>
+                      ) : (
+                        <div>
+                          <span className="text-sm font-black text-emerald-600">{matchingRealCount}</span>
+                          <span className="text-xs text-gray-400 ml-1">khách</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <button onClick={() => handleToggle(sc.id)} title={sc.enabled ? 'Tắt kịch bản' : 'Bật kịch bản'}
+                        className={`relative inline-flex w-11 h-6 rounded-full transition-colors cursor-pointer ${sc.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${sc.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <button onClick={() => { setEditingScenario(sc); setModalOpen(true); }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:border-emerald-300 hover:text-emerald-700 transition-all cursor-pointer">
+                        <Edit2 className="h-3.5 w-3.5" />
+                        Sửa
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

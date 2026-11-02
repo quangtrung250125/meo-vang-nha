@@ -99,22 +99,17 @@ export const initialTemplates = [
   { id: 'tpl-winback',         name: 'Ưu đãi quay lại (Nguy cơ rời bỏ)', channel: 'zalo', body: 'Chào {ten_chu}! Chúng mình nhớ bé {ten_meo} lắm. Dùng mã {ma_uu_dai} để đặt phòng với ưu đãi 15% hồi quy. Chúng mình hứa sẽ chăm bé thật chu đáo!', variables: ['{ten_chu}','{ten_meo}','{ma_uu_dai}'], status: 'active' },
 ];
 
-export const initialScheduleItems = [
-  { id: 'sch-1', scenarioName: 'Nhắc lịch trước ngày gửi mèo',       sendAt: '2026-10-27 08:00', recipients: 12 },
-  { id: 'sch-2', scenarioName: 'Cảm ơn sau check-out',               sendAt: '2026-10-27 10:00', recipients: 5  },
-  { id: 'sch-3', scenarioName: 'Đăng ký nhưng chưa đặt (3 ngày)',    sendAt: '2026-10-27 14:00', recipients: 8  },
-  { id: 'sch-4', scenarioName: 'Nhắc lễ Tết Dương lịch',             sendAt: '2026-10-28 09:00', recipients: 47 },
-];
+// CẢNH BÁO MINH BẠCH:
+// - Dữ liệu khách hàng & người nhận: 100% ĐỌC TỪ DỮ LIỆU THẬT CỦA HỆ THỐNG (Supabase + /api/sync)
+// - Các phần tạm thời giữ nguyên mẫu mô phỏng (theo phạm vi yêu cầu): Mẫu tin nhắn, Kết quả gửi thống kê (results), Hộp thư tập trung (conversations), Cấu hình giới hạn tần suất.
+// - Mọi hành động gửi vẫn ở chế độ MÔ PHỎNG AN TOÀN (chưa kích hoạt gửi tin nhắn thật đến khách hàng).
+export const initialScheduleItems = [];
 
-export const initialRecipients = [
-  { id: 'r-1', name: 'Nguyễn Lan Anh',  catName: 'Bơ',      segment: 'potential',   trigger: 'Đăng ký 3 ngày, chưa đặt', status: 'pending' },
-  { id: 'r-2', name: 'Trần Minh Khôi',  catName: 'Mochi',   segment: 'confirmed',   trigger: '2 ngày trước check-in',    status: 'pending' },
-  { id: 'r-3', name: 'Lê Thùy Linh',    catName: 'Cà Phê',  segment: 'checked_out', trigger: '1 ngày sau check-out',     status: 'sent'    },
-  { id: 'r-4', name: 'Phạm Tuấn Kiệt',  catName: 'Kem',     segment: 'at_risk',     trigger: 'Nguy cơ rời bỏ',           status: 'pending' },
-  { id: 'r-5', name: 'Hoàng Thu Hằng',  catName: 'Nấm',     segment: 'upgrading',   trigger: 'Đủ điều kiện lên hạng',    status: 'sent'    },
-  { id: 'r-6', name: 'Bùi Thanh Tú',    catName: 'Pudding', segment: 'potential',   trigger: 'Bỏ dở đặt phòng',          status: 'pending' },
-];
+// ĐÃ XÓA TOÀN BỘ KHÁCH HÀNG MẪU:
+// Tuyệt đối không dùng dữ liệu giả làm fallback; danh sách người nhận được sinh trực tiếp từ dữ liệu khách hàng thật.
+export const initialRecipients = [];
 
+// [TẠM GIỮ NGUYÊN MÔ PHỎNG THEO PHẠM VI] Thống kê kết quả chiến dịch mẫu
 export const initialResults = {
   summary: { sent: 3840, opened: 1728, clicked: 576, converted: 144, revenue: 43200000, openRate: 45.0, clickRate: 15.0, convertRate: 3.75 },
   byScenario: [
@@ -128,12 +123,14 @@ export const initialResults = {
   ],
 };
 
+// [TẠM GIỮ NGUYÊN MÔ PHỎNG THEO PHẠM VI] Hộp thư tin nhắn tập trung mẫu
 export const initialConversations = [
   { id: 'conv-1', platform: 'zalo', customer: 'Nguyễn Lan Anh', catName: 'Bơ', avatar: null, lastMessage: 'Cho mình hỏi phòng còn trống ngày 30 không?', lastAt: '10:32', unread: 2, messages: [{ id: 'm1', from: 'customer', text: 'Chào shop! Mình muốn đặt phòng cho bé Bơ.', at: '10:25' }, { id: 'm2', from: 'bot', text: 'Chào bạn Lan Anh! Bé Bơ nghe cute quá. Bạn muốn đặt ngày nào ạ?', at: '10:26' }, { id: 'm3', from: 'customer', text: 'Cho mình hỏi phòng còn trống ngày 30 không?', at: '10:32' }] },
   { id: 'conv-2', platform: 'zalo', customer: 'Trần Minh Khôi', catName: 'Mochi', avatar: null, lastMessage: 'Bé Mochi có cần mang thức ăn riêng không?', lastAt: '09:15', unread: 0, messages: [{ id: 'm1', from: 'customer', text: 'Bé Mochi có cần mang thức ăn riêng không?', at: '09:15' }, { id: 'm2', from: 'bot', text: 'Dạ bạn có thể mang thêm thức ăn quen của bé nhé, shop sẽ cho bé ăn đúng giờ.', at: '09:17' }] },
   { id: 'conv-3', platform: 'messenger', customer: 'Lê Thùy Linh', catName: 'Cà Phê', avatar: null, lastMessage: 'Cảm ơn shop, bé về khỏe lắm!', lastAt: 'Hôm qua', unread: 0, messages: [{ id: 'm1', from: 'customer', text: 'Cảm ơn shop, bé về khỏe lắm!', at: 'Hôm qua 18:00' }, { id: 'm2', from: 'bot', text: 'Cảm ơn bạn Thùy Linh! Chúc bé Cà Phê luôn khỏe, hẹn gặp lại lần sau nhé.', at: 'Hôm qua 18:05' }] },
 ];
 
+// [TẠM GIỮ NGUYÊN MÔ PHỎNG THEO PHẠM VI] Cấu hình giới hạn tần suất
 export const initialFrequency = {
   maxPerWeek:       3,
   minGapHours:     24,
@@ -141,3 +138,4 @@ export const initialFrequency = {
   quietEnd:      '08:00',
   pauseOnComplaint: true,
 };
+
