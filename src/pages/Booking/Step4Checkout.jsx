@@ -7,6 +7,7 @@ import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
 import { getDepositPolicy, DEPOSIT_FREE_MAX_DAYS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -19,6 +20,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const { addNewBooking } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const { upsertBooking } = useBookingHistory();
+  // Quy tắc giá admin đang bật (cuối tuần, mùa, lễ Tết, giảm giá)
+  const { activeRules } = useServiceCatalog();
 
   // Kiểm tra ngày nhận có phải Thứ 5
   const isThursday = (() => {
@@ -51,9 +54,12 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     cameraIncluded,
     cameraTotal,
     discount: totalDiscountAmount,
+    ruleAdjustments,
     total,
   } = calculateBookingPrice({
     lodging, spa, extra, days,
+    checkIn: data.checkIn,
+    pricingRules: activeRules,
     cats: data.catCount || data.petProfiles?.length || 1,
     couponApplied: isCouponApplied,
     addCamera,
@@ -129,6 +135,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       status: bookingStatus,
       totalPrice: total,
       totalAmount: total,
+      pricingAdjustments: ruleAdjustments,
       depositRequired: deposit.required,
       depositAmount: deposit.amount,
       paymentStatus: deposit.paymentStatus,
@@ -336,6 +343,20 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               <span>- {totalDiscountAmount.toLocaleString()}đ</span>
             </div>
           )}
+
+          {/* ── Phụ thu / giảm giá theo quy tắc admin bật ở trang Dịch vụ ── */}
+          {ruleAdjustments.map((line) => (
+            <div
+              key={line.id}
+              className={`flex justify-between p-2.5 rounded-xl border font-semibold ${line.amount < 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-amber-800 bg-amber-50 border-amber-200'}`}
+            >
+              <span>
+                {line.name}
+                {line.nights ? ` (${line.nights} đêm, ${line.percent > 0 ? '+' : ''}${line.percent}%)` : ` (-${line.percent}%)`}:
+              </span>
+              <span>{line.amount < 0 ? '- ' : '+ '}{Math.abs(line.amount).toLocaleString()}đ</span>
+            </div>
+          ))}
 
           {/* ── Thứ 5 quà tặng ── */}
           {isThursday && (

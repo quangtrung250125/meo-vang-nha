@@ -28,11 +28,17 @@ import {
   Percent
 } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { packagesList, promotionInfo } from '../../mockData/servicesData';
+import { promotionInfo } from '../../mockData/servicesData';
 import BoardingDetailSection from '../../components/BoardingServices/BoardingDetailSection';
+import PricingRulesNotice from '../../components/BoardingServices/PricingRulesNotice';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const Services = () => {
   const navigate = useNavigate();
+  // Danh mục dịch vụ admin quản lý (Supabase); dịch vụ bị gỡ / tạm ngưng không hiện cho khách
+  const { publishedItems: packagesList, boardingPackages } = useServiceCatalog();
+  // Gói lưu trú admin tự thêm (không có trong phần chi tiết lưu trú) thì hiện dạng thẻ bên dưới
+  const boardingItemIds = new Set(boardingPackages.map((p) => p.itemId));
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('Lưu trú');
@@ -65,6 +71,7 @@ const Services = () => {
   const filteredPackages = packagesList.filter(pkg => {
     if (activeTab === 'Tất cả') return true;
     if (activeTab === 'Ưu đãi 10%') return pkg.isPromo;
+    if (activeTab === 'Lưu trú') return pkg.category === 'Lưu trú' && !boardingItemIds.has(pkg.id);
     return pkg.category === activeTab;
   });
 
@@ -178,6 +185,9 @@ const Services = () => {
           </div>
         </div>
 
+        {/* Giá theo mùa / cuối tuần / lễ Tết & quy tắc giảm giá admin đang bật */}
+        <PricingRulesNotice />
+
         {/* Khi chọn tab Lưu trú -> Hiển thị phần Chi Tiết Dịch Vụ Lưu Trú Cho Mèo */}
         {activeTab === 'Lưu trú' && (
           <div className="mb-20">
@@ -205,7 +215,7 @@ const Services = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredPackages.filter(p => p.category !== 'Lưu trú').map((service, idx) => (
+                {filteredPackages.filter(p => p.category !== 'Lưu trú' || !boardingItemIds.has(p.id)).map((service, idx) => (
                   <div 
                     key={service.id || idx} 
                     className="bg-white rounded-3xl border border-gray-200/80 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
@@ -213,7 +223,7 @@ const Services = () => {
                     {service.isPromo && (
                       <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
                         <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
-                        <span>ƯU ĐÃI GIẢM 10%</span>
+                        <span>ƯU ĐÃI GIẢM {service.discountPercent || 10}%</span>
                       </div>
                     )}
                     <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur text-gray-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm border border-gray-100">
@@ -281,7 +291,7 @@ const Services = () => {
         )}
 
         {/* Các tab khác (Spa, Ưu đãi, Dịch vụ khác) */}
-        {activeTab !== 'Lưu trú' && activeTab !== 'Tất cả' && (
+        {activeTab !== 'Tất cả' && (activeTab !== 'Lưu trú' || filteredPackages.length > 0) && (
           filteredPackages.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
               {filteredPackages.map((service, idx) => (
@@ -292,7 +302,7 @@ const Services = () => {
                   {service.isPromo && (
                     <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-accent to-[#FF7B47] text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
                       <Flame className="w-3.5 h-3.5 fill-current animate-pulse" />
-                      <span>ƯU ĐÃI GIẢM 10%</span>
+                      <span>ƯU ĐÃI GIẢM {service.discountPercent || 10}%</span>
                     </div>
                   )}
 
@@ -336,12 +346,14 @@ const Services = () => {
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
-                          <span>✓ Đã áp dụng giảm 10%</span>
-                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
-                            -10%
-                          </span>
-                        </div>
+                        {service.discountPercent > 0 && (
+                          <div className="mt-1 flex items-center justify-between text-xs text-emerald-600 font-semibold">
+                            <span>✓ Đã áp dụng giảm {service.discountPercent}%</span>
+                            <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/50">
+                              -{service.discountPercent}%
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <p className="text-gray-600 text-sm mb-5 line-clamp-2 leading-relaxed">
@@ -363,7 +375,7 @@ const Services = () => {
                       onClick={() => navigate('/booking', { state: { preSelectedPackageId: service.id } })}
                       className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-md shadow-accent/25 hover:shadow-lg hover:shadow-accent/35 active:scale-[0.98] cursor-pointer"
                     >
-                      <span>Đặt dịch vụ với ưu đãi 10%</span>
+                      <span>{service.discountPercent > 0 ? `Đặt dịch vụ với ưu đãi ${service.discountPercent}%` : 'Đặt dịch vụ này'}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>

@@ -1,4 +1,5 @@
 // Tính tiền đơn đặt phòng (dùng ở bước 4 và trong test tự động)
+import { computeRuleAdjustments } from './serviceCatalog.js';
 
 export const CAMERA_PRICE_PER_DAY = 10000;
 
@@ -16,7 +17,9 @@ const originalOf = (pkg) => pkg?.originalPrice || Math.round((pkg?.price || 0) /
 
 // Gói lưu trú và gói spa tính theo từng bé: giá gói × số mèo.
 // Dịch vụ đưa đón tính theo chuyến, camera tính theo phòng nên không nhân số mèo.
-export function calculateBookingPrice({ lodging, spa, extra, days, cats = 1, couponApplied = true, addCamera = false }) {
+// pricingRules + checkIn (tùy chọn): phụ thu cuối tuần / mùa / lễ Tết và giảm giá do admin bật ở trang Dịch vụ.
+// Không truyền (hoặc chưa bật quy tắc nào) thì kết quả y như trước.
+export function calculateBookingPrice({ lodging, spa, extra, days, cats = 1, couponApplied = true, addCamera = false, pricingRules = [], checkIn = '' }) {
   const catCount = Math.max(1, Number(cats) || 1);
   const lodgingPrice = lodging?.price || 0;
   const originalLodgingTotal = (lodging ? originalOf(lodging) : 0) * days * catCount;
@@ -35,6 +38,17 @@ export function calculateBookingPrice({ lodging, spa, extra, days, cats = 1, cou
     ? originalLodgingTotal - discountedLodgingTotal + spaDiscount + extraDiscount
     : 0;
 
+  const paidLodgingNightly = couponApplied ? lodgingPrice : (lodging ? originalOf(lodging) : 0);
+  const rules = computeRuleAdjustments({
+    rules: pricingRules,
+    checkIn,
+    days,
+    cats: catCount,
+    lodgingNightly: lodging ? paidLodgingNightly : 0,
+    spaTotal: couponApplied ? spaOriginal - spaDiscount : spaOriginal,
+    extraTotal: couponApplied ? extraOriginal - extraDiscount : extraOriginal,
+  });
+
   return {
     catCount,
     spaOriginalTotal: spaOriginal,
@@ -45,6 +59,8 @@ export function calculateBookingPrice({ lodging, spa, extra, days, cats = 1, cou
     cameraTotal,
     originalGrossTotal,
     discount,
-    total: originalGrossTotal - discount,
+    ruleAdjustments: rules.lines,
+    ruleAdjustmentTotal: rules.total,
+    total: originalGrossTotal - discount + rules.total,
   };
 }

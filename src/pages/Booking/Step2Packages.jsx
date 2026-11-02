@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { packagesList, promotionInfo, ROOM_SURCHARGES } from '../../mockData/servicesData';
+import { promotionInfo } from '../../mockData/servicesData';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 import { Flame, Check, Sparkles, Bath, Car, BedDouble, X } from 'lucide-react';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -19,12 +20,13 @@ const ROOM_TYPE_COLORS = {
 /**
  * Tính giá gói lưu trú có tính phụ phí phòng.
  */
-function calcPricing(pkg, roomType) {
+function calcPricing(pkg, roomType, ROOM_SURCHARGES) {
   const surcharge    = ROOM_SURCHARGES?.[roomType] ?? 0;
   const baseOrig     = pkg.baseOriginalPrice ?? pkg.originalPrice;
   const basePrc      = pkg.basePrice         ?? pkg.price;
   const originalPrice = baseOrig + surcharge;
-  const price         = basePrc  + Math.round(surcharge * 0.9);
+  const pct           = pkg.discountPercent ?? 10;
+  const price         = basePrc  + Math.round(surcharge * (1 - pct / 100));
   const savings       = originalPrice - price;
   const fmt = (n) => n.toLocaleString('vi-VN') + 'đ';
   return { price, originalPrice, priceString: fmt(price), originalPriceString: fmt(originalPrice), savingsString: fmt(savings), surcharge };
@@ -55,7 +57,7 @@ const PackageCard = ({ pkg, pricing, isSelected, onClick, badge }) => (
   >
     {pkg.isPromo && (
       <div className="absolute -top-2.5 right-4 bg-accent text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
-        -10%
+        -{pkg.discountPercent || 10}%
       </div>
     )}
     {badge && (
@@ -98,6 +100,8 @@ const PackageCard = ({ pkg, pricing, isSelected, onClick, badge }) => (
 
 // ── Main Step 2 ───────────────────────────────────────────────────────────────
 const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
+  // Dịch vụ & phụ phí phòng theo bản admin đang đăng (Supabase)
+  const { publishedItems: packagesList, roomSurcharges: ROOM_SURCHARGES } = useServiceCatalog();
   // Lấy loại phòng từ selectedRoom (VIP / VVIP / DELUXE)
   const roomType = (data.selectedRoom?.type ?? data.selectedRoom?.id?.split('-')[0] ?? 'VIP').toUpperCase();
 
@@ -106,14 +110,14 @@ const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
     () => packagesList.filter(
       (p) => p.category === 'Lưu trú' && (p.forRoomTypes?.includes(roomType) ?? true)
     ),
-    [roomType]
+    [roomType, packagesList]
   );
 
   // Gói spa tắm cắt
-  const spaPkgs = useMemo(() => packagesList.filter((p) => p.category === 'Spa - Tắm cắt'), []);
+  const spaPkgs = useMemo(() => packagesList.filter((p) => p.category === 'Spa - Tắm cắt'), [packagesList]);
 
   // Gói dịch vụ khác
-  const extraPkgs = useMemo(() => packagesList.filter((p) => p.category === 'Dịch vụ khác'), []);
+  const extraPkgs = useMemo(() => packagesList.filter((p) => p.category === 'Dịch vụ khác'), [packagesList]);
 
   const selectedLodging = data.selectedLodging || null;
   const selectedSpa     = data.selectedSpa     || null;
@@ -121,7 +125,7 @@ const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
 
   // Khi chọn gói lưu trú — tính lại giá theo phòng và lưu vào cả selectedPackage (tương thích Step4)
   const handleSelectLodging = (pkg) => {
-    const pricing = calcPricing(pkg, roomType);
+    const pricing = calcPricing(pkg, roomType, ROOM_SURCHARGES);
     updateData({
       selectedLodging: { ...pkg, ...pricing },
       selectedPackage: { ...pkg, ...pricing },
@@ -187,7 +191,7 @@ const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {lodgingPkgs.map((pkg) => {
-            const pricing = calcPricing(pkg, roomType);
+            const pricing = calcPricing(pkg, roomType, ROOM_SURCHARGES);
             return (
               <PackageCard
                 key={pkg.id}

@@ -10,7 +10,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
 import AuthModal from '../../components/AuthModal';
 import NotificationBar from '../../components/NotificationBar';
-import { packagesList } from '../../mockData/servicesData';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const steps = [
   { id: 1, title: 'Ngày & Phòng', icon: Calendar },
@@ -25,6 +25,7 @@ const Booking = () => {
   const location = useLocation();
   const { isAuthenticated, authenticatedCustomer } = useCustomerProfile();
   const { isAuthOpen, openAuth, closeAuth } = useUI();
+  const { publishedItems: packagesList } = useServiceCatalog();
   
   const [bookingData, setBookingData] = useState(() => {
     const preSelectedId = location.state?.preSelectedPackageId;
