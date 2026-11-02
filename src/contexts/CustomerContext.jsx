@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, setSyncIdentity } from '../services/crossDeviceSync';
 import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
 import { normalizeVnPhone } from '../utils/phone';
+import { fromPetRow, toPetRow, newUuid } from '../utils/petRows';
 
 const CustomerContext = createContext();
 
@@ -168,23 +169,17 @@ export const CustomerProvider = ({ children }) => {
         // Tải danh sách thú cưng từ bảng pets của Supabase
         let pets = [];
         try {
-            const { data: petsData } = await supabase
+            const { data: petsData, error: petsError } = await supabase
                 .from('pets')
                 .select('*')
-                .eq('user_id', user.id);
+                .eq('customer_id', user.id);
 
+            if (petsError) console.warn('Lỗi đọc bảng pets từ Supabase:', petsError.message);
             if (petsData && petsData.length > 0) {
-                pets = petsData.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    age: p.age,
-                    weight: p.weight,
-                    breed: p.type || 'Mèo',
-                    notes: p.notes || '',
-                    gender: p.gender,
-                    avatar: p.avatar,
-                    createdAt: p.created_at
-                }));
+                pets = petsData.map((row) => {
+                    const pet = fromPetRow(row);
+                    return { ...pet, avatar: pet.avatar || pet.imagePreview };
+                });
             }
         } catch (err) {
             console.warn('Không thể tải pets từ Supabase:', err);
@@ -390,15 +385,15 @@ export const CustomerProvider = ({ children }) => {
         if (petsToSave.length > 0 && user.id) {
             for (const pet of petsToSave) {
                 try {
-                    await supabase.from('pets').insert({
-                        user_id: user.id,
-                        name: pet.name || 'Bé cưng',
-                        type: pet.breed || pet.type || 'Mèo',
-                        age: pet.age ? String(pet.age) : null,
-                        weight: pet.weight ? String(pet.weight) : null,
-                        gender: pet.gender || null,
-                        notes: pet.notes || pet.specialRequests || pet.habits || null,
+                    const { error: petInsertError } = await supabase.from('pets').insert({
+                        id: newUuid(),
+                        ...toPetRow({
+                            ...pet,
+                            breed: pet.breed || pet.type || 'Mèo',
+                            notes: pet.notes || pet.specialRequests || pet.habits || '',
+                        }, user.id),
                     });
+                    if (petInsertError) console.warn('Lỗi lưu thú cưng vào Supabase:', petInsertError.message);
                 } catch (petErr) {
                     console.warn('Lỗi lưu thú cưng vào Supabase:', petErr);
                 }

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Info, Plus, Lock, PawPrint, BookOpen, History,
   ChevronDown, ChevronUp, CalendarDays, Utensils,
   Heart, Star, CheckCircle2, Clock, Sparkles, User2,
-  Camera, Cat
+  Camera, Cat, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { usePetProfile } from '../../contexts/PetContext';
@@ -11,6 +11,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
+import { BOOKING_STATUS, getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
 import AuthModal from '../../components/AuthModal';
 
 // ─────────────────────────────────────────────
@@ -57,34 +58,6 @@ const formatDate = (dateStr) => {
   return `${day}/${month}/${year}`;
 };
 
-const getStatusBadge = (status) => {
-  switch (status) {
-    case 'Đang lưu trú': return 'bg-primary-light text-primary';
-    case 'Sắp tới': return 'bg-red-50 text-red-500';
-    case 'Đã hoàn tất': return 'bg-green-50 text-green-600';
-    default: return 'bg-gray-100 text-gray-500';
-  }
-};
-
-const calculateStatus = (checkIn, checkOut, status) => {
-  if (
-    status === 'check-out' ||
-    status === 'Đã hoàn tất' ||
-    status === 'hoàn tất' ||
-    status === 'cancelled' ||
-    status === 'Đã hủy'
-  ) {
-    return 'Đã hoàn tất';
-  }
-  if (!checkIn || !checkOut) return 'Chưa rõ';
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const inDate = new Date(checkIn); inDate.setHours(0, 0, 0, 0);
-  const outDate = new Date(checkOut); outDate.setHours(23, 59, 59, 999);
-  if (today > outDate) return 'Đã hoàn tất';
-  if (today < inDate) return 'Sắp tới';
-  return 'Đang lưu trú';
-};
-
 // ─────────────────────────────────────────────
 // Component: Booking Card kèm nhật ký
 // ─────────────────────────────────────────────
@@ -95,8 +68,12 @@ const BookingCard = ({ booking, petList }) => {
   const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
   const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
   const firstPetImage = resolvedPets[0]?.imagePreview;
-  const status = calculateStatus(booking.checkIn, booking.checkOut, booking.status);
+  const normalizedStatus = getBookingStatus(booking);
+  const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
   const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
+
+  // Lấy danh sách các giai đoạn lưu trú (để hiện hóa đơn chi tiết)
+  const stayPeriods = booking.stayPeriods || [];
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -111,8 +88,8 @@ const BookingCard = ({ booking, petList }) => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <h3 className="text-lg font-bold text-text-dark">{petsName}</h3>
-            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${getStatusBadge(status)}`}>
-              {status}
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${statusConfig.badgeClass}`}>
+              {statusConfig.label}
             </span>
           </div>
           <p className="text-sm text-gray-500 font-medium">
@@ -125,6 +102,17 @@ const BookingCard = ({ booking, petList }) => {
             <span className="ml-2 text-gray-300">|</span>
             <span className="text-gray-400">#{booking.id?.slice(-6)}</span>
           </p>
+
+          {/* Hiển thị các giai đoạn lưu trú nếu có thay đổi phòng/gói */}
+          {stayPeriods.length > 1 && (
+            <div className="mt-2 space-y-1">
+              {stayPeriods.map((period, idx) => (
+                <p key={idx} className="text-xs text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  📅 {formatDate(period.checkIn)} – {formatDate(period.checkOut)}: {period.roomName || 'Phòng cũ'} · {period.packageName || 'Gói cũ'}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Journal Toggle Button */}
@@ -293,11 +281,33 @@ const PetProfile = () => {
   // ── LOGGED IN VIEW ──────────────────────────
   const activeCustomer = authenticatedCustomer || customerProfile;
   const displayName = activeCustomer?.fullName || activeCustomer?.name || 'bạn';
-  const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
-  const bookings = myBookings.map(b => ({
-    ...b,
-    dynamicStatus: calculateStatus(b.checkIn, b.checkOut, b.status),
-  }));
+
+  // Lọc đơn của khách hàng hiện tại và loại bỏ duplicate theo id
+  const seenIds = new Set();
+  const myBookings = globalBookingList
+    .filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
+    .filter(b => {
+      const key = b.id || b.code;
+      if (!key || seenIds.has(key)) return false;
+      seenIds.add(key);
+      return true;
+    });
+
+  // Sắp xếp theo thời gian: gần đây nhất lên đầu (checkIn mới nhất trước)
+  const bookings = myBookings
+    .map(b => ({
+      ...b,
+      dynamicStatus: getBookingStatus(b),
+    }))
+    .sort((a, b) => {
+      // Ưu tiên đang lưu trú lên đầu
+      if (a.dynamicStatus === BOOKING_STATUS.IN_HOUSE && b.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return -1;
+      if (b.dynamicStatus === BOOKING_STATUS.IN_HOUSE && a.dynamicStatus !== BOOKING_STATUS.IN_HOUSE) return 1;
+      // Sau đó sort theo checkIn giảm dần (gần đây nhất trước)
+      const dateA = a.checkIn || a.createdAt || '';
+      const dateB = b.checkIn || b.createdAt || '';
+      return dateB.localeCompare(dateA);
+    });
 
   return (
     <div className="w-full min-h-screen bg-bg-cream pb-16">
@@ -369,6 +379,23 @@ const PetProfile = () => {
                         </span>
                       </div>
                     </div>
+
+                    {/* Tình trạng lưu trú hiện tại của bé */}
+                    {(() => {
+                      const currentStay = bookings.find(b =>
+                        b.dynamicStatus === BOOKING_STATUS.IN_HOUSE &&
+                        ((b.petIds || []).includes(pet.id) ||
+                          (b.petProfiles || []).some(p => p.id === pet.id))
+                      );
+                      if (!currentStay) return null;
+                      return (
+                        <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                          Đang lưu trú · Phòng {currentStay.selectedRoom?.name || '—'}
+                        </div>
+                      );
+                    })()}
+
                     <div className="mt-auto pt-4 border-t border-gray-50">
                       <button
                         onClick={() => { setEditingPet(pet); setIsEditing(true); }}
@@ -399,8 +426,8 @@ const PetProfile = () => {
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   {[
                     { label: 'Tổng lần gửi', value: bookings.length, color: 'text-primary', bg: 'bg-primary-light/50' },
-                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === 'Đang lưu trú').length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === 'Đã hoàn tất').length, color: 'text-gray-600', bg: 'bg-gray-100' },
+                    { label: 'Đang lưu trú', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.IN_HOUSE).length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Đã hoàn tất', value: bookings.filter(b => b.dynamicStatus === BOOKING_STATUS.COMPLETED).length, color: 'text-gray-600', bg: 'bg-gray-100' },
                   ].map((stat, i) => (
                     <div key={i} className={`${stat.bg} rounded-2xl p-4 text-center border border-white/60`}>
                       <p className={`text-2xl font-black ${stat.color}`}>{stat.value}</p>
@@ -409,6 +436,7 @@ const PetProfile = () => {
                   ))}
                 </div>
 
+                {/* Sắp xếp: mới nhất trước (đã sort ở trên) */}
                 {bookings.map((booking, idx) => (
                   <BookingCard key={booking.id || idx} booking={booking} petList={petList} />
                 ))}

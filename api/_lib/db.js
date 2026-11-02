@@ -21,6 +21,13 @@ export const createAnonClient = () => createClient(supabaseUrl, anonKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// Client mang token của chính người gửi request: Supabase áp RLS theo tài khoản đó
+// (khách chỉ đọc / sửa được đơn của mình). Dùng khi server không có service role key.
+export const createUserClient = (accessToken) => createClient(supabaseUrl, anonKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  global: { headers: { Authorization: `Bearer ${accessToken}` } },
+});
+
 export const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: false,

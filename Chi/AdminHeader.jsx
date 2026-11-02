@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Bell, User, Menu, LogOut, Repeat2, X, ShieldCheck, PlusCircle } from 'lucide-react';
+import { Search, User, Menu, LogOut, Repeat2, X, ShieldCheck, PlusCircle } from 'lucide-react';
+import BookingNotificationBell from '../src/components/BookingNotificationBell';
 import { useCustomerProfile } from '../src/contexts/CustomerContext';
 import { toast } from 'react-hot-toast';
 
@@ -62,9 +63,8 @@ const AdminHeader = ({ onToggleSidebar }) => {
             <button className="hover:text-primary transition-colors p-2 rounded-xl hover:bg-gray-50" title="Tìm kiếm">
               <Search className="h-5 w-5" />
             </button>
-            <button className="hover:text-primary transition-colors p-2 rounded-xl hover:bg-gray-50" title="Thông báo">
-              <Bell className="h-5 w-5" />
-            </button>
+            <BookingNotificationBell />
+
 
             {/* Nút Đặt phòng → điều hướng mượt mà đến trang Đặt phòng */}
             <button

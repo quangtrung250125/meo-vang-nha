@@ -14,6 +14,7 @@ import CustomerProfile from './pages/CustomerProfile';
 import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
+import Admin from './pages/Admin';
 import Promotions from './pages/Promotions';
 import AdminPromotions from './pages/AdminPromotions';
 import AdminMarketing from './pages/AdminMarketing';
@@ -80,6 +81,9 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Trang duyệt đơn & quy trình phê duyệt (toàn màn hình) */}
+      <Route path="/admin/approvals" element={<Admin />} />
+
       {/* Direct Admin Route /admin */}
       <Route path="/admin" element={adminOnly(<AdminLayout />)}>
         <Route index element={<AdminDashboard />} />

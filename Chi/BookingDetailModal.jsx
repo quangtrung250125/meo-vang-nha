@@ -3,8 +3,10 @@ import { PAYMENT_STATUS } from "../src/utils/bookingDeposit";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
-  Edit3, LogIn, LogOut, Trash2,
+  Edit3, LogIn, LogOut, Trash2, Send, Undo2,
 } from "lucide-react";
+import { useBookingHistory } from "../src/contexts/BookingHistoryContext";
+import { BOOKING_STATUS, PROPOSAL_LABEL, PROPOSAL_TYPE, normalizeStatusValue } from "../src/utils/bookingStatus";
 
 // Badge hạng thành viên
 const MemberBadge = ({ tier }) => {
@@ -122,8 +124,9 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
 };
 
 // Xác nhận hủy đơn
-const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
+const DeleteConfirmModal = ({ booking, needsCustomerApproval, onConfirm, onClose }) => {
   const ref = useRef(null);
+  const [reason, setReason] = useState("");
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     document.addEventListener("mousedown", h);
@@ -136,12 +139,19 @@ const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
         <div className="flex flex-col items-center text-center gap-3">
           <div className="h-14 w-14 rounded-full bg-red-100 flex items-center justify-center"><AlertTriangle className="h-7 w-7 text-red-500" /></div>
           <div>
-            <h3 className="font-black text-gray-800 text-lg">Xác nhận hủy đơn?</h3>
-            <p className="text-sm text-gray-500 mt-1">Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị hủy.</p>
+            <h3 className="font-black text-gray-800 text-lg">{needsCustomerApproval ? "Gửi đề xuất hủy đơn?" : "Xác nhận hủy đơn?"}</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {needsCustomerApproval
+                ? <>Đơn <strong className="text-red-600">{booking?.code}</strong> chỉ bị hủy khi khách bấm <strong>Đồng ý</strong> trong thông báo.</>
+                : <>Đơn đặt phòng <strong className="text-red-600">{booking?.code}</strong> sẽ bị hủy.</>}
+            </p>
           </div>
+          <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)}
+            placeholder={needsCustomerApproval ? "Lý do gửi khách (bắt buộc)" : "Lý do hủy (không bắt buộc)"}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300" />
           <div className="flex gap-3 w-full mt-2">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Đóng</button>
-            <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-sm shadow-lg shadow-red-200 transition-all hover:scale-[1.02]">Xác nhận hủy</button>
+            <button onClick={() => onConfirm(reason.trim())} disabled={needsCustomerApproval && !reason.trim()} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm shadow-lg shadow-red-200 transition-all hover:scale-[1.02]">{needsCustomerApproval ? "Gửi đề xuất hủy" : "Xác nhận hủy"}</button>
           </div>
         </div>
       </div>
@@ -152,7 +162,7 @@ const DeleteConfirmModal = ({ booking, onConfirm, onClose }) => {
 // Form chỉnh sửa booking
 const SERVICE_OPTIONS = ["Gói Cơ Bản", "Tắm & Vệ Sinh", "Cắt Tỉa Lông", "Khám Sức Khỏe", "Spa Mèo", "Chụp Ảnh Kỷ Niệm"];
 
-const EditBookingModal = ({ booking, onSave, onClose }) => {
+const EditBookingModal = ({ booking, needsCustomerApproval, onSave, onClose }) => {
   const ref = useRef(null);
   const [form, setForm] = useState({
     ownerName: booking?.ownerName || "",
@@ -162,7 +172,10 @@ const EditBookingModal = ({ booking, onSave, onClose }) => {
     checkIn: booking?.checkIn || "",
     checkOut: booking?.checkOut || "",
     packages: booking?.packages || ["Gói Cơ Bản"],
+    reason: "",
   });
+  const datesChanged = form.checkIn !== (booking?.checkIn || "") || form.checkOut !== (booking?.checkOut || "");
+  const needsReason = needsCustomerApproval && datesChanged;
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -230,6 +243,12 @@ const EditBookingModal = ({ booking, onSave, onClose }) => {
                 <input type="date" value={form.checkOut} onChange={e => setForm(p => ({ ...p, checkOut: e.target.value }))} className={inp} />
               </div>
             </div>
+            {needsReason && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-indigo-800 font-semibold">Đổi ngày cần khách xác nhận: hệ thống sẽ gửi đề xuất đổi lịch tới tài khoản khách.</p>
+                <textarea rows={2} value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} className={inp} placeholder="Lý do đổi lịch gửi khách (bắt buộc)" />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Gói dịch vụ</p>
@@ -245,7 +264,7 @@ const EditBookingModal = ({ booking, onSave, onClose }) => {
         </div>
         <div className="px-5 pb-5 flex gap-3 shrink-0 border-t border-gray-100 pt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Hủy</button>
-          <button onClick={() => onSave(form)} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-sm shadow-lg shadow-blue-200 hover:scale-[1.02] transition-all">💾 Lưu thay đổi</button>
+          <button onClick={() => onSave(form)} disabled={needsReason && !form.reason.trim()} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm shadow-lg shadow-blue-200 hover:scale-[1.02] transition-all">{needsReason ? "📩 Lưu & gửi đề xuất" : "💾 Lưu thay đổi"}</button>
         </div>
       </div>
     </div>
@@ -261,6 +280,12 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
+  const { globalBookingList, adminProposeChange, adminCancelProposal } = useBookingHistory();
+  // Đơn có trong "Lịch đặt" của khách -> đổi ngày / hủy phải được khách xác nhận
+  const historyBooking = booking
+    ? globalBookingList.find(b => b.id === booking.code || b.code === booking.code)
+    : null;
+  const pending = historyBooking?.pending_changes || null;
 
   const showToast = (msg, type = "success") => {
     setToastMsg({ msg, type });
@@ -350,7 +375,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     }
 
     // 8. Trạng thái
-    const status = booking.status || historyMatch?.status || 'check-in';
+    const status = historyMatch?.status || booking.status || 'check-in';
 
     return {
       ...booking,
@@ -386,7 +411,14 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     "check-in": { cls: "bg-green-500 text-white", label: "✅ Check-in" },
     "check-out": { cls: "bg-gray-400 text-white", label: "🚪 Check-out" },
   };
-  const badge = statusBadge[status] || { cls: "bg-gray-200 text-gray-700", label: status };
+  const normalizedStatus = normalizeStatusValue(status);
+  const isInHouse = normalizedStatus === BOOKING_STATUS.IN_HOUSE;
+  const isUpcoming = normalizedStatus === BOOKING_STATUS.UPCOMING;
+  const badge = {
+    [BOOKING_STATUS.UPCOMING]: statusBadge["check-in"],
+    [BOOKING_STATUS.IN_HOUSE]: statusBadge["đang ở"],
+    [BOOKING_STATUS.COMPLETED]: statusBadge["check-out"],
+  }[normalizedStatus] || { cls: "bg-gray-200 text-gray-700", label: status };
 
   const handleCheckIn = () => {
     onCheckIn(roomId, code);
@@ -401,10 +433,16 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     setTimeout(() => onClose(), 1500);
   };
 
-  const handleDeleteConfirm = () => {
-    onDelete(roomId, code);
-    showToast(`🗑️ Đã hủy đơn ${code}`, "error");
+  const handleDeleteConfirm = (reason) => {
     setShowDeleteConfirm(false);
+    if (historyBooking) {
+      if (adminProposeChange(historyBooking.id, { type: PROPOSAL_TYPE.CANCEL, reason })) {
+        showToast(`📩 Đã gửi đề xuất hủy đơn ${code} tới khách`);
+      }
+      return;
+    }
+    onDelete(roomId, code, reason || undefined);
+    showToast(`🗑️ Đã hủy đơn ${code}`, "error");
     setTimeout(() => onClose(), 1200);
   };
 
@@ -413,10 +451,26 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     showToast(`💰 Đã xác nhận nhận cọc cho ${code}. Khách sẽ thấy mã đặt phòng.`);
   };
 
-  const handleSaveEdit = (updates) => {
+  const handleSaveEdit = ({ reason, ...updates }) => {
+    const datesChanged = updates.checkIn !== checkIn || updates.checkOut !== checkOut;
+    setShowEdit(false);
+    if (historyBooking && datesChanged) {
+      // Thông tin khác cập nhật ngay, riêng ngày nhận/trả chờ khách đồng ý
+      const { checkIn: newCheckIn, checkOut: newCheckOut, ...otherUpdates } = updates;
+      onUpdate(roomId, code, otherUpdates);
+      if (adminProposeChange(historyBooking.id, { type: PROPOSAL_TYPE.RESCHEDULE, newCheckIn, newCheckOut, reason })) {
+        showToast(`📩 Đã gửi đề xuất đổi lịch đơn ${code} tới khách`);
+      }
+      return;
+    }
     onUpdate(roomId, code, updates);
     showToast(`✏️ Đã cập nhật thông tin đơn ${code}`);
-    setShowEdit(false);
+  };
+
+  const handleWithdrawProposal = () => {
+    if (historyBooking && adminCancelProposal(historyBooking.id)) {
+      showToast(`↩️ Đã rút lại đề xuất cho đơn ${code}`);
+    }
   };
 
   return (
@@ -478,6 +532,26 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
                 )) : <span className="text-sm text-gray-400">—</span>}
               </div>
             </DetailRow>
+            {historyBooking?.specialNote && (
+              <DetailRow icon={<Sparkles className="h-4 w-4 text-pink-500" />} label="Yêu cầu đặc biệt của khách">
+                <span className="text-gray-700 italic">“{historyBooking.specialNote}”</span>
+              </DetailRow>
+            )}
+            {pending && (
+              <div className="mt-3 rounded-xl border-2 border-purple-200 bg-purple-50 p-3 flex items-start gap-2.5">
+                <Send className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0 text-xs text-purple-900">
+                  <p className="font-black">Chờ khách xác nhận: {PROPOSAL_LABEL[pending.type] || "Thay đổi"}</p>
+                  {pending.type === PROPOSAL_TYPE.RESCHEDULE && (
+                    <p className="mt-0.5">Lịch mới: {fmtDate(pending.newCheckIn)} → {fmtDate(pending.newCheckOut)}</p>
+                  )}
+                  {pending.reason && <p className="mt-0.5 italic">Lý do: {pending.reason}</p>}
+                </div>
+                <button onClick={handleWithdrawProposal} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900">
+                  <Undo2 className="h-3.5 w-3.5" />Rút lại
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Đặt cọc */}
@@ -504,17 +578,18 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-bold text-sm hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
                 <Edit3 className="h-4 w-4" />Chỉnh sửa
               </button>
-              <button id={`btn-checkin-booking-${code}`} onClick={handleCheckIn} disabled={status === "đang ở"}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-sm transition-all ${status === "đang ở" ? "bg-blue-100 text-blue-400 border-2 border-blue-200 cursor-not-allowed" : "bg-green-500 hover:bg-green-600 text-white shadow-md shadow-green-200 hover:scale-[1.02] active:scale-[0.98]"}`}>
-                <LogIn className="h-4 w-4" />{status === "đang ở" ? "Đang ở" : "Check-in"}
+              <button id={`btn-checkin-booking-${code}`} onClick={handleCheckIn} disabled={!isUpcoming}
+                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-sm transition-all ${!isUpcoming ? "bg-blue-100 text-blue-400 border-2 border-blue-200 cursor-not-allowed" : "bg-green-500 hover:bg-green-600 text-white shadow-md shadow-green-200 hover:scale-[1.02] active:scale-[0.98]"}`}>
+                <LogIn className="h-4 w-4" />{isInHouse ? "Đang ở" : "Check-in"}
               </button>
-              <button id={`btn-checkout-booking-${code}`} onClick={() => setShowInvoice(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow-md shadow-orange-200 hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <button id={`btn-checkout-booking-${code}`} onClick={() => setShowInvoice(true)} disabled={!isInHouse}
+                title={isInHouse ? "" : "Cần Check-in trước khi Check-out"}
+                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-sm transition-all ${isInHouse ? "bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-200 hover:scale-[1.02] active:scale-[0.98]" : "bg-orange-100 text-orange-300 border-2 border-orange-200 cursor-not-allowed"}`}>
                 <LogOut className="h-4 w-4" />Check-out
               </button>
-              <button id={`btn-delete-booking-${code}`} onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-500 hover:text-white hover:border-red-500 hover:scale-[1.02] transition-all">
-                <Trash2 className="h-4 w-4" />Hủy đơn
+              <button id={`btn-delete-booking-${code}`} onClick={() => setShowDeleteConfirm(true)} disabled={!isUpcoming || pending?.type === PROPOSAL_TYPE.CANCEL}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-500 hover:text-white hover:border-red-500 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-red-500 disabled:hover:scale-100">
+                <Trash2 className="h-4 w-4" />{historyBooking ? "Đề xuất hủy" : "Hủy đơn"}
               </button>
             </div>
           </div>
@@ -530,8 +605,8 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
       )}
 
       {showInvoice && <CheckoutInvoiceModal booking={effectiveBooking} roomId={roomId} onPay={handlePay} onClose={() => setShowInvoice(false)} />}
-      {showDeleteConfirm && <DeleteConfirmModal booking={effectiveBooking} onConfirm={handleDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} />}
-      {showEdit && <EditBookingModal booking={effectiveBooking} onSave={handleSaveEdit} onClose={() => setShowEdit(false)} />}
+      {showDeleteConfirm && <DeleteConfirmModal booking={effectiveBooking} needsCustomerApproval={Boolean(historyBooking)} onConfirm={handleDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} />}
+      {showEdit && <EditBookingModal booking={effectiveBooking} needsCustomerApproval={Boolean(historyBooking) && isUpcoming} onSave={handleSaveEdit} onClose={() => setShowEdit(false)} />}
 
       <style>{`
         @keyframes slideInUp { from { opacity:0; transform:translateY(40px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }

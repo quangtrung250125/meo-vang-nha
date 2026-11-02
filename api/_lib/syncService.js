@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getRequestUser } from './auth.js';
+import { isDemoBooking, withoutDemoBookings } from '../../src/utils/demoBookings.js';
 
 const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/_lib');
 const SYNC_STORE_PATH = path.join(DATA_DIR, 'sync_store.json');
@@ -51,6 +52,8 @@ export function updateSyncData({ bookings, pets, profiles }) {
     // Merge bookings theo id / code
     const existing = [...inMemoryStore.bookings];
     bookings.forEach((newItem) => {
+      // Đơn mẫu kiểm thử từ trình duyệt cũ không phải đơn thật -> không lưu
+      if (isDemoBooking(newItem)) return;
       const idx = existing.findIndex(
         (b) => (b.id && b.id === newItem.id) || (b.code && b.code === newItem.code)
       );
@@ -107,10 +110,12 @@ export function updateSyncData({ bookings, pets, profiles }) {
  * Chỉ giữ lại dữ liệu thuộc về người dùng (admin xem được tất cả, khách vãng lai không thấy gì).
  */
 export function scopeSyncData(data, user) {
-  if (user?.isAdmin) return data;
+  // Bỏ các đơn mẫu đã lỡ lưu trước đây (từng bị gán nhầm customerId của khách)
+  const bookings = withoutDemoBookings(data.bookings);
+  if (user?.isAdmin) return { ...data, bookings };
   if (!user) return { bookings: [], pets: [], profiles: [], updatedAt: data.updatedAt };
   return {
-    bookings: data.bookings.filter((b) => b.customerId === user.id),
+    bookings: bookings.filter((b) => b.customerId === user.id),
     pets: data.pets.filter((p) => p.ownerId === user.id),
     profiles: data.profiles.filter((p) => p.id === user.id),
     updatedAt: data.updatedAt,

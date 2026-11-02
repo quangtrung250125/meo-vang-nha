@@ -74,6 +74,10 @@ const Step5Success = ({ data, onBackToStep1 }) => {
       customerName: ownerName,
       customerId: activeCustomer?.customerId || activeCustomer?.id || null,
       status: bookingStatus,
+      totalAmount: data.totalAmount || 0,
+      paymentStatus: 'Chưa thanh toán',
+      pending_changes: null,
+      previous_status: null,
       createdAt: new Date().toISOString(),
     };
 

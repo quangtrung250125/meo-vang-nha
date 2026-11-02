@@ -128,9 +128,12 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       customerId: activeCustomer?.customerId || activeCustomer?.id || null,
       status: bookingStatus,
       totalPrice: total,
+      totalAmount: total,
       depositRequired: deposit.required,
       depositAmount: deposit.amount,
       paymentStatus: deposit.paymentStatus,
+      pending_changes: null,
+      previous_status: null,
       createdAt: new Date().toISOString(),
     };
 
@@ -165,6 +168,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       updateData({
         bookingId: confirmedCode,
         confirmedBooking,
+        totalAmount: total,
       });
     }
 

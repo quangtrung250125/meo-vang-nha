@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { supabaseAdmin } from './db.js';
+import { supabaseAdmin, createUserClient } from './db.js';
+import { updateBookingRows } from '../../src/utils/bookingRows.js';
 
 // Lưu đơn đặt phòng vào bảng `bookings` trên Supabase (cột: id, customer_id, code, data, created_at).
 // Bộ nhớ của server Vercel bị xóa mỗi lần cập nhật web hoặc khởi động lại, và mỗi bản server có bộ nhớ riêng,
@@ -14,20 +15,41 @@ const withTimeout = (promise) =>
     new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase không phản hồi')), DB_TIMEOUT_MS)),
   ]);
 
+const BOOKING_COLUMNS = 'id, code, customer_id, created_at, data';
+
+// Một dòng bảng bookings -> đơn đặt phòng dùng trong server
+const fromRow = (row) => ({
+  ...(row.data || {}),
+  id: row.data?.id || row.code,
+  code: row.code || row.data?.code,
+  dbId: row.id,
+  customerId: row.data?.customerId || row.customer_id || null,
+  createdAt: row.data?.createdAt || row.created_at,
+});
+
+// Cập nhật mọi dòng cùng mã đơn, để không còn dòng cũ (vd. vẫn "chờ cọc") làm trang khách hiện sai
+const updateRowsByCode = (client, code, updates) => withTimeout(updateBookingRows(client, code, updates));
+
 const supabaseStore = {
   async list() {
     const { data, error } = await withTimeout(
-      supabaseAdmin.from('bookings').select('id, code, customer_id, created_at, data')
+      supabaseAdmin.from('bookings').select(BOOKING_COLUMNS)
     );
     if (error) throw error;
-    return (data || []).map((row) => ({
-      ...(row.data || {}),
-      id: row.data?.id || row.code,
-      code: row.code || row.data?.code,
-      dbId: row.id,
-      customerId: row.data?.customerId || row.customer_id || null,
-      createdAt: row.data?.createdAt || row.created_at,
-    }));
+    return (data || []).map(fromRow);
+  },
+
+  // Đọc một đơn bằng quyền của người gửi request (RLS chỉ trả về đơn họ được xem)
+  async findForUser(code, accessToken) {
+    const { data, error } = await withTimeout(
+      createUserClient(accessToken).from('bookings').select(BOOKING_COLUMNS).eq('code', code).limit(1)
+    );
+    if (error) throw error;
+    return data && data.length > 0 ? fromRow(data[0]) : null;
+  },
+
+  async updateForUser(code, updates, accessToken) {
+    return updateRowsByCode(createUserClient(accessToken), code, updates);
   },
 
   async save(booking) {
@@ -58,19 +80,7 @@ const supabaseStore = {
   },
 
   async update(code, updates) {
-    // Cập nhật mọi dòng cùng mã đơn, để không còn dòng cũ (vd. vẫn "chờ cọc") làm trang khách hiện sai
-    const { data: existing, error } = await withTimeout(
-      supabaseAdmin.from('bookings').select('id, data').eq('code', code)
-    );
-    if (error) throw error;
-    if (!existing || existing.length === 0) return false;
-    for (const row of existing) {
-      const { error: updateError } = await withTimeout(
-        supabaseAdmin.from('bookings').update({ data: { ...(row.data || {}), ...updates } }).eq('id', row.id)
-      );
-      if (updateError) throw updateError;
-    }
-    return true;
+    return updateRowsByCode(supabaseAdmin, code, updates);
   },
 };
 
@@ -102,10 +112,27 @@ export async function saveStoredBooking(booking) {
   }
 }
 
-export async function updateStoredBooking(code, updates) {
+/**
+ * Đọc một đơn từ Supabase bằng token của người gửi request.
+ * Dùng khi bộ nhớ server không có đơn (server mới khởi động, hoặc không có service role key để đọc hết đơn).
+ */
+export async function findStoredBookingForUser(code, accessToken) {
+  if (!store || !accessToken || !store.findForUser) return null;
+  try {
+    return await store.findForUser(code, accessToken);
+  } catch (e) {
+    console.warn('[BookingsDb] Không đọc được đơn bằng quyền người dùng:', e.message);
+    return null;
+  }
+}
+
+export async function updateStoredBooking(code, updates, accessToken = null) {
   if (!store) return false;
   try {
-    return await store.update(code, updates);
+    const updated = await store.update(code, updates);
+    if (updated || !accessToken || !store.updateForUser) return updated;
+    // Không cập nhật được bằng quyền server (thiếu service role key) -> dùng quyền của người gửi request
+    return await store.updateForUser(code, updates, accessToken);
   } catch (e) {
     console.warn('[BookingsDb] Không cập nhật được đơn trên Supabase:', e.message);
     return false;

@@ -113,6 +113,15 @@ describe('POST /api/bookings: kiểm tra dữ liệu đơn', () => {
     expect(stored.ownerName).toBe('Chủ thật');
   });
 
+  it('không cấp mã của đơn mẫu kiểm thử cho đơn thật', async () => {
+    const res = await call(api.handleAddBooking, {
+      method: 'POST',
+      body: { roomId: 'VIP-01', booking: newBooking({ id: 'MVN-88219', code: 'MVN-88219', checkIn: addDays(120), checkOut: addDays(121) }) },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.booking.code).not.toBe('MVN-88219');
+  });
+
   it('gắn đơn với tài khoản đang đăng nhập', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
@@ -156,6 +165,64 @@ describe('Quyền truy cập /api/bookings', () => {
     const res = await call(api.handleRemoveBooking, { method: 'DELETE', token: 'token-admin', body: { roomId: 'DELUXE-01', code } });
     expect(res.statusCode).toBe(200);
     expect(api.getAllBookings()['DELUXE-01'].some((b) => b.code === code)).toBe(false);
+  });
+});
+
+describe('Khách tự thay đổi đơn của chính mình qua PUT /api/bookings', () => {
+  // Tạo đơn gắn với user-a (khách đăng nhập) trong phòng riêng cho từng test
+  const createOwnBooking = async (roomId, overrides = {}) => {
+    const res = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId, booking: newBooking(overrides) } });
+    return res.payload.booking.code;
+  };
+  const put = (roomId, code, updates, token = 'token-a') =>
+    call(api.handleUpdateBooking, { method: 'PUT', token, body: { roomId, code, updates } });
+  const stored = (roomId, code) => api.getAllBookings()[roomId].find((b) => b.code === code);
+
+  it('khách tự đổi lịch đơn chưa Check-in', async () => {
+    const code = await createOwnBooking('VIP-05', { checkIn: addDays(80), checkOut: addDays(82) });
+    const res = await put('VIP-05', code, { checkIn: addDays(81), checkOut: addDays(84), pending_changes: null });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VIP-05', code).checkIn).toBe(addDays(81));
+  });
+
+  it('không cho đổi lịch sang khoảng ngày phòng đã kín chỗ', async () => {
+    await call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VIP-06', booking: newBooking({ checkIn: addDays(90), checkOut: addDays(92), cats: 2 }) } });
+    const code = await createOwnBooking('VIP-06', { checkIn: addDays(95), checkOut: addDays(96) });
+    const res = await put('VIP-06', code, { checkIn: addDays(90), checkOut: addDays(91) });
+    expect(res.statusCode).toBe(409);
+    expect(stored('VIP-06', code).checkIn).toBe(addDays(95));
+  });
+
+  it('khách tự hủy đơn chưa Check-in', async () => {
+    const code = await createOwnBooking('VVIP-03');
+    const res = await put('VVIP-03', code, { status: 'cancelled', cancelReason: 'Bận đột xuất' });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VVIP-03', code)).toBeUndefined();
+  });
+
+  it('không cho khách hủy hoặc đổi lịch khi đơn đã Check-in, cũng không tự Check-in', async () => {
+    const code = await createOwnBooking('DELUXE-02');
+    expect((await put('DELUXE-02', code, { status: 'đang ở' })).statusCode).toBe(403);
+    await put('DELUXE-02', code, { status: 'đang ở' }, 'token-admin');
+    expect((await put('DELUXE-02', code, { status: 'cancelled' })).statusCode).toBe(409);
+    expect((await put('DELUXE-02', code, { checkIn: addDays(11), checkOut: addDays(13) })).statusCode).toBe(409);
+    expect(stored('DELUXE-02', code).status).toBe('đang ở');
+  });
+
+  it('không cho khách sửa đơn của người khác hoặc tự tạo đề xuất', async () => {
+    const code = await createOwnBooking('VVIP-02', { checkIn: addDays(100), checkOut: addDays(101) });
+    expect((await put('VVIP-02', code, { status: 'cancelled' }, 'token-b')).statusCode).toBe(403);
+    expect((await put('VVIP-02', code, { pending_changes: { type: 'CANCEL' } })).statusCode).toBe(403);
+    expect(stored('VVIP-02', code).status).not.toBe('cancelled');
+  });
+
+  it('khách chỉ nhận đúng gói dịch vụ Admin đã đề xuất', async () => {
+    const code = await createOwnBooking('VIP-01', { checkIn: addDays(110), checkOut: addDays(111), packages: ['Gói Mèo Tự Túc'] });
+    await put('VIP-01', code, { pending_changes: { type: 'UPDATE', newPackageName: 'Gói Mèo Sang Chảnh' } }, 'token-admin');
+    const res = await put('VIP-01', code, { packages: ['Gói Mèo Thượng Đế'], pending_changes: null });
+    expect(res.statusCode).toBe(200);
+    expect(stored('VIP-01', code).packages[0]).toBe('Gói Mèo Sang Chảnh');
+    expect(stored('VIP-01', code).pending_changes).toBeNull();
   });
 });
 
@@ -215,6 +282,25 @@ describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
     await call(sync.handleSync, { method: 'POST', token: 'token-b', body: { pets: [{ id: 'pa', name: 'Bị đổi tên' }] } });
     const a = await call(sync.handleSync, { token: 'token-a' });
     expect(a.payload.data.pets.find((p) => p.id === 'pa').name).toBe('Mochi');
+  });
+
+  it('không lưu đơn mẫu kiểm thử khách gửi kèm, và ẩn đơn mẫu đã lỡ gán cho khách', async () => {
+    await call(sync.handleSync, {
+      method: 'POST',
+      token: 'token-a',
+      body: { bookings: [{ id: 'MVN-88219', code: 'MVN-88219', roomId: 'room-vip' }, { id: 'REAL-A1', code: 'REAL-A1' }] },
+    });
+    // Dữ liệu cũ: đơn mẫu đã bị gán customerId của khách trước khi có bản sửa
+    sync.getSyncData().bookings.push({ id: 'MVN-95104', code: 'MVN-95104', customerId: 'user-a' });
+
+    const a = await call(sync.handleSync, { token: 'token-a' });
+    const ids = a.payload.data.bookings.map((b) => b.id);
+    expect(ids).toContain('REAL-A1');
+    expect(ids).not.toContain('MVN-88219');
+    expect(ids).not.toContain('MVN-95104');
+
+    const admin = await call(sync.handleSync, { token: 'token-admin' });
+    expect(admin.payload.data.bookings.some((b) => b.id === 'MVN-95104')).toBe(false);
   });
 
   it('khách vãng lai không ghi được dữ liệu', async () => {
@@ -380,6 +466,47 @@ describe('Đơn đặt phòng lưu trên database', () => {
     expect(created.payload.success).toBe(true);
     expect(created.payload.booking.dbId).toBe('db-1');
     expect(store.rows.some((r) => r.code === created.payload.booking.code)).toBe(true);
+  });
+
+  it('server thiếu service role key (không đọc được hết đơn) thì khách vẫn hủy được đơn của mình', async () => {
+    const owned = { id: 'MVN-71590', code: 'MVN-71590', roomId: 'VIP-01', checkIn: addDays(1), checkOut: addDays(3), cats: 1, status: 'check-in', customerId: 'user-a' };
+    // Giống Supabase có RLS: quyền server không thấy dòng nào, mỗi khách chỉ đọc / sửa được đơn của mình
+    const store = {
+      rows: [owned],
+      async list() { return []; },
+      async save() { return null; },
+      async update() { return false; },
+      async findForUser(code, token) {
+        const userId = USERS[token]?.id;
+        return this.rows.find((r) => r.code === code && r.customerId === userId) || null;
+      },
+      async updateForUser(code, updates, token) {
+        const userId = USERS[token]?.id;
+        const matched = this.rows.filter((r) => r.code === code && r.customerId === userId);
+        matched.forEach((row) => Object.assign(row, updates));
+        return matched.length > 0;
+      },
+    };
+    vi.resetModules();
+    const db = await import('../../api/_lib/bookingsDb.js');
+    db.setBookingsStore(store);
+    const freshAuth = await import('../../api/_lib/auth.js');
+    freshAuth.setTokenVerifier(async (token) => USERS[token] || null);
+    const fresh = await import('../../api/_lib/bookingsService.js');
+
+    const cancel = (token) => call(fresh.handleUpdateBooking, {
+      method: 'PUT', token, body: { roomId: 'VIP-01', code: 'MVN-71590', updates: { status: 'cancelled', cancelReason: 'Hủy' } },
+    });
+
+    // Khách khác không đọc được đơn này nên không hủy được
+    expect((await cancel('token-b')).statusCode).toBe(404);
+    expect(store.rows[0].status).toBe('check-in');
+
+    const res = await cancel('token-a');
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.success).toBe(true);
+    expect(store.rows[0].status).toBe('cancelled');
+    expect(store.rows[0].cancelledBy).toBe('customer');
   });
 
   it('dòng cũ còn "chờ cọc" trên database không làm đơn đã nhận cọc quay về chờ cọc', async () => {
