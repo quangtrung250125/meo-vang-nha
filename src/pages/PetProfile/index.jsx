@@ -318,8 +318,8 @@ const PetProfile = () => {
       return true;
     });
 
-  // Sắp xếp theo thời gian gửi bé từ xa đến gần: ngày gửi (check-in) cũ nhất lên đầu,
-  // cùng ngày gửi thì đơn đặt trước đứng trước
+  // Sắp xếp theo thời gian gửi bé từ gần đến xa: ngày gửi (check-in) gần nhất lên đầu,
+  // cùng ngày gửi thì đơn đặt sau đứng trước
   const bookings = myBookings
     .map(b => ({
       ...b,
@@ -328,8 +328,8 @@ const PetProfile = () => {
     .sort((a, b) => {
       const dateA = String(a.checkIn || a.createdAt || '');
       const dateB = String(b.checkIn || b.createdAt || '');
-      if (dateA !== dateB) return dateA.localeCompare(dateB);
-      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     });
 
   return (
@@ -466,7 +466,7 @@ const PetProfile = () => {
                   ))}
                 </div>
 
-                {/* Sắp xếp: lần gửi cũ nhất trước (đã sort ở trên) */}
+                {/* Sắp xếp: lần gửi gần nhất trước (đã sort ở trên) */}
                 {bookings.map((booking, idx) => (
                   <BookingCard key={booking.id || idx} booking={booking} petList={petList} />
                 ))}
