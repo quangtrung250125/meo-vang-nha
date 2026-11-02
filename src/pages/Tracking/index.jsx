@@ -760,7 +760,7 @@ const TrackingPage = () => {
     toast.success(`Chào mừng ${formData.fullName || 'bạn'}! 🐾`);
   };
 
-  const [useDemoStay, setUseDemoStay] = useState(false);
+  const [useDemoStay, setUseDemoStay] = useState(true);
   const [selectedPetIdx, setSelectedPetIdx] = useState(0);
 
   // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin, hoặc nếu chưa đăng nhập thì xem các đơn đã đồng bộ)
@@ -773,7 +773,7 @@ const TrackingPage = () => {
       .filter(b => [BOOKING_STATUS.UPCOMING, BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL].includes(getBookingStatus(b)))
       .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''))[0];
 
-  // Booking mẫu nếu máy chưa có booking thực tế để người dùng có thể test đồng bộ với Admin ngay lập tức
+  // Booking mẫu đồng bộ 100% với 3 bé mèo đang lưu trú trên Admin Dashboard
   const demoBooking = {
     id: 'mockBooking',
     selectedPackage: { name: 'Gói Mèo Quý Tộc' },
@@ -781,15 +781,31 @@ const TrackingPage = () => {
     checkIn: '2026-10-20',
     checkOut: '2026-10-30',
     status: 'Đang lưu trú',
-    staffNote: 'Bé ăn ít hơn bình thường vào bữa trưa và có vẻ stress nhẹ. Chúng mình đang theo dõi sát và sẽ liên hệ ngay nếu có gì bất thường.',
-    petIds: [1],
-    petProfiles: [{
-      id: 1,
-      name: 'Mimi',
-      imagePreview: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
-      breed: 'Anh lông ngắn',
-      weight: '4.2kg'
-    }]
+    staffNote: 'Bé ăn ngoan, sạch đĩa và rất quấn người. Nhân viên chăm sóc theo dõi 24/7.',
+    petIds: [1, 2, 3],
+    petProfiles: [
+      {
+        id: 1,
+        name: 'Mimi',
+        imagePreview: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
+        breed: 'Anh lông ngắn',
+        weight: '4.2kg'
+      },
+      {
+        id: 2,
+        name: 'Bông',
+        imagePreview: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=300&q=80',
+        breed: 'Mèo Ba Tư',
+        weight: '3.8kg'
+      },
+      {
+        id: 3,
+        name: 'Lu',
+        imagePreview: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=300&q=80',
+        breed: 'Mèo Mướp Ta',
+        weight: '4.0kg'
+      }
+    ]
   };
 
   const activeBooking = realActiveBooking || (useDemoStay ? demoBooking : null);
@@ -843,8 +859,8 @@ const TrackingPage = () => {
     }
   };
 
-  // Login wall
-  if (!isLoggedIn) {
+  // Login wall (cho phép xem trực tiếp nếu bật useDemoStay hoặc đã đăng nhập)
+  if (!isLoggedIn && !useDemoStay) {
     return (
       <>
         <div className="w-full min-h-screen bg-bg-cream flex items-center justify-center px-4 py-16">
@@ -856,12 +872,20 @@ const TrackingPage = () => {
             <p className="text-gray-500 leading-relaxed mb-8">
               Đăng nhập để xem trạng thái lưu trú, nhật ký chăm sóc hàng ngày và camera trực tiếp của bé mèo.
             </p>
-            <button
-              onClick={() => setIsAuthOpen(true)}
-              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 px-8 rounded-2xl transition-all shadow-lg shadow-primary/30 cursor-pointer"
-            >
-              Đăng nhập / Tạo hồ sơ
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 px-8 rounded-2xl transition-all shadow-lg shadow-primary/30 cursor-pointer text-sm"
+              >
+                Đăng nhập / Tạo hồ sơ
+              </button>
+              <button
+                onClick={() => setUseDemoStay(true)}
+                className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 font-bold py-3.5 px-6 rounded-2xl border border-gray-200 transition-colors text-xs cursor-pointer shadow-xs"
+              >
+                🐾 Xem trải nghiệm lưu trú (Đồng bộ Realtime)
+              </button>
+            </div>
           </div>
         </div>
         <CustomerWelcomeModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onSubmit={handleAuthSubmit} />

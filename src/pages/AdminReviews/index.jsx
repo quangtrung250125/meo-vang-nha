@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import {
   Star,
   MessageSquare,
@@ -18,7 +18,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 
-const mockReviews = [
+export const mockReviews = [
   { id: 1, author: "Nguyen Thi Lan", avatar: "NL", rating: 5, date: "22/10/2026", petName: "Be Cam", comment: "Dich vu tuyet voi! Nhan vien cham soc meo rat tan tam, be Cam ve nha vui ve va khoe manh.", status: "replied", tags: ["Cham soc tot", "Nhan vien than thien"] },
   { id: 2, author: "Tran Van Minh", avatar: "TM", rating: 4, date: "20/10/2026", petName: "Mochi", comment: "Phong sach se, meo duoc cham soc tot. Hy vong lan sau gia phong VIP se uu dai hon.", status: "pending", tags: ["Phong sach", "Gia ca"] },
   { id: 3, author: "Le Thi Hong", avatar: "LH", rating: 2, date: "18/10/2026", petName: "Be Xam", comment: "Meo ve co ve cang thang hon binh thuong. Toi khong thay nhat ky cham soc duoc cap nhat day du.", status: "complaint", tags: ["Cang thang", "Nhat ky thieu"] },

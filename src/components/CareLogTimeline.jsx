@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { CalendarDays, Utensils, Droplets, Smile, HeartPulse, Sparkles, Filter, CheckCircle2 } from 'lucide-react';
+import { 
+  CalendarDays, Utensils, Droplets, Smile, HeartPulse, Sparkles, Filter, 
+  CheckCircle2, Camera, Video, FileText, Image as ImageIcon 
+} from 'lucide-react';
 import { useCareLog } from '../contexts/CareLogContext';
 
 const ICON_MAP = {
-  Utensils, Droplets, Smile, HeartPulse
+  Utensils, Droplets, Smile, HeartPulse, Camera, Video, FileText, ImageIcon
 };
 
 const CareLogTimeline = ({ bookingId, petId }) => {
   const { getGroupedLogs } = useCareLog();
-  const [filterType, setFilterType] = useState('all'); // 'all', 'eating', 'mood', 'hygiene', 'health'
+  const [filterType, setFilterType] = useState('all'); // 'all', 'eating', 'mood', 'hygiene', 'health', 'media', 'report'
   
   const careLogs = getGroupedLogs(bookingId, petId);
 
@@ -96,6 +99,16 @@ const CareLogTimeline = ({ bookingId, petId }) => {
           <Smile className="w-3.5 h-3.5" /> Vui chơi
         </button>
         <button
+          onClick={() => setFilterType('media')}
+          className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center gap-1 transition-all ${
+            filterType === 'media' 
+              ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/25' 
+              : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+          }`}
+        >
+          <Camera className="w-3.5 h-3.5" /> Ảnh & Video
+        </button>
+        <button
           onClick={() => setFilterType('hygiene')}
           className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center gap-1 transition-all ${
             filterType === 'hygiene' 
@@ -115,6 +128,16 @@ const CareLogTimeline = ({ bookingId, petId }) => {
         >
           <HeartPulse className="w-3.5 h-3.5" /> Sức khỏe
         </button>
+        <button
+          onClick={() => setFilterType('report')}
+          className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center gap-1 transition-all ${
+            filterType === 'report' 
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/25' 
+              : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" /> Báo cáo ngày
+        </button>
       </div>
 
       {/* Timeline List */}
@@ -129,34 +152,41 @@ const CareLogTimeline = ({ bookingId, petId }) => {
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{day.date}</p>
               <div className="border-l-2 border-gray-100 pl-4 space-y-4">
                 {day.logs.map((log, logIdx) => {
-                  const Icon = typeof log.icon === 'string' ? ICON_MAP[log.icon] : (log.icon || Sparkles);
+                  const Icon = typeof log.icon === 'string' ? ICON_MAP[log.icon] || Sparkles : (log.icon || Sparkles);
                   const isWatch = log.status === 'watch';
                   const isLatest = dayIdx === 0 && logIdx === 0;
+                  const isMedia = log.type === 'media' || Boolean(log.imageUrl);
+                  const isReport = log.type === 'report';
 
                   return (
                     <div key={log.id || logIdx} className="relative flex items-start gap-3 group">
                       <div className="absolute -left-[21px] w-4 h-4 rounded-full bg-white ring-2 ring-gray-100 flex items-center justify-center mt-0.5">
-                        <div className={`w-2 h-2 rounded-full ${isWatch ? 'bg-amber-400' : 'bg-primary'}`} />
+                        <div className={`w-2 h-2 rounded-full ${isReport ? 'bg-indigo-600' : isWatch ? 'bg-amber-400' : 'bg-primary'}`} />
                       </div>
                       <div className="shrink-0 pt-0.5">
                         <span className="text-xs font-bold text-gray-400 font-mono">{log.time}</span>
                       </div>
-                      <div className="flex-1 min-w-0 bg-gray-50/70 hover:bg-gray-50 p-3 rounded-xl transition-colors border border-gray-100/70">
+                      <div className={`flex-1 min-w-0 p-3.5 rounded-2xl transition-colors border ${
+                        isReport 
+                          ? 'bg-gradient-to-br from-indigo-50/70 to-purple-50/70 border-indigo-200/80' 
+                          : 'bg-gray-50/70 hover:bg-gray-50 border-gray-100/70'
+                      }`}>
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                            log.type === 'eating' ? 'bg-orange-100' :
-                            log.type === 'hygiene' ? 'bg-blue-100' :
-                            log.type === 'mood' ? 'bg-purple-100' : 'bg-red-100'
+                            log.type === 'eating' ? 'bg-orange-100 text-orange-600' :
+                            log.type === 'hygiene' ? 'bg-blue-100 text-blue-600' :
+                            log.type === 'mood' ? 'bg-purple-100 text-purple-600' :
+                            log.type === 'media' ? 'bg-amber-100 text-amber-600' :
+                            log.type === 'report' ? 'bg-indigo-100 text-indigo-600' :
+                            'bg-red-100 text-red-600'
                           }`}>
-                            <Icon className={`w-3.5 h-3.5 ${
-                              log.type === 'eating' ? 'text-orange-600' :
-                              log.type === 'hygiene' ? 'text-blue-600' :
-                              log.type === 'mood' ? 'text-purple-600' : 'text-red-600'
-                            }`} />
+                            <Icon className="w-3.5 h-3.5" />
                           </div>
                           <span className="text-sm font-bold text-text-dark">{log.label}</span>
                           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                            isWatch
+                            isReport
+                              ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                              : isWatch
                               ? 'bg-amber-50 text-amber-600 border border-amber-200'
                               : 'bg-primary-light text-primary'
                           }`}>
@@ -168,7 +198,42 @@ const CareLogTimeline = ({ bookingId, petId }) => {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-600 mt-1.5 leading-relaxed">{log.detail}</p>
+
+                        {/* Chi tiết nội dung log */}
+                        <p className="text-xs text-gray-600 mt-2 leading-relaxed">{log.detail}</p>
+
+                        {/* Hình ảnh đính kèm nếu có */}
+                        {log.imageUrl && (
+                          <div className="mt-3 rounded-2xl overflow-hidden border border-gray-200 shadow-xs max-w-sm">
+                            <img
+                              src={log.imageUrl}
+                              alt={log.label || 'Ảnh bé mèo'}
+                              className="w-full h-52 object-cover hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        )}
+
+                        {/* Báo cáo tổng hợp nếu có */}
+                        {log.reportData && (
+                          <div className="mt-3 p-3 rounded-xl bg-white/80 border border-indigo-100 space-y-1.5 text-xs text-gray-700">
+                            <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+                              <span>🍽️ Ăn uống:</span>
+                              <span className="font-normal text-gray-600">{log.reportData.eatingSummary}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+                              <span>🎾 Vận động:</span>
+                              <span className="font-normal text-gray-600">{log.reportData.overallMood}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+                              <span>✨ Vệ sinh:</span>
+                              <span className="font-normal text-gray-600">{log.reportData.hygieneSummary}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+                              <span>🩺 Sức khỏe:</span>
+                              <span className="font-normal text-gray-600">{log.reportData.healthSummary}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -183,4 +248,3 @@ const CareLogTimeline = ({ bookingId, petId }) => {
 };
 
 export default CareLogTimeline;
-

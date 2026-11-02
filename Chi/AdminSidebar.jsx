@@ -38,7 +38,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
   const basePrefix = isDirectAdminRoute ? '/admin' : '';
 
   const navItems = [
-    { name: 'Trang chủ', path: isDirectAdminRoute ? '/admin' : '/', icon: Home },
+    { name: 'Tổng quan', path: isDirectAdminRoute ? '/admin' : '/', icon: Home },
     { name: 'Tình trạng phòng', path: `${basePrefix}/room-status`, icon: LayoutDashboard },
     { name: 'Khách hàng', path: `${basePrefix}/customers`, icon: Users },
     { name: 'Dịch vụ', path: `${basePrefix}/services`, icon: Briefcase },
