@@ -357,6 +357,72 @@ describe('Đặt cọc khi đặt phòng', () => {
   });
 });
 
+describe('Tự xác nhận cọc khi ngân hàng báo (SePay)', () => {
+  const callSepay = async (body, header) => {
+    const req = { method: 'POST', body, query: {}, headers: header ? { authorization: header } : {} };
+    const res = {
+      statusCode: 200, payload: undefined,
+      setHeader() {}, status(c) { this.statusCode = c; return this; }, json(o) { this.payload = o; return this; },
+    };
+    await api.handleSepayWebhook(req, res);
+    return res;
+  };
+  const AUTH = 'Apikey sepay-test-key';
+
+  const createAwaiting = async () => {
+    const created = await call(api.handleAddBooking, {
+      method: 'POST', token: 'token-a',
+      body: { roomId: 'VIP-03', booking: newBooking({ code: `MVN-${50000 + seq}`, id: `MVN-${50000 + seq}`, checkIn: addDays(60 + seq * 3), checkOut: addDays(62 + seq * 3), totalPrice: 300000 }) },
+    });
+    expect(created.payload.booking.paymentStatus).toBe('awaiting_deposit');
+    return created.payload.booking;
+  };
+  const statusOf = (code) => Object.values(api.getAllBookings()).flat().find((b) => b.code === code)?.paymentStatus;
+
+  beforeAll(() => { process.env.SEPAY_API_KEY = 'sepay-test-key'; });
+
+  it('đọc được mã đơn kể cả khi ngân hàng bỏ dấu và khoảng trắng', () => {
+    expect(api.extractBookingCode('COC MVN-12345')).toBe('MVN-12345');
+    expect(api.extractBookingCode('NGUYEN VAN A chuyen tien COCMVN12345 FT2630')).toBe('MVN-12345');
+    expect(api.extractBookingCode('coc mvn 12345')).toBe('MVN-12345');
+    expect(api.extractBookingCode('MVN-123456')).toBeNull();
+    expect(api.extractBookingCode('chuyen tien')).toBeNull();
+  });
+
+  it('chuyển đủ tiền cọc thì đơn tự sang đã cọc', async () => {
+    const b = await createAwaiting();
+    const res = await callSepay({ id: 9001, transferType: 'in', transferAmount: b.depositAmount, content: `COC${b.code.replace('-', '')}` }, AUTH);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.paid).toBe(true);
+    expect(statusOf(b.code)).toBe('deposit_paid');
+  });
+
+  it('chuyển thiếu thì vẫn chờ, chuyển thêm cho đủ thì đã cọc; giao dịch lặp lại không cộng hai lần', async () => {
+    const b = await createAwaiting();
+    const half = Math.floor(b.depositAmount / 2);
+    await callSepay({ id: 9101, transferType: 'in', transferAmount: half, content: `COC ${b.code}` }, AUTH);
+    await callSepay({ id: 9101, transferType: 'in', transferAmount: half, content: `COC ${b.code}` }, AUTH);
+    expect(statusOf(b.code)).toBe('awaiting_deposit');
+    await callSepay({ id: 9102, transferType: 'in', transferAmount: b.depositAmount - half, content: `COC ${b.code}` }, AUTH);
+    expect(statusOf(b.code)).toBe('deposit_paid');
+  });
+
+  it('từ chối thông báo không có khoá đúng', async () => {
+    const b = await createAwaiting();
+    const res = await callSepay({ id: 9201, transferType: 'in', transferAmount: b.depositAmount, content: `COC ${b.code}` }, 'Apikey sai');
+    expect(res.statusCode).toBe(401);
+    expect(statusOf(b.code)).toBe('awaiting_deposit');
+  });
+
+  it('bỏ qua tiền ra và giao dịch không có mã đơn', async () => {
+    const b = await createAwaiting();
+    await callSepay({ id: 9301, transferType: 'out', transferAmount: b.depositAmount, content: `COC ${b.code}` }, AUTH);
+    const none = await callSepay({ id: 9302, transferType: 'in', transferAmount: 500000, content: 'tien an trua' }, AUTH);
+    expect(none.payload.matched).toBe(false);
+    expect(statusOf(b.code)).toBe('awaiting_deposit');
+  });
+});
+
 describe('Đơn đặt phòng lưu trên database', () => {
   // Kho giả thay cho bảng bookings trên Supabase
   const makeStore = (rows) => ({

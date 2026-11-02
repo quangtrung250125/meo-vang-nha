@@ -741,3 +741,78 @@ export async function handleRemoveBooking(req, res) {
   const result = await removeBookingAtomic({ roomId, code: targetCode, accessToken });
   return res.status(200).json(result);
 }
+
+// ─────────────────────────────────────────────
+// Tự xác nhận cọc khi ngân hàng báo có tiền vào (qua SePay)
+// ─────────────────────────────────────────────
+
+// Ngân hàng hay bỏ dấu "-" và khoảng trắng trong nội dung chuyển khoản, nên "COC MVN-12345" có thể thành "COCMVN12345"
+export function extractBookingCode(content = '') {
+  const match = /MVN[\s-]*(\d{5})(?!\d)/i.exec(String(content));
+  return match ? `MVN-${match[1]}` : null;
+}
+
+/**
+ * Ghi nhận một giao dịch chuyển khoản vào đơn có mã trong nội dung.
+ * Cộng dồn nếu khách chuyển nhiều lần; đủ tiền cọc thì đơn chuyển sang "đã cọc".
+ */
+function findBookingInMemory(code) {
+  for (const list of Object.values(globalBookings)) {
+    const found = (list || []).find((b) => b.code === code || b.id === code);
+    if (found) return found;
+  }
+  return null;
+}
+
+export async function applyBankTransfer({ transactionId, content, amount }) {
+  const code = extractBookingCode(content);
+  if (!code) return { matched: false, reason: 'no_code' };
+
+  await syncFromDb(true);
+  const booking = findBookingInMemory(code);
+  if (!booking) return { matched: false, reason: 'booking_not_found', code };
+
+  const txId = String(transactionId || '');
+  const seen = Array.isArray(booking.depositTransactions) ? booking.depositTransactions : [];
+  if (txId && seen.some((t) => t.id === txId)) {
+    return { matched: true, code, duplicate: true, paymentStatus: booking.paymentStatus };
+  }
+  if (booking.paymentStatus !== PAYMENT_STATUS.AWAITING_DEPOSIT) {
+    return { matched: true, code, ignored: true, paymentStatus: booking.paymentStatus };
+  }
+
+  const received = (Number(booking.depositReceivedAmount) || 0) + (Number(amount) || 0);
+  const depositAmount = Number(booking.depositAmount) || 0;
+  const paid = received >= depositAmount;
+  const updates = {
+    depositReceivedAmount: received,
+    depositTransactions: [...seen, { id: txId, amount: Number(amount) || 0, at: new Date().toISOString() }],
+    ...(paid
+      ? { paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID, depositPaidAt: new Date().toISOString(), depositConfirmedBy: 'sepay' }
+      : {}),
+  };
+  await updateBookingAtomic({ roomId: booking.roomId, code, updates });
+  return { matched: true, code, paid, received, depositAmount };
+}
+
+export async function handleSepayWebhook(req, res) {
+  const apiKey = process.env.SEPAY_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: 'Chưa cấu hình SEPAY_API_KEY' });
+  }
+  const header = req.headers?.authorization || req.headers?.Authorization || '';
+  if (header.trim() !== `Apikey ${apiKey}`) {
+    return res.status(401).json({ success: false, message: 'Sai khoá xác thực' });
+  }
+
+  const tx = req.body || {};
+  if (tx.transferType !== 'in') {
+    return res.status(200).json({ success: true, matched: false, reason: 'not_incoming' });
+  }
+  const result = await applyBankTransfer({
+    transactionId: tx.id ?? tx.referenceCode,
+    content: `${tx.content || ''} ${tx.code || ''} ${tx.description || ''}`,
+    amount: tx.transferAmount,
+  });
+  return res.status(200).json({ success: true, ...result });
+}
