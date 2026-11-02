@@ -2,8 +2,8 @@ import React from 'react';
 import {
   ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight,
 } from 'lucide-react';
-import { bookingStage, formatMoney, formatDate, formatMonth, isFullyPaid, revenueMonthOf } from './customerUtils';
-import { Card, SectionTitle, SegmentBadge, StageBadge, Avatar, EmptyState } from './shared';
+import { bookingStage, formatMoney, formatDate, formatMonth, isRevenueBooking, paymentStateOf, revenueMonthOf } from './customerUtils';
+import { Card, SectionTitle, SegmentBadge, StageBadge, PaymentBadge, Avatar, EmptyState } from './shared';
 
 const PERSONALITY_LABELS = {
   friendly: 'Thân thiện',
@@ -94,7 +94,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
     { label: 'Hồ sơ mèo', value: customer.pets.length, icon: PawPrint },
     { label: 'Đơn đặt phòng', value: customer.bookingCount, icon: CalendarCheck },
     { label: 'Đã hoàn tất', value: customer.completedCount, icon: BedDouble },
-    { label: 'Tổng chi tiêu (đã thanh toán)', value: formatMoney(customer.totalSpent), icon: Wallet },
+    { label: 'Tổng chi tiêu (đã check-out & thanh toán)', value: formatMoney(customer.totalSpent), icon: Wallet },
   ];
 
   return (
@@ -181,13 +181,14 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                     <td className="px-6 py-3 text-gray-600">{b.catNames || `${b.cats || 1} bé`}</td>
                     <td className="px-6 py-3 text-right font-bold text-gray-900">{formatMoney(b.totalPrice)}</td>
                     <td className="px-6 py-3 whitespace-nowrap">
-                      {isFullyPaid(b) && bookingStage(b) !== 'cancelled' ? (
-                        <>
-                          <span className="px-2.5 py-0.5 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">Đã thanh toán</span>
-                          <p className="text-[11px] text-gray-400 mt-1">Tính vào {formatMonth(revenueMonthOf(b)).toLowerCase()}</p>
-                        </>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full border text-xs font-bold bg-gray-50 text-gray-500 border-gray-200">Chưa ghi nhận</span>
+                      <PaymentBadge state={paymentStateOf(b)} />
+                      {paymentStateOf(b) === 'deposit' && Number(b.depositAmount) > 0 && (
+                        <p className="text-[11px] text-gray-400 mt-1">Cọc {formatMoney(b.depositAmount)}</p>
+                      )}
+                      {isRevenueBooking(b) ? (
+                        <p className="text-[11px] text-emerald-600 mt-1">Đã ghi doanh thu {formatMonth(revenueMonthOf(b)).toLowerCase()}</p>
+                      ) : paymentStateOf(b) !== 'cancelled' && (
+                        <p className="text-[11px] text-gray-400 mt-1">Ghi doanh thu khi check-out và đã thanh toán</p>
                       )}
                     </td>
                     <td className="px-6 py-3"><StageBadge stage={bookingStage(b)} /></td>

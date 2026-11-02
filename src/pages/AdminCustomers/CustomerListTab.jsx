@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Search, ChevronRight, PawPrint, CalendarCheck } from 'lucide-react';
 import { SEGMENTS, formatMoney, formatDate, normalizePhone } from './customerUtils';
-import { Card, SegmentBadge, Avatar, EmptyState } from './shared';
+import { Card, SegmentBadge, PaymentBadge, Avatar, EmptyState } from './shared';
 
 const SORTS = {
   recent: { label: 'Hoạt động gần nhất', fn: (a, b) => b.lastActivity - a.lastActivity },
@@ -86,6 +86,7 @@ const CustomerListTab = ({ customers, onOpenProfile }) => {
                   <th className="px-5 py-3 text-center">Mèo</th>
                   <th className="px-5 py-3 text-center">Đơn</th>
                   <th className="px-5 py-3 text-right">Tổng chi tiêu</th>
+                  <th className="px-5 py-3">Thanh toán</th>
                   <th className="px-5 py-3">Đặt gần nhất</th>
                   <th className="px-5 py-3">Nhóm</th>
                   <th className="px-5 py-3" />
@@ -114,6 +115,12 @@ const CustomerListTab = ({ customers, onOpenProfile }) => {
                     <td className="px-5 py-3 text-center font-semibold text-gray-700">{c.pets.length}</td>
                     <td className="px-5 py-3 text-center font-semibold text-gray-700">{c.bookingCount}</td>
                     <td className="px-5 py-3 text-right font-bold text-gray-900">{formatMoney(c.totalSpent)}</td>
+                    <td className="px-5 py-3">
+                      <PaymentBadge state={c.paymentState} />
+                      {c.bookingCount > 0 && (
+                        <p className="text-[11px] text-gray-400 mt-1 whitespace-nowrap">{c.paidCount}/{c.bookingCount} đơn đã thanh toán</p>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-gray-600">{formatDate(c.lastBookingAt)}</td>
                     <td className="px-5 py-3"><SegmentBadge segment={c.segment} /></td>
                     <td className="px-5 py-3 text-gray-300"><ChevronRight className="h-4 w-4" /></td>
@@ -136,6 +143,7 @@ const CustomerListTab = ({ customers, onOpenProfile }) => {
                   <div className="flex items-center gap-2">
                     <p className="font-bold text-gray-800 truncate">{c.fullName}</p>
                     <SegmentBadge segment={c.segment} />
+                    {c.paymentState && <PaymentBadge state={c.paymentState} />}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{c.phone || c.email || '—'}</p>
                   <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
