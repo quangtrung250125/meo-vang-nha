@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight,
+  ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight, Receipt,
 } from 'lucide-react';
-import { bookingStage, formatMoney, formatDate, formatMonth, isRevenueBooking, paymentStateOf, revenueMonthOf } from './customerUtils';
+import { bookingStage, formatMoney, formatDate, formatMonth, invoiceOf, isRevenueBooking, paymentStateOf, revenueMonthOf } from './customerUtils';
+import InvoiceDetailModal from './InvoiceDetailModal';
 import { Card, SectionTitle, SegmentBadge, StageBadge, PaymentBadge, Avatar, EmptyState } from './shared';
 
 const PERSONALITY_LABELS = {
@@ -83,6 +84,7 @@ const CustomerPicker = ({ customers, onSelect }) => (
 );
 
 const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
+  const [invoiceCode, setInvoiceCode] = useState(null);
   if (customers.length === 0) {
     return <EmptyState title="Chưa có khách hàng nào" />;
   }
@@ -157,7 +159,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
           <p className="px-6 pb-6 text-sm text-gray-500">Khách chưa có đơn đặt phòng nào.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[860px]">
+            <table className="w-full text-sm min-w-[980px]">
               <thead>
                 <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-wide bg-gray-50/60">
                   <th className="px-6 py-3">Mã đơn</th>
@@ -167,6 +169,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                   <th className="px-6 py-3 text-right">Tổng tiền</th>
                   <th className="px-6 py-3">Thanh toán</th>
                   <th className="px-6 py-3">Trạng thái</th>
+                  <th className="px-6 py-3">Hóa đơn</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -179,7 +182,12 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                       <p className="text-xs text-gray-400 truncate max-w-[220px]">{(b.packages || []).join(', ') || b.selectedPackage?.name || ''}</p>
                     </td>
                     <td className="px-6 py-3 text-gray-600">{b.catNames || `${b.cats || 1} bé`}</td>
-                    <td className="px-6 py-3 text-right font-bold text-gray-900">{formatMoney(b.totalPrice)}</td>
+                    <td className="px-6 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                      {formatMoney(invoiceOf(b)?.total)}
+                      {invoiceOf(b)?.total !== (Number(b.totalPrice) || 0) && (
+                        <p className="text-[11px] font-medium text-gray-400 line-through">{formatMoney(b.totalPrice)}</p>
+                      )}
+                    </td>
                     <td className="px-6 py-3 whitespace-nowrap">
                       <PaymentBadge state={paymentStateOf(b)} />
                       {paymentStateOf(b) === 'deposit' && Number(b.depositAmount) > 0 && (
@@ -192,6 +200,14 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                       )}
                     </td>
                     <td className="px-6 py-3"><StageBadge stage={bookingStage(b)} /></td>
+                    <td className="px-6 py-3">
+                      <button
+                        onClick={() => setInvoiceCode(b.code || b.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 text-xs font-bold whitespace-nowrap"
+                      >
+                        <Receipt className="h-3.5 w-3.5" /> Xem hóa đơn
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -199,6 +215,13 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
           </div>
         )}
       </Card>
+      {invoiceCode && (
+        <InvoiceDetailModal
+          customer={customer}
+          booking={customer.bookings.find((b) => (b.code || b.id) === invoiceCode)}
+          onClose={() => setInvoiceCode(null)}
+        />
+      )}
     </div>
   );
 };

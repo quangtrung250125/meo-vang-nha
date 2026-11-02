@@ -411,7 +411,7 @@ const ExtendStayModal = ({ isOpen, onClose, booking, resolvedPets, onConfirm, on
 
   const handleConfirm = () => {
     setStep(2);
-    onConfirm({ days, newCheckOut: newCheckOutDate?.toISOString().split('T')[0], note });
+    onConfirm({ days, newCheckOut: newCheckOutDate?.toISOString().split('T')[0], note, pricePerDay, totalExtend });
   };
 
   const handleClose = () => {
@@ -715,8 +715,23 @@ const TrackingPage = () => {
     }, 3000);
   };
 
-  const handleExtendConfirm = ({ days, newCheckOut, note }) => {
+  const handleExtendConfirm = ({ days, newCheckOut, note, pricePerDay, totalExtend }) => {
     setExtendPending({ days, newCheckOut });
+    // Lưu yêu cầu gia hạn vào đơn để hóa đơn tự cộng thêm phí (Admin thấy ngay ở hồ sơ khách)
+    if (activeBooking && activeBooking.id !== 'mockBooking') {
+      updateBooking(activeBooking.id, {
+        extensions: [...(activeBooking.extensions || []), {
+          id: Date.now().toString(),
+          days,
+          newCheckOut,
+          note: note || '',
+          pricePerDay: Number(pricePerDay) || 0,
+          amount: Number(totalExtend) || 0,
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+        }],
+      });
+    }
     toast.success(`Đã gửi yêu cầu gia hạn ${days} ngày! Nhân viên sẽ xác nhận sớm.`, { duration: 4000 });
   };
 
@@ -838,12 +853,17 @@ const TrackingPage = () => {
     
     // Save to context
     if (activeBooking) {
+      const optionDef = addon?.options?.find(o => o.value === confirmModal.option);
       const newAddon = {
         id: Date.now().toString(),
         type: confirmModal.addon,
         option: confirmModal.option,
         status: 'pending',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // Lưu kèm tên và giá lúc khách yêu cầu để hóa đơn tự cộng thêm ngay
+        title: addon?.title,
+        label: optionDef?.label,
+        price: optionDef?.price,
       };
       
       updateBooking(activeBooking.id, {

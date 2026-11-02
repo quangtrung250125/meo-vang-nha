@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import {
   Users, UserPlus, Repeat, PawPrint, BedDouble, Wallet, CalendarCheck, PieChart, Clock, ChevronRight, CalendarRange,
 } from 'lucide-react';
-import { computeStats, formatMoney, formatPercent, formatDate, formatMonth, SEGMENTS, VIP_SPENT, VIP_BOOKINGS } from './customerUtils';
+import { computeStats, formatMoney, formatPercent, formatDate, formatMonth, SEGMENTS, VIP_SPENT } from './customerUtils';
 import { Card, SectionTitle, SegmentBadge, Avatar, EmptyState } from './shared';
 
 const SEGMENT_BAR = {
@@ -92,7 +92,7 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
           <SectionTitle
             icon={PieChart}
             title="Phân loại khách hàng"
-            subtitle={`VIP: từ ${VIP_BOOKINGS} đơn hoặc chi tiêu từ ${formatMoney(VIP_SPENT)}. Quay lại: từ 2 đơn.`}
+            subtitle={`VIP: khách quay lại (từ 2 đơn) và chi tiêu đã thanh toán từ ${formatMoney(VIP_SPENT)}. Quay lại: từ 2 đơn.`}
           />
           <div className="space-y-4">
             {stats.segments.map(({ key, count }) => (
