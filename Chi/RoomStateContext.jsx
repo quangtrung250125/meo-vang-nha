@@ -4,6 +4,7 @@ import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
 import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
 import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
+import { stayEntriesForRoom } from '../src/utils/staySegments';
 
 // Gọi /api/bookings kèm token đăng nhập (server chỉ cho admin sửa/xóa đơn và xem đầy đủ thông tin)
 const callBookingsApi = async (method = 'GET', body) =>
@@ -112,8 +113,10 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
   const d = String(t.getDate()).padStart(2, '0');
   const targetDateStr = `${y}-${m}-${d}`;
 
-  const bks = (bookings[roomId] || []).filter((b) => {
+  const bks = stayEntriesForRoom(roomId, bookings).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
+    // Bé chuyển sang phòng khác từ ngày này thì không còn ở phòng này
+    if (b._movesOutOn && targetDateStr >= b._movesOutOn) return false;
     // Bỏ qua các đơn đã check-out, đã hoàn tất hoặc bị hủy
     if (
       isClosedStatus(b.status)
@@ -172,7 +175,8 @@ export const isDateRangeOverlap = (startA, endA, startB, endB) => {
  * @returns {number} Số chỗ cao nhất đã được đặt (peak occupied cats)
  */
 export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, checkOut, excludeCodes = []) {
-  const list = (allBookingsByRoom[roomId] || []).filter((b) => {
+  // Gồm cả những ngày bé của đơn phòng khác chuyển sang ở phòng này (khách tự đổi phòng / gia hạn sang phòng khác)
+  const list = stayEntriesForRoom(roomId, allBookingsByRoom).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
     if (excludeCodes.length > 0 && (excludeCodes.includes(b.code) || excludeCodes.includes(b.id))) {
       return false;
@@ -363,6 +367,8 @@ export const RoomStateProvider = ({ children }) => {
           checkOut: hb.checkOut || current.checkOut,
           pending_changes: hb.pending_changes || null,
           specialNote: hb.specialNote || current.specialNote,
+          // Lịch lưu trú theo chặng (khách tự gia hạn / đổi phòng) để tính chỗ trống đúng theo ngày
+          staySegments: hb.staySegments ?? current.staySegments ?? null,
         };
         const differs = Object.keys(synced).some(
           (k) => JSON.stringify(current[k] ?? null) !== JSON.stringify(synced[k] ?? null)
@@ -1005,7 +1011,8 @@ export const RoomStateProvider = ({ children }) => {
    * @param {string|null} checkOut - ngày trả (YYYY-MM-DD)
    */
   const getRoomAvailability = useCallback(
-    (catCount = 1, checkIn = null, checkOut = null) => {
+    // excludeCodes: bỏ qua chính đơn đang gia hạn / đổi phòng khi đếm chỗ
+    (catCount = 1, checkIn = null, checkOut = null, excludeCodes = []) => {
       const order = ['VIP', 'VVIP', 'DELUXE'];
       const grouped = {};
 
@@ -1017,7 +1024,7 @@ export const RoomStateProvider = ({ children }) => {
         // Bỏ qua phòng không đủ sức chứa tổng cho số mèo
         if (catCount > room.capacity) return;
 
-        const occupied = getPeakOccupancyForRoom(room.id, bookings, checkIn, checkOut);
+        const occupied = getPeakOccupancyForRoom(room.id, bookings, checkIn, checkOut, excludeCodes);
         const remaining = Math.max(0, room.capacity - occupied);
         const isFull = remaining === 0;
         const cannotFit = remaining < catCount;

@@ -421,6 +421,8 @@ export const BookingHistoryProvider = ({ children }) => {
         'status', 'checkIn', 'checkOut', 'pending_changes', 'checkedInAt', 'checkedOutAt',
         'rescheduledAt', 'cancelReason', 'cancelledAt', 'cancelledBy',
         'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
+        // Khách tự gia hạn / đổi phòng / đổi gói: server kiểm tra chỗ trống từng ngày trước khi nhận
+        'staySegments', 'baseCheckOut', 'stayChanges', 'stayChangedAt',
       ];
       const roomUpdates = Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
@@ -665,9 +667,33 @@ export const BookingHistoryProvider = ({ children }) => {
       rescheduledAt: new Date().toISOString(),
       // Lịch đã đổi nên đề xuất cũ của Admin (nếu có) không còn phù hợp
       pending_changes: null,
+      // Lịch theo chặng (gia hạn / đổi phòng trước đó) không còn khớp ngày mới: quay về phòng & gói của đơn
+      ...(booking.staySegments ? { staySegments: null, baseCheckOut: null } : {}),
     });
     broadcastSync('CUSTOMER_RESCHEDULE', bookingId, `Khách hàng đã đổi lịch đơn #${bookingId} sang ${newCheckIn} → ${newCheckOut}`);
     toast.success('Đã cập nhật lịch mới thành công!');
+    return true;
+  };
+
+  // ── 13b. KHÁCH HÀNG: Tự gia hạn / đổi phòng / đổi gói / nâng hạng (không cần chờ nhân viên duyệt) ──
+  // plan = kết quả applyStayChange (utils/staySegments); log = { type, text } ghi vào lịch sử thay đổi của đơn
+  const customerChangeStay = (bookingId, plan, log) => {
+    const booking = findBooking(bookingId);
+    if (!booking || !plan?.segments?.length) return false;
+    if (isClosedStatus(booking.status)) {
+      toast.error('Đơn đã kết thúc, không thể gia hạn hay đổi phòng.');
+      return false;
+    }
+    const at = new Date().toISOString();
+    updateBooking(bookingId, {
+      staySegments: plan.segments,
+      checkOut: plan.checkOut,
+      // Ngày đón theo đơn trước khi khách tự gia hạn (hóa đơn tính phần gia hạn từ mốc này)
+      baseCheckOut: booking.baseCheckOut || booking.checkOut,
+      stayChanges: [...(booking.stayChanges || []), { ...log, at }],
+      stayChangedAt: at,
+    });
+    broadcastSync('CUSTOMER_STAY_CHANGE', bookingId, `Khách hàng đơn #${bookingId}: ${log?.text || 'đã cập nhật lịch lưu trú'}`);
     return true;
   };
 
@@ -715,6 +741,7 @@ export const BookingHistoryProvider = ({ children }) => {
         customerAcceptProposal,
         customerRejectProposal,
         customerReschedule,
+        customerChangeStay,
         customerCancel,
         customerUpdateNote,
       }}

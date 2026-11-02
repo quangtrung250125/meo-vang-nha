@@ -4,6 +4,7 @@ import { getRequestUser, getBearerToken } from './auth.js';
 import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
+import { stayEntriesForRoom, validateStayPlan } from '../../src/utils/staySegments.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -100,7 +101,8 @@ function generateUniqueCode() {
 
 // Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân).
 // paymentStatus để trang đặt phòng của khách tự hiện mã ngay khi admin xác nhận đã nhận cọc.
-const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount'];
+// staySegments: ngày nào bé ở phòng nào (khách tự gia hạn / đổi phòng), cần để tính chỗ trống đúng theo ngày
+const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount', 'staySegments'];
 
 export function toPublicBookings(bookingsByRoom, viewerId = null) {
   const result = {};
@@ -265,7 +267,8 @@ export function isDateRangeOverlap(startA, endA, startB, endB) {
 }
 
 export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, checkOut, excludeCodes = []) {
-  const list = (allBookingsByRoom[roomId] || []).filter((b) => {
+  // Gồm cả những ngày bé của đơn phòng khác chuyển sang ở phòng này (khách tự đổi phòng / gia hạn sang phòng khác)
+  const list = stayEntriesForRoom(roomId, allBookingsByRoom).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
     if (excludeCodes.length > 0 && (excludeCodes.includes(b.code) || excludeCodes.includes(b.id))) {
       return false;
@@ -662,8 +665,31 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     if (typeof updates.cancelReason === 'string') allowed.cancelReason = updates.cancelReason.slice(0, 500);
   }
 
+  // Khách tự gia hạn / đổi phòng / đổi gói / nâng hạng (không cần nhân viên duyệt):
+  // nhận lịch lưu trú theo chặng mới nếu liền mạch, không sửa ngày đã qua và mọi phòng còn đủ chỗ
+  const isStayChange = Array.isArray(updates.staySegments);
+  if (isStayChange) {
+    const segments = updates.staySegments.map((s) => ({
+      from: s?.from,
+      to: s?.to,
+      roomId: s?.roomId,
+      roomType: String(s?.roomId || '').split('-')[0],
+      packageId: typeof s?.packageId === 'string' ? s.packageId.slice(0, 60) : '',
+      packageName: typeof s?.packageName === 'string' ? s.packageName.slice(0, 120) : '',
+      pricePerNight: Number(s?.pricePerNight) || 0,
+    }));
+    const error = validateStayPlan({ booking, segments, rooms: ROOM_CONFIG, allBookingsByRoom: bookingsByRoom, todayStr });
+    if (error) return fail(409, error);
+    const sorted = [...segments].sort((a, b) => a.from.localeCompare(b.from));
+    allowed.staySegments = sorted;
+    allowed.checkOut = sorted[sorted.length - 1].to;
+    allowed.baseCheckOut = booking.baseCheckOut || booking.checkOut;
+    if (Array.isArray(updates.stayChanges)) allowed.stayChanges = updates.stayChanges.slice(-50);
+    if (typeof updates.stayChangedAt === 'string') allowed.stayChangedAt = updates.stayChangedAt;
+  }
+
   // Đổi lịch: khách tự đổi hoặc đồng ý đề xuất đổi lịch -> luôn kiểm tra ngày & sức chứa phòng
-  if ('checkIn' in updates || 'checkOut' in updates) {
+  if (!isStayChange && ('checkIn' in updates || 'checkOut' in updates)) {
     if (!isUpcoming) return fail(409, 'Chỉ được đổi lịch khi chưa Check-in.');
     const checkIn = updates.checkIn ?? booking.checkIn;
     const checkOut = updates.checkOut ?? booking.checkOut;
@@ -679,6 +705,9 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     allowed.checkIn = checkIn;
     allowed.checkOut = checkOut;
     if ('rescheduledAt' in updates) allowed.rescheduledAt = updates.rescheduledAt;
+    // Đổi lịch thì lịch lưu trú theo chặng cũ (nếu có) không còn đúng: quay về phòng & gói của đơn
+    if ('staySegments' in updates) allowed.staySegments = null;
+    if ('baseCheckOut' in updates) allowed.baseCheckOut = null;
   }
 
   // Đồng ý đề xuất "Thay đổi đơn" của Admin: chỉ nhận đúng gói Admin đã đề xuất
