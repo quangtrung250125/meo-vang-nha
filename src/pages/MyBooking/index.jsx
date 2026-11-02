@@ -207,6 +207,8 @@ const MyBooking = () => {
     // Đơn đã kết thúc thì giữ nguyên: server không còn trả về đơn đã hủy / đã trả phòng
     if (live && !isClosedStatus(rawBooking.status)) {
       ['paymentStatus', 'depositAmount', 'status'].forEach((key) => {
+        // Khách đã thanh toán đủ thì giữ 'Đã thanh toán', không để trạng thái cọc trên kho phòng đè lại
+        if (key === 'paymentStatus' && rawBooking.paymentStatus === 'Đã thanh toán') return;
         if (live[key] !== undefined) booking[key] = live[key];
       });
     }
@@ -224,7 +226,8 @@ const MyBooking = () => {
   });
 
   const handlePayment = (bookingId) => {
-    updateBooking(bookingId, { paymentStatus: 'Đã thanh toán' });
+    // paidAt chỉ để tra cứu; doanh thu vẫn tính cho tháng của ngày gửi mèo (check-in)
+    updateBooking(bookingId, { paymentStatus: 'Đã thanh toán', paidAt: new Date().toISOString() });
     toast.success('Thanh toán thành công! Hệ thống đã ghi nhận tích lũy điểm VIP.');
   };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight,
 } from 'lucide-react';
-import { bookingStage, formatMoney, formatDate } from './customerUtils';
+import { bookingStage, formatMoney, formatDate, formatMonth, isFullyPaid, revenueMonthOf } from './customerUtils';
 import { Card, SectionTitle, SegmentBadge, StageBadge, Avatar, EmptyState } from './shared';
 
 const PERSONALITY_LABELS = {
@@ -94,7 +94,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
     { label: 'Hồ sơ mèo', value: customer.pets.length, icon: PawPrint },
     { label: 'Đơn đặt phòng', value: customer.bookingCount, icon: CalendarCheck },
     { label: 'Đã hoàn tất', value: customer.completedCount, icon: BedDouble },
-    { label: 'Tổng chi tiêu', value: formatMoney(customer.totalSpent), icon: Wallet },
+    { label: 'Tổng chi tiêu (đã thanh toán)', value: formatMoney(customer.totalSpent), icon: Wallet },
   ];
 
   return (
@@ -157,7 +157,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
           <p className="px-6 pb-6 text-sm text-gray-500">Khách chưa có đơn đặt phòng nào.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[720px]">
+            <table className="w-full text-sm min-w-[860px]">
               <thead>
                 <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-wide bg-gray-50/60">
                   <th className="px-6 py-3">Mã đơn</th>
@@ -165,6 +165,7 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                   <th className="px-6 py-3">Phòng / Gói</th>
                   <th className="px-6 py-3">Mèo</th>
                   <th className="px-6 py-3 text-right">Tổng tiền</th>
+                  <th className="px-6 py-3">Thanh toán</th>
                   <th className="px-6 py-3">Trạng thái</th>
                 </tr>
               </thead>
@@ -179,6 +180,16 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
                     </td>
                     <td className="px-6 py-3 text-gray-600">{b.catNames || `${b.cats || 1} bé`}</td>
                     <td className="px-6 py-3 text-right font-bold text-gray-900">{formatMoney(b.totalPrice)}</td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      {isFullyPaid(b) && bookingStage(b) !== 'cancelled' ? (
+                        <>
+                          <span className="px-2.5 py-0.5 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">Đã thanh toán</span>
+                          <p className="text-[11px] text-gray-400 mt-1">Tính vào {formatMonth(revenueMonthOf(b)).toLowerCase()}</p>
+                        </>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full border text-xs font-bold bg-gray-50 text-gray-500 border-gray-200">Chưa ghi nhận</span>
+                      )}
+                    </td>
                     <td className="px-6 py-3"><StageBadge stage={bookingStage(b)} /></td>
                   </tr>
                 ))}
