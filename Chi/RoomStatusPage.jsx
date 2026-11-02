@@ -12,10 +12,13 @@ import {
   PlusCircle,
   Zap,
   RefreshCw,
+  AlertTriangle,
+  Phone,
+  XCircle,
 } from 'lucide-react';
 import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
-import { PAYMENT_STATUS } from '../src/utils/bookingDeposit';
+import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, isDepositOverdue, getDepositDueAt, formatVietnamDateTime } from '../src/utils/bookingDeposit';
 
 /**
  * RoomStatusPage - Trang "Tình trạng phòng" dành riêng cho Admin
@@ -212,7 +215,7 @@ const bookingStatusBadge = (status) => {
 // ─────────────────────────────────────────────
 // RoomCard Component
 // ─────────────────────────────────────────────
-const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick, selectedDate = new Date() }) => {
+const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBookingIds = new Set(), onBookingClick, selectedDate = new Date(), now = Date.now(), onDepositWarn, onDepositCancel }) => {
   const selectedDateStr = (() => {
     const d = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
     const y = d.getFullYear();
@@ -374,9 +377,10 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
               {bks.map((bk) => {
                 const isNew = newBookingIds.has(bk.code);
                 const isClickable = status === 'available' || status === 'full';
+                const overdue = isDepositOverdue(bk, now);
                 return (
+                  <div key={bk.code} className="flex flex-col gap-1">
                   <div
-                    key={bk.code}
                     onClick={() => isClickable && onBookingClick && onBookingClick(bk, room.id)}
                     className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
                       isNew
@@ -401,6 +405,35 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                       </span>
                     </div>
                   </div>
+                  {/* Quá 24 giờ chưa nhận cọc: nhân viên gọi nhắc khách hoặc hủy đơn luôn */}
+                  {overdue && (
+                    <div className="rounded-xl border-2 border-red-300 bg-white px-2 py-1.5 text-[11px] text-red-700 shadow-sm">
+                      <p className="font-bold flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        Quá {DEPOSIT_DEADLINE_HOURS}h chưa cọc
+                      </p>
+                      {bk.depositWarnedAt && (
+                        <p className="text-[10px] text-gray-500">Đã gọi nhắc lúc {formatVietnamDateTime(bk.depositWarnedAt)}</p>
+                      )}
+                      <div className="mt-1 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onDepositWarn && onDepositWarn(bk, room.id); }}
+                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold px-2 py-1"
+                        >
+                          <Phone className="h-3 w-3" /> Cảnh báo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onDepositCancel && onDepositCancel(bk, room.id); }}
+                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1"
+                        >
+                          <XCircle className="h-3 w-3" /> Hủy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  </div>
                 );
               })}
             </div>
@@ -414,6 +447,65 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
           </div>
         </>
       )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Hộp thoại cho đơn quá hạn cọc 24 giờ: gọi nhắc khách hoặc hủy đơn (không cần khách duyệt)
+// ─────────────────────────────────────────────
+const DepositOverdueDialog = ({ action, onClose, onMarkWarned, onConfirmCancel }) => {
+  const { type, booking: bk, roomId } = action;
+  const phone = bk.customerPhone || bk.ownerPhone || '';
+  const name = bk.customerName || bk.ownerName || 'Khách';
+  const dueText = formatVietnamDateTime(getDepositDueAt(bk));
+  const isCancel = type === 'cancel';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl space-y-3" onClick={(e) => e.stopPropagation()}>
+        <h3 className={`text-lg font-extrabold flex items-center gap-2 ${isCancel ? 'text-red-700' : 'text-amber-700'}`}>
+          {isCancel ? <XCircle className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+          {isCancel ? 'Hủy đơn quá hạn cọc?' : 'Nhắc khách chuyển cọc'}
+        </h3>
+        <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-sm text-gray-700 space-y-1">
+          <p><strong>{bk.code}</strong> · Phòng {roomId} · 🐱 {bk.cats}</p>
+          <p>Khách: <strong>{name}</strong></p>
+          {phone && <p>SĐT: <strong>{phone}</strong></p>}
+          <p>Tiền cọc: <strong>{Number(bk.depositAmount || 0).toLocaleString()}đ</strong></p>
+          {dueText && <p className="text-red-600">Hạn chuyển cọc: {dueText}</p>}
+          {bk.depositWarnedAt && <p className="text-gray-500">Đã gọi nhắc lúc {formatVietnamDateTime(bk.depositWarnedAt)}</p>}
+        </div>
+        {isCancel ? (
+          <p className="text-sm text-gray-600">
+            Đơn sẽ bị hủy ngay, không cần chờ khách duyệt, và chỗ trong phòng được trả lại cho khách khác.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Gọi cho khách, nhắc chuyển tiền cọc (nội dung: <strong>COC {bk.code}</strong>). Gọi xong bấm "Đã gọi nhắc" để lưu lại.
+          </p>
+        )}
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50">
+            Đóng
+          </button>
+          {isCancel ? (
+            <button type="button" onClick={() => onConfirmCancel(roomId, bk.code)} className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm">
+              Hủy đơn
+            </button>
+          ) : (
+            <>
+              {phone && (
+                <a href={`tel:${phone}`} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-1">
+                  <Phone className="h-4 w-4" /> Gọi
+                </a>
+              )}
+              <button type="button" onClick={() => onMarkWarned(roomId, bk.code)} className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm">
+                Đã gọi nhắc
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -453,6 +545,18 @@ const RoomStatusPage = () => {
   const handleBookingClick = useCallback((booking, roomId) => {
     setActiveBooking({ booking, roomId });
   }, []);
+
+  // Đồng hồ cập nhật mỗi 30 giây để nút Cảnh báo / Hủy tự hiện khi đơn vừa quá hạn cọc
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Hộp thoại cho đơn quá hạn cọc: { type: 'warn' | 'cancel', booking, roomId }
+  const [depositAction, setDepositAction] = useState(null);
+  const handleDepositWarn = useCallback((booking, roomId) => setDepositAction({ type: 'warn', booking, roomId }), []);
+  const handleDepositCancel = useCallback((booking, roomId) => setDepositAction({ type: 'cancel', booking, roomId }), []);
 
   // Khi bookings thay đổi (check-in/update), refresh active booking nếu đang mở
   useEffect(() => {
@@ -742,6 +846,9 @@ const RoomStatusPage = () => {
                       newBookingIds={newBookingIds}
                       onBookingClick={handleBookingClick}
                       selectedDate={selectedDate}
+                      now={now}
+                      onDepositWarn={handleDepositWarn}
+                      onDepositCancel={handleDepositCancel}
                     />
                   ))}
                 </div>
@@ -780,6 +887,20 @@ const RoomStatusPage = () => {
         onCheckOut={checkOutBooking}
         onDelete={removeBooking}
         onUpdate={updateBooking}
+      />
+    )}
+    {depositAction && (
+      <DepositOverdueDialog
+        action={depositAction}
+        onClose={() => setDepositAction(null)}
+        onMarkWarned={(roomId, code) => {
+          updateBooking(roomId, code, { depositWarnedAt: new Date().toISOString() });
+          setDepositAction(null);
+        }}
+        onConfirmCancel={(roomId, code) => {
+          removeBooking(roomId, code, `Quá ${DEPOSIT_DEADLINE_HOURS} giờ chưa chuyển tiền cọc`);
+          setDepositAction(null);
+        }}
       />
     )}
   </>);

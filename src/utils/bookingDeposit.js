@@ -40,3 +40,33 @@ export function getDepositPolicy({ checkIn, total, todayStr = todayInVietnam() }
 
 // Đơn đã được cấp mã đặt phòng chưa (đơn cũ không có paymentStatus coi như đã có mã)
 export const hasBookingCode = (booking) => booking?.paymentStatus !== PAYMENT_STATUS.AWAITING_DEPOSIT;
+
+// Khách phải chuyển cọc trong 24 giờ kể từ lúc đặt phòng
+export const DEPOSIT_DEADLINE_HOURS = 24;
+
+// Hạn chuyển cọc của đơn (ISO). Đơn cũ chưa có depositDueAt thì tính từ lúc tạo đơn.
+export function getDepositDueAt(booking) {
+  if (!booking) return null;
+  if (booking.depositDueAt) return booking.depositDueAt;
+  const created = Date.parse(booking.createdAt || '');
+  if (Number.isNaN(created)) return null;
+  return new Date(created + DEPOSIT_DEADLINE_HOURS * 3600 * 1000).toISOString();
+}
+
+// Đơn chờ cọc đã quá hạn 24 giờ mà chưa nhận đủ cọc
+export function isDepositOverdue(booking, now = Date.now()) {
+  if (booking?.paymentStatus !== PAYMENT_STATUS.AWAITING_DEPOSIT) return false;
+  const due = Date.parse(getDepositDueAt(booking) || '');
+  return !Number.isNaN(due) && now >= due;
+}
+
+// Giờ:phút ngày/tháng/năm theo giờ Việt Nam, vd "14:30 03/11/2026"
+export function formatVietnamDateTime(iso) {
+  const t = Date.parse(iso || '');
+  if (Number.isNaN(t)) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', hour12: false,
+  }).formatToParts(new Date(t));
+  const get = (type) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('hour')}:${get('minute')} ${get('day')}/${get('month')}/${get('year')}`;
+}

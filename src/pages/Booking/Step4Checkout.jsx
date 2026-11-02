@@ -6,7 +6,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
-import { getDepositPolicy, DEPOSIT_FREE_MAX_DAYS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { getDepositPolicy, DEPOSIT_FREE_MAX_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
@@ -181,7 +181,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
     if (confirmedBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
       sendWebNotification('🏠 Đã giữ phòng cho các bé!', {
-        body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ để nhận mã đặt phòng.`,
+        body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ trong vòng ${DEPOSIT_DEADLINE_HOURS} giờ để nhận mã đặt phòng, nếu không đơn có thể bị hủy.`,
       });
     } else {
       sendWebNotification('🎉 Đặt phòng thành công!', {
@@ -399,6 +399,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           <p>
             Bạn đặt trước {deposit.leadDays} ngày (hơn {DEPOSIT_FREE_MAX_DAYS} ngày) nên cần chuyển khoản cọc{' '}
             <strong>{deposit.amount.toLocaleString()}đ</strong>. Mèo Vàng Nhà giữ phòng cho bạn và gửi mã đặt phòng ngay khi nhận được tiền cọc.
+          </p>
+          <p className="font-bold text-red-700">
+            ⏰ Vui lòng chuyển tiền cọc trong vòng {DEPOSIT_DEADLINE_HOURS} giờ kể từ lúc đặt phòng. Quá {DEPOSIT_DEADLINE_HOURS} giờ chưa nhận được cọc, đơn đặt phòng có thể bị hủy và phòng được nhường cho khách khác.
           </p>
           <p>Số còn lại thanh toán khi hoàn thành dịch vụ. Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.</p>
         </div>
