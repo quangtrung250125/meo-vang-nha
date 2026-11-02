@@ -32,6 +32,31 @@ export const bookingStage = (booking) => {
   return 'upcoming';
 };
 
+// Khách đã thanh toán đủ hóa đơn (nút "Thanh toán ngay" ở Lịch đặt của khách ghi 'Đã thanh toán').
+// Đơn mới đặt, chờ cọc hoặc mới cọc đều chưa được ghi nhận doanh thu / chi tiêu.
+export const PAID_STATUS = 'Đã thanh toán';
+export const isFullyPaid = (booking) => String(booking?.paymentStatus || '').trim() === PAID_STATUS;
+
+// Đơn được ghi nhận doanh thu: đã thanh toán đủ và không bị hủy
+export const isRevenueBooking = (booking) => isFullyPaid(booking) && bookingStage(booking) !== 'cancelled';
+
+// Tháng ghi nhận doanh thu = tháng của ngày gửi mèo (check-in), dạng 'YYYY-MM'.
+// VD gửi 25/10 → đón 08/11, thanh toán lúc nào cũng tính cho tháng 10.
+export const revenueMonthOf = (booking) => {
+  const raw = String(booking?.checkIn || '').trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const vn = raw.match(/^\d{1,2}\/(\d{1,2})\/(\d{4})/);
+  if (vn) return `${vn[2]}-${vn[1].padStart(2, '0')}`;
+  return null;
+};
+
+export const formatMonth = (monthKey) => {
+  if (!monthKey) return '—';
+  const [y, m] = monthKey.split('-');
+  return `Tháng ${Number(m)}/${y}`;
+};
+
 const toTime = (value) => {
   const t = value ? new Date(value).getTime() : NaN;
   return Number.isFinite(t) ? t : null;
@@ -46,7 +71,14 @@ const dedupe = (list, keyOf) => {
     if (!item) return;
     const key = keyOf(item);
     if (!key) return;
-    map.set(key, { ...map.get(key), ...item });
+    const prev = map.get(key);
+    const merged = { ...prev, ...item };
+    // Thanh toán đủ không thể quay lại: nguồn nào đã ghi 'Đã thanh toán' thì giữ, tránh bản cũ ở nguồn khác đè mất
+    if (isFullyPaid(prev) && !isFullyPaid(item)) {
+      merged.paymentStatus = prev.paymentStatus;
+      if (prev.paidAt) merged.paidAt = prev.paidAt;
+    }
+    map.set(key, merged);
   });
   return [...map.values()];
 };
@@ -156,7 +188,9 @@ export function buildCustomers({ profiles = [], bookings = [], pets = [], exclud
         bookingCount: active.length,
         completedCount: active.filter((b) => bookingStage(b) === 'completed').length,
         isStaying: active.some((b) => bookingStage(b) === 'staying'),
-        totalSpent: active.reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0),
+        // Chỉ cộng các đơn khách đã thanh toán đủ
+        totalSpent: active.filter(isFullyPaid).reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0),
+        paidCount: active.filter(isFullyPaid).length,
         lastBookingAt: active[0]?.createdAt || active[0]?.checkIn || null,
       };
       customer.segment = segmentOf(customer);
@@ -168,6 +202,24 @@ export function buildCustomers({ profiles = [], bookings = [], pets = [], exclud
       return customer;
     })
     .sort((a, b) => b.lastActivity - a.lastActivity);
+}
+
+/**
+ * Doanh thu theo tháng gửi mèo: chỉ các đơn đã thanh toán đủ, gom theo tháng của ngày check-in.
+ * @returns {{ month: string, revenue: number, bookings: number }[]} tháng mới nhất đứng đầu
+ */
+export function computeRevenueByMonth(customers) {
+  const months = new Map();
+  customers.forEach((c) => c.bookings.forEach((b) => {
+    if (!isRevenueBooking(b)) return;
+    const month = revenueMonthOf(b);
+    if (!month) return;
+    const row = months.get(month) || { month, revenue: 0, bookings: 0 };
+    row.revenue += Number(b.totalPrice) || 0;
+    row.bookings += 1;
+    months.set(month, row);
+  }));
+  return [...months.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 export function computeStats(customers, now = new Date()) {
@@ -184,7 +236,9 @@ export function computeStats(customers, now = new Date()) {
     staying: customers.filter((c) => c.isStaying).length,
     bookings: customers.reduce((sum, c) => sum + c.bookingCount, 0),
     revenue,
+    paidBookings: customers.reduce((sum, c) => sum + (c.paidCount || 0), 0),
     avgSpent: booked.length ? revenue / booked.length : 0,
+    revenueByMonth: computeRevenueByMonth(customers),
     segments: Object.keys(SEGMENTS).map((key) => ({
       key,
       count: customers.filter((c) => c.segment === key).length,

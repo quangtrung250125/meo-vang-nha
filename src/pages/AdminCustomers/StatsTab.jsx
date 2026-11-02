@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import {
-  Users, UserPlus, Repeat, PawPrint, BedDouble, Wallet, CalendarCheck, PieChart, Clock, ChevronRight,
+  Users, UserPlus, Repeat, PawPrint, BedDouble, Wallet, CalendarCheck, PieChart, Clock, ChevronRight, CalendarRange,
 } from 'lucide-react';
-import { computeStats, formatMoney, formatPercent, formatDate, SEGMENTS, VIP_SPENT, VIP_BOOKINGS } from './customerUtils';
+import { computeStats, formatMoney, formatPercent, formatDate, formatMonth, SEGMENTS, VIP_SPENT, VIP_BOOKINGS } from './customerUtils';
 import { Card, SectionTitle, SegmentBadge, Avatar, EmptyState } from './shared';
 
 const SEGMENT_BAR = {
@@ -31,8 +31,8 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
     { label: 'Hồ sơ mèo', value: stats.pets, sub: `TB ${(stats.total ? stats.pets / stats.total : 0).toFixed(1)} bé/khách`, icon: PawPrint, color: 'from-amber-400 to-orange-500' },
     { label: 'Khách đang lưu trú', value: stats.staying, sub: 'Có mèo đang ở khách sạn', icon: BedDouble, color: 'from-emerald-500 to-green-600' },
     { label: 'Đơn đặt phòng', value: stats.bookings, sub: 'Không tính đơn đã hủy', icon: CalendarCheck, color: 'from-rose-400 to-pink-500' },
-    { label: 'Doanh thu từ khách', value: formatMoney(stats.revenue), sub: 'Tổng giá trị các đơn', icon: Wallet, color: 'from-orange-400 to-red-500' },
-    { label: 'Chi tiêu TB / khách', value: formatMoney(stats.avgSpent), sub: 'Trên khách đã đặt phòng', icon: Wallet, color: 'from-teal-400 to-cyan-500' },
+    { label: 'Doanh thu từ khách', value: formatMoney(stats.revenue), sub: `Chỉ tính ${stats.paidBookings} đơn khách đã thanh toán`, icon: Wallet, color: 'from-orange-400 to-red-500' },
+    { label: 'Chi tiêu TB / khách', value: formatMoney(stats.avgSpent), sub: 'Đã thanh toán, trên khách đã đặt phòng', icon: Wallet, color: 'from-teal-400 to-cyan-500' },
   ];
 
   const recent = customers.slice(0, 5);
@@ -54,6 +54,38 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
           );
         })}
       </div>
+
+      <Card className="p-6">
+        <SectionTitle
+          icon={CalendarRange}
+          title="Doanh thu theo tháng gửi mèo"
+          subtitle="Chỉ ghi nhận khi khách đã thanh toán hóa đơn. Doanh thu tính cho tháng của ngày gửi mèo (VD: gửi 25/10 → đón 08/11 tính vào tháng 10)."
+        />
+        {stats.revenueByMonth.length === 0 ? (
+          <p className="text-sm text-gray-500">Chưa có đơn nào được thanh toán.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-wide bg-gray-50/60">
+                  <th className="px-4 py-2.5">Tháng gửi mèo</th>
+                  <th className="px-4 py-2.5 text-right">Đơn đã thanh toán</th>
+                  <th className="px-4 py-2.5 text-right">Doanh thu</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {stats.revenueByMonth.map((row) => (
+                  <tr key={row.month}>
+                    <td className="px-4 py-2.5 font-semibold text-gray-700">{formatMonth(row.month)}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-600">{row.bookings}</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-gray-900">{formatMoney(row.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
