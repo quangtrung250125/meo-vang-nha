@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BoardingRoomGallery from './BoardingRoomGallery';
-import { ROOM_TYPES } from '../../mockData/boardingServicesData';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const BoardingServiceCard = ({ 
   pkg, 
@@ -25,6 +25,8 @@ const BoardingServiceCard = ({
   onToggleExpand
 }) => {
   const navigate = useNavigate();
+  // Thông tin hạng phòng (tên, sức chứa, mô tả) theo bản admin đã sửa
+  const { roomTypes: ROOM_TYPES } = useServiceCatalog();
 
   // State cho lựa chọn nâng cấp phòng
   const [selectedRoomId, setSelectedRoomId] = useState(pkg.defaultRoomId);
@@ -35,7 +37,7 @@ const BoardingServiceCard = ({
   // Lấy thông tin phòng hiện tại theo lựa chọn (mặc định hoặc nâng cấp)
   const currentRoomInfo = useMemo(() => {
     return ROOM_TYPES[selectedRoomId] || ROOM_TYPES[pkg.defaultRoomId];
-  }, [selectedRoomId, pkg.defaultRoomId]);
+  }, [selectedRoomId, pkg.defaultRoomId, ROOM_TYPES]);
 
   // Tìm phụ phí của phòng đang chọn
   const roomUpgradeOption = useMemo(() => {
@@ -53,7 +55,7 @@ const BoardingServiceCard = ({
     e.stopPropagation();
     navigate('/booking', {
       state: {
-        preSelectedPackageId: pkg.id,
+        preSelectedPackageId: pkg.itemId || pkg.id,
         preSelectedPackageName: pkg.name,
         selectedRoomType: currentRoomInfo.shortName,
         totalDailyCost: totalDailyCost,

@@ -5,9 +5,11 @@ import {
   ChevronUp
 } from 'lucide-react';
 import BoardingServiceCard from './BoardingServiceCard';
-import { BOARDING_PACKAGES } from '../../mockData/boardingServicesData';
+import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const BoardingDetailSection = () => {
+  // Gói lưu trú lấy giá, tên, phụ phí phòng theo bản admin đã sửa; gói bị gỡ thì ẩn
+  const { boardingPackages: BOARDING_PACKAGES } = useServiceCatalog();
   // Mặc định mở gói đầu tiên (Mèo Quý Tộc) và cho phép mở đồng thời nhiều gói
   const [expandedIds, setExpandedIds] = useState(['p1']);
 

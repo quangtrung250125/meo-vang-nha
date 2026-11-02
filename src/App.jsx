@@ -19,6 +19,7 @@ import Promotions from './pages/Promotions';
 import AdminPromotions from './pages/AdminPromotions';
 import AdminMarketing from './pages/AdminMarketing';
 import AdminSEO from './pages/AdminSEO';
+import AdminServices from './pages/AdminServices';
 import News from './pages/News';
 import { PetProvider } from './contexts/PetContext';
 import { CustomerProvider, useCustomerProfile } from './contexts/CustomerContext';
@@ -26,6 +27,7 @@ import { BookingHistoryProvider } from './contexts/BookingHistoryContext';
 import { CareLogProvider } from './contexts/CareLogContext';
 import { UIProvider } from './contexts/UIContext';
 import { RoomStateProvider } from './contexts/RoomStateContext';
+import { ServiceCatalogProvider } from './contexts/ServiceCatalogContext';
 import { Toaster } from 'react-hot-toast';
 import CustomerSyncBridge from './components/CustomerSyncBridge';
 
@@ -58,7 +60,7 @@ function AppRoutes() {
   // Shared routes between normal customer view and admin view
   const sharedRoutes = (
     <>
-      <Route path="services" element={<Services />} />
+      <Route path="services" element={isAdmin ? adminOnly(<AdminServices />) : <Services />} />
       <Route path="pricing" element={<Navigate to="/services" replace />} />
       <Route path="promotions" element={isAdmin ? adminOnly(<AdminPromotions />) : <Promotions />} />
       <Route path="marketing" element={adminOnly(<AdminMarketing />)} />
@@ -107,11 +109,13 @@ function App() {
           <BookingHistoryProvider>
             <CareLogProvider>
               <RoomStateProvider>
-                <Toaster position="top-center" reverseOrder={false} />
-                <CustomerSyncBridge />
-                <BrowserRouter>
-                  <AppRoutes />
-                </BrowserRouter>
+                <ServiceCatalogProvider>
+                  <Toaster position="top-center" reverseOrder={false} />
+                  <CustomerSyncBridge />
+                  <BrowserRouter>
+                    <AppRoutes />
+                  </BrowserRouter>
+                </ServiceCatalogProvider>
               </RoomStateProvider>
             </CareLogProvider>
           </BookingHistoryProvider>
