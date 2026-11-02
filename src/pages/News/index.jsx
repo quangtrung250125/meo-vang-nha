@@ -12,7 +12,8 @@ import {
   MessageSquareHeart,
   ChevronRight
 } from 'lucide-react';
-import { newsCategories, articlesList } from '../../mockData/newsData';
+import { newsCategories as baseCategories, articlesList as staticArticles } from '../../mockData/newsData';
+import { fetchPublishedArticles } from '../../services/articleService';
 import VaccinationChecker from './VaccinationChecker';
 import ArticleReaderModal from './ArticleReaderModal';
 
@@ -21,8 +22,58 @@ const News = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [readingArticle, setReadingArticle] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [seoArticles, setSeoArticles] = useState([]);
   const articlesGridRef = useRef(null);
   const searchInputRef = useRef(null);
+
+  // Load published SEO articles from Supabase
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedArticles({ limit: 50 })
+      .then(data => {
+        if (!cancelled) {
+          // Chuyển đổi shape từ Supabase sang format hiển thị
+          const converted = data.map(a => ({
+            id: a.id,
+            category: a.category || 'seo',
+            categoryName: a.category_name || 'SEO & Content',
+            title: a.title,
+            slug: a.slug,
+            excerpt: a.excerpt || '',
+            author: a.author || 'SEO Radar AI',
+            date: a.published_at
+              ? new Date(a.published_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              : new Date(a.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            readTime: a.read_time || '5 phút đọc',
+            featured: a.featured || false,
+            coverImage: a.cover_image || 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=1000&q=80',
+            tags: a.tags || [],
+            sections: Array.isArray(a.sections) ? a.sections : (typeof a.sections === 'string' ? JSON.parse(a.sections) : []),
+            doctorNote: a.doctor_note || '',
+            _fromSeo: true, // Đánh dấu bài viết từ SEO Radar
+          }));
+          setSeoArticles(converted);
+        }
+      })
+      .catch(err => {
+        console.warn('[News] Could not load SEO articles:', err.message);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Gộp bài viết: static mock + published SEO articles
+  const articlesList = useMemo(() => {
+    return [...staticArticles, ...seoArticles];
+  }, [seoArticles]);
+
+  // Mở rộng danh sách categories: thêm category "seo" nếu có bài viết SEO
+  const newsCategories = useMemo(() => {
+    const hasSeo = seoArticles.some(a => a.category === 'seo');
+    if (!hasSeo) return baseCategories;
+    const exists = baseCategories.some(c => c.id === 'seo');
+    if (exists) return baseCategories;
+    return [...baseCategories, { id: 'seo', name: 'SEO & Content' }];
+  }, [seoArticles]);
 
   // Filter articles based on Category & Search
   const filteredArticles = useMemo(() => {

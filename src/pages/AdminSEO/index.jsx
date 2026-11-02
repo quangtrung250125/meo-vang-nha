@@ -10,6 +10,7 @@ import {
   Search,
   Loader2,
   WifiOff,
+  PenSquare,
 } from 'lucide-react';
 import {
   SITE_SCORE      as MOCK_SCORE,
@@ -20,10 +21,11 @@ import {
   scoreColor,
 } from './seoData';
 import { fetchSEOData, hasPSIKey } from '../../services/seoService';
-import SeoScoreCard   from './SeoScoreCard';
-import SeoRadarChart  from './SeoRadarChart';
-import SeoIssuesList  from './SeoIssuesList';
-import SeoPageTable   from './SeoPageTable';
+import SeoScoreCard      from './SeoScoreCard';
+import SeoRadarChart     from './SeoRadarChart';
+import SeoIssuesList     from './SeoIssuesList';
+import SeoPageTable      from './SeoPageTable';
+import SeoContentWriter  from './SeoContentWriter';
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
@@ -31,6 +33,7 @@ const TABS = [
   { id: 'issues',    label: 'Vấn đề',           icon: AlertCircle },
   { id: 'pages',     label: 'Phân tích trang',  icon: FileText },
   { id: 'keywords',  label: 'Từ khóa',          icon: Search },
+  { id: 'content',   label: 'Viết bài SEO',     icon: PenSquare },
 ];
 
 // ─── Summary Badge ────────────────────────────────────────────────────────────
@@ -232,6 +235,9 @@ const AdminSEO = () => {
           <h3 className="font-bold text-gray-800 mb-5 text-base">Theo dõi từ khóa mục tiêu</h3>
           <SeoPageTable activeView="keywords" />
         </div>
+      );
+      case 'content': return (
+        <SeoContentWriter />
       );
       default: return null;
     }
