@@ -42,7 +42,7 @@ import CustomerApprovalModal from '../../components/CustomerApprovalModal';
 import CustomerRescheduleModal from '../../components/CustomerRescheduleModal';
 import CustomerCancelModal from '../../components/CustomerCancelModal';
 import AdminProposeChangeModal from '../../components/AdminProposeChangeModal';
-import { hasBookingCode, todayInVietnam, PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { hasBookingCode, todayInVietnam, PAYMENT_STATUS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
 import { toast } from 'react-hot-toast';
 import { buildInvoice } from '../../utils/bookingInvoice';
 import { ADDONS } from '../../components/ServiceManagement';
@@ -507,6 +507,9 @@ const MyBooking = () => {
                         ) : (
                           <span className="text-amber-700">
                             Chuyển khoản cọc {Number(booking.depositAmount || 0).toLocaleString()}đ (nội dung: COC {booking.id}) để nhận mã đặt phòng
+                            {formatVietnamDateTime(getDepositDueAt(booking)) && (
+                              <strong className="text-red-600"> trước {formatVietnamDateTime(getDepositDueAt(booking))}, nếu không đơn có thể bị hủy</strong>
+                            )}
                           </span>
                         )}
                         {booking.totalAmount && (

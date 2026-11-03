@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysUntilCheckIn, getDepositPolicy, hasBookingCode, PAYMENT_STATUS } from '../../src/utils/bookingDeposit';
+import { daysUntilCheckIn, getDepositPolicy, hasBookingCode, PAYMENT_STATUS, getDepositDueAt, isDepositOverdue, formatVietnamDateTime } from '../../src/utils/bookingDeposit';
 
 describe('Quy định đặt cọc', () => {
   const today = '2026-10-27';
@@ -28,5 +28,29 @@ describe('Quy định đặt cọc', () => {
     expect(hasBookingCode({ paymentStatus: PAYMENT_STATUS.AWAITING_DEPOSIT })).toBe(false);
     expect(hasBookingCode({ paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID })).toBe(true);
     expect(hasBookingCode({})).toBe(true);
+  });
+});
+
+describe('hạn chuyển cọc 24 giờ', () => {
+  const createdAt = '2026-11-02T10:00:00.000Z';
+  const awaiting = { paymentStatus: PAYMENT_STATUS.AWAITING_DEPOSIT, createdAt };
+
+  it('đơn cũ chưa có depositDueAt thì tính 24 giờ từ lúc tạo đơn', () => {
+    expect(getDepositDueAt(awaiting)).toBe('2026-11-03T10:00:00.000Z');
+  });
+
+  it('ưu tiên depositDueAt do server ghi', () => {
+    expect(getDepositDueAt({ ...awaiting, depositDueAt: '2026-11-03T12:00:00.000Z' })).toBe('2026-11-03T12:00:00.000Z');
+  });
+
+  it('chỉ quá hạn khi đủ 24 giờ mà vẫn chờ cọc', () => {
+    expect(isDepositOverdue(awaiting, Date.parse('2026-11-03T09:59:00Z'))).toBe(false);
+    expect(isDepositOverdue(awaiting, Date.parse('2026-11-03T10:00:00Z'))).toBe(true);
+    expect(isDepositOverdue({ ...awaiting, paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID }, Date.parse('2026-11-05T00:00:00Z'))).toBe(false);
+    expect(isDepositOverdue({ ...awaiting, paymentStatus: PAYMENT_STATUS.PAY_AT_CHECKIN }, Date.parse('2026-11-05T00:00:00Z'))).toBe(false);
+  });
+
+  it('hiện giờ Việt Nam', () => {
+    expect(formatVietnamDateTime('2026-11-03T10:00:00.000Z')).toBe('17:00 03/11/2026');
   });
 });

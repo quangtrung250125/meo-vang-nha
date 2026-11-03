@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getRequestUser, getBearerToken } from './auth.js';
-import { getDepositPolicy, PAYMENT_STATUS } from '../../src/utils/bookingDeposit.js';
+import { getDepositPolicy, PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
 
@@ -100,7 +100,7 @@ function generateUniqueCode() {
 
 // Các trường khách không phải admin được xem (đủ để tính phòng trống, không lộ thông tin cá nhân).
 // paymentStatus để trang đặt phòng của khách tự hiện mã ngay khi admin xác nhận đã nhận cọc.
-const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount'];
+const PUBLIC_BOOKING_FIELDS = ['id', 'code', 'roomId', 'checkIn', 'checkOut', 'cats', 'status', 'customerId', 'paymentStatus', 'depositAmount', 'depositDueAt'];
 
 export function toPublicBookings(bookingsByRoom, viewerId = null) {
   const result = {};
@@ -592,6 +592,10 @@ export async function handleAddBooking(req, res) {
       depositRequired: deposit.required,
       depositAmount: deposit.amount,
       paymentStatus: deposit.paymentStatus,
+      // Hạn chuyển cọc 24 giờ tính theo giờ server, khách không tự kéo dài được
+      depositDueAt: deposit.required
+        ? new Date(Date.now() + DEPOSIT_DEADLINE_HOURS * 3600 * 1000).toISOString()
+        : null,
     };
   }
 

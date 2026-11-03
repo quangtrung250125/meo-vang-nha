@@ -319,6 +319,9 @@ describe('Đặt cọc khi đặt phòng', () => {
     expect(res.payload.success).toBe(true);
     expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
     expect(res.payload.booking.depositAmount).toBe(300000);
+    // Hạn chuyển cọc 24 giờ do server ghi, khách không tự đặt được
+    const due = Date.parse(res.payload.booking.depositDueAt);
+    expect(Math.abs(due - (Date.now() + 24 * 3600 * 1000))).toBeLessThan(60 * 1000);
   });
 
   it('đặt sát ngày (≤ 5 ngày) thì không cần cọc', async () => {
