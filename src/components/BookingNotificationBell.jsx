@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings } from 'lucide-react';
+import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet } from 'lucide-react';
 import { useBookingHistory, isBookingOfCustomer } from '../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 import { useUI } from '../contexts/UIContext';
-import { PROPOSAL_LABEL, formatDateRange } from '../utils/bookingStatus';
+import { PROPOSAL_LABEL, formatDateRange, isClosedStatus } from '../utils/bookingStatus';
+import { PAYMENT_STATUS, depositToTransferOf } from '../utils/bookingDeposit';
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_MS;
@@ -55,6 +56,19 @@ const BookingNotificationBell = ({ className = '' }) => {
           actionable: !isAdmin,
         });
       }
+      // Khách sửa đơn xong cần cọc thêm: nhắc tới khi chuyển đủ (mã đặt phòng vẫn giữ nguyên)
+      if (!isAdmin && b.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && !isClosedStatus(b.status)) {
+        list.push({
+          key: `topup-${b.id}`,
+          bookingId: b.id,
+          icon: Wallet,
+          tone: 'bg-amber-100 text-amber-600',
+          title: `Đơn #${b.id} cần cọc bổ sung ${depositToTransferOf(b).toLocaleString('vi-VN')}đ`,
+          desc: `Nội dung chuyển khoản: COC ${b.code || b.id}`,
+          time: b.editedAt,
+          reminder: true,
+        });
+      }
       if (!isAdmin) return;
       if (b.cancelledBy === 'customer' && isRecent(b.cancelledAt)) {
         list.push({
@@ -67,7 +81,19 @@ const BookingNotificationBell = ({ className = '' }) => {
           time: b.cancelledAt,
         });
       }
-      if (isRecent(b.rescheduledAt)) {
+      if (isRecent(b.editedAt)) {
+        list.push({
+          key: `edit-${b.id}`,
+          bookingId: b.id,
+          icon: PencilLine,
+          tone: 'bg-orange-100 text-orange-600',
+          title: `Khách đã chỉnh sửa đơn #${b.id}`,
+          desc: b.lastEditSummary || '',
+          time: b.editedAt,
+        });
+      }
+      // Đổi lịch trong lúc chỉnh sửa đơn đã nằm trong thông báo chỉnh sửa ở trên
+      if (isRecent(b.rescheduledAt) && b.rescheduledAt !== b.editedAt) {
         list.push({
           key: `reschedule-${b.id}`,
           bookingId: b.id,
@@ -94,7 +120,7 @@ const BookingNotificationBell = ({ className = '' }) => {
   }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin]);
 
   const actionableCount = items.filter(i => i.actionable).length;
-  const badgeCount = isAdmin ? items.length : actionableCount;
+  const badgeCount = isAdmin ? items.length : items.filter(i => i.actionable || i.reminder).length;
   const bookingPath = location.pathname.startsWith('/admin') ? '/admin/my-booking' : '/my-booking';
 
   const handleItemClick = (item) => {

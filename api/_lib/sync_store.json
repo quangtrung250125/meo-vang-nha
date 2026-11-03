@@ -1,6 +1,532 @@
 {
   "bookings": [
     {
+      "id": "MVN-28509",
+      "code": "MVN-28509",
+      "ownerName": "mai",
+      "ownerPhone": "0966527770",
+      "ownerTier": "Vàng",
+      "catNames": "kiki",
+      "cats": 1,
+      "checkIn": "2026-11-12",
+      "checkOut": "2026-11-19",
+      "packages": [
+        "Gói Mèo Thượng Đế"
+      ],
+      "selectedPackage": {
+        "bg": "bg-primary-light",
+        "id": "p3",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "name": "Gói Mèo Thượng Đế",
+        "image": "/images/rooms/vip.png",
+        "price": 108000,
+        "border": "border-green-100",
+        "period": "/ngày",
+        "status": "active",
+        "isPromo": true,
+        "capacity": "",
+        "category": "Lưu trú",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isCustom": false,
+        "basePrice": 108000,
+        "published": true,
+        "sortOrder": 2,
+        "surcharge": 0,
+        "pricePrefix": "",
+        "priceString": "108.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 120000,
+        "savingsString": "12.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 120000,
+        "originalPriceString": "120.000đ"
+      },
+      "selectedLodging": {
+        "bg": "bg-primary-light",
+        "id": "p3",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "name": "Gói Mèo Thượng Đế",
+        "image": "/images/rooms/vip.png",
+        "price": 108000,
+        "border": "border-green-100",
+        "period": "/ngày",
+        "status": "active",
+        "isPromo": true,
+        "capacity": "",
+        "category": "Lưu trú",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "isCustom": false,
+        "basePrice": 108000,
+        "published": true,
+        "sortOrder": 2,
+        "surcharge": 0,
+        "pricePrefix": "",
+        "priceString": "108.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 120000,
+        "savingsString": "12.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 120000,
+        "originalPriceString": "120.000đ"
+      },
+      "selectedRoom": {
+        "id": "VIP-05",
+        "type": "VIP",
+        "capacity": 2
+      },
+      "hasCamera": false,
+      "addCamera": false,
+      "couponApplied": true,
+      "roomId": "VIP-05",
+      "petIds": [
+        "d3c160f0-cb7e-445e-9726-15327ba59d96"
+      ],
+      "petProfiles": [
+        {
+          "id": "d3c160f0-cb7e-445e-9726-15327ba59d96",
+          "age": "2",
+          "name": "kiki",
+          "breed": "kiki",
+          "gender": "Đực",
+          "habits": "",
+          "health": {
+            "allergy": "",
+            "medication": "",
+            "vaccinated": "Rồi",
+            "medicalHistory": "",
+            "medicalCondition": ""
+          },
+          "weight": "3",
+          "ownerId": "d72123a9-e8c1-46e6-8ef2-53f3f4764867",
+          "createdAt": "2026-11-03T03:48:10.041761+00:00",
+          "updatedAt": "2026-11-03T03:48:08.826+00:00",
+          "personality": {
+            "shy": false,
+            "other": false,
+            "stress": false,
+            "friendly": false,
+            "hardToReach": false,
+            "otherDetail": ""
+          },
+          "imagePreview": "",
+          "isSpecialCare": false,
+          "patePreference": "",
+          "specialRequests": ""
+        }
+      ],
+      "customerPhone": "0966527770",
+      "customerName": "mai",
+      "customerId": "d72123a9-e8c1-46e6-8ef2-53f3f4764867",
+      "status": "check-out",
+      "totalPrice": 756000,
+      "totalAmount": 756000,
+      "pricingAdjustments": [],
+      "depositRequired": true,
+      "depositAmount": 378000,
+      "paymentStatus": "awaiting_deposit",
+      "pending_changes": null,
+      "previous_status": null,
+      "createdAt": "2026-11-03T03:48:57.542Z",
+      "depositDueAt": "2026-11-04T03:48:57.730Z",
+      "dbId": "38c6c9f4-c89d-4d2f-a40d-1c45f524da76",
+      "updatedAt": "2026-11-03T03:52:45.149Z",
+      "selectedSpa": null,
+      "selectedExtra": null,
+      "originalCheckIn": "2026-11-12",
+      "originalCheckOut": "2026-11-19",
+      "editedAt": "2026-11-03T03:51:21.886Z",
+      "lastEditSummary": "Mèo: Bé Miu Miu → kiki (1 bé); Phòng: VIP-06 → VIP-05",
+      "depositReceivedAmount": 0,
+      "checkedInAt": "2026-11-03T03:52:38.537Z",
+      "checkedOutAt": "2026-11-03T03:52:45.149Z"
+    },
+    {
+      "id": "MVN-76882",
+      "code": "MVN-76882",
+      "ownerName": "mailinh",
+      "ownerPhone": "0102030405",
+      "ownerTier": "Vàng",
+      "catNames": "meo5",
+      "cats": 1,
+      "checkIn": "2026-10-29",
+      "checkOut": "2026-10-31",
+      "packages": [
+        "Gói Mèo Tự Túc",
+        "Cắt Tỉa Mèo — Combo 8 Bước",
+        "Dịch Vụ Đưa Đón & Y Tế Tận Nơi"
+      ],
+      "selectedPackage": {
+        "bg": "bg-[#FFF9F0]",
+        "id": "p4-tt",
+        "desc": "Sen tự chuẩn bị đồ ăn, tối đa 3 bữa/ngày. Cập nhật tình hình mỗi ngày.",
+        "name": "Gói Mèo Tự Túc",
+        "image": "/images/rooms/vip.png",
+        "price": 81000,
+        "border": "border-orange-100",
+        "period": "/ngày",
+        "isPromo": true,
+        "category": "Lưu trú",
+        "features": [
+          "Sen tự chuẩn bị đồ ăn — tối đa 3 bữa/ngày",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Free đón trả trong vòng 4km"
+        ],
+        "basePrice": 81000,
+        "surcharge": 0,
+        "priceString": "81.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 90000,
+        "savingsString": "9.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 90000,
+        "originalPriceString": "90.000đ"
+      },
+      "selectedLodging": {
+        "bg": "bg-[#FFF9F0]",
+        "id": "p4-tt",
+        "desc": "Sen tự chuẩn bị đồ ăn, tối đa 3 bữa/ngày. Cập nhật tình hình mỗi ngày.",
+        "name": "Gói Mèo Tự Túc",
+        "image": "/images/rooms/vip.png",
+        "price": 81000,
+        "border": "border-orange-100",
+        "period": "/ngày",
+        "isPromo": true,
+        "category": "Lưu trú",
+        "features": [
+          "Sen tự chuẩn bị đồ ăn — tối đa 3 bữa/ngày",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Free đón trả trong vòng 4km"
+        ],
+        "basePrice": 81000,
+        "surcharge": 0,
+        "priceString": "81.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 90000,
+        "savingsString": "9.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 90000,
+        "originalPriceString": "90.000đ"
+      },
+      "selectedExtra": {
+        "bg": "bg-primary-light",
+        "id": "s2",
+        "desc": "Đưa đón bé mèo tận nhà bằng xe chuyên dụng an toàn, kiểm tra sức khỏe ban đầu",
+        "name": "Dịch Vụ Đưa Đón & Y Tế Tận Nơi",
+        "image": "/images/service_care.png",
+        "price": 135000,
+        "border": "border-green-100",
+        "period": "/chuyến",
+        "isPromo": true,
+        "category": "Dịch vụ khác",
+        "features": [
+          "Xe đưa đón có máy lạnh",
+          "Lồng chuyên dụng êm ái",
+          "Kiểm tra cân nặng & thân nhiệt",
+          "Cập nhật lộ trình theo thời gian thực"
+        ],
+        "priceString": "135.000đ",
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 150000,
+        "savingsString": "15.000đ",
+        "discountPercent": 10,
+        "originalPriceString": "150.000đ"
+      },
+      "selectedRoom": {
+        "id": "VIP-01",
+        "type": "VIP",
+        "isFull": false,
+        "status": "partial",
+        "capacity": 2,
+        "isBooked": false,
+        "occupied": 1,
+        "remaining": 1,
+        "conflictingBooking": null
+      },
+      "hasCamera": false,
+      "addCamera": false,
+      "roomId": "VIP-01",
+      "petIds": [
+        "be3078a1-1fc0-46c4-90d8-6adfef1d42b2"
+      ],
+      "petProfiles": [
+        {
+          "id": "be3078a1-1fc0-46c4-90d8-6adfef1d42b2",
+          "age": "5",
+          "name": "meo5",
+          "breed": "Mèo",
+          "gender": "Đực",
+          "habits": "",
+          "health": {
+            "allergy": "",
+            "medication": "",
+            "vaccinated": "Rồi",
+            "medicalHistory": "",
+            "medicalCondition": ""
+          },
+          "weight": "",
+          "ownerId": "c0712ec3-c76a-4296-adcd-f0f69fc9a3a0",
+          "createdAt": "2026-10-28T11:57:06.5265+00:00",
+          "updatedAt": "2026-10-28T11:57:07.504Z",
+          "personality": {
+            "shy": false,
+            "other": false,
+            "stress": false,
+            "friendly": false,
+            "hardToReach": false,
+            "otherDetail": ""
+          },
+          "imagePreview": "",
+          "isSpecialCare": false,
+          "patePreference": "",
+          "specialRequests": ""
+        }
+      ],
+      "customerPhone": "0102030405",
+      "customerName": "mailinh",
+      "customerId": "c0712ec3-c76a-4296-adcd-f0f69fc9a3a0",
+      "status": "cancelled",
+      "totalPrice": 567000,
+      "totalAmount": 567000,
+      "depositRequired": false,
+      "depositAmount": 0,
+      "paymentStatus": "pay_at_checkin",
+      "pending_changes": null,
+      "previous_status": null,
+      "createdAt": "2026-10-28T11:59:03.378Z",
+      "dbId": "555e6ca5-70a3-40d0-b214-a7e14281f039",
+      "cancelReason": "Hủy đơn",
+      "cancelledAt": "2026-10-28T12:04:11.133Z",
+      "cancelledBy": "customer",
+      "selectedSpa": {
+        "bg": "bg-primary-light",
+        "id": "spa2",
+        "desc": "Cắt ngắn lông theo combo 8 bước chuẩn salon, bo gọn bằng kéo hoặc tông đơ còn 0,5–1cm.",
+        "name": "Cắt Tỉa Mèo — Combo 8 Bước",
+        "image": "/images/service_spa.png",
+        "price": 270000,
+        "border": "border-green-100",
+        "period": "/lần",
+        "isPromo": true,
+        "category": "Spa - Tắm cắt",
+        "features": [
+          "Bo gọn ít bằng kéo hoặc đầy ngắn bằng tông đơ còn 0,5–1cm lông",
+          "Giá: <5kg 300K | 5–10kg 350K | ≥10kg 400K",
+          "Combo 8 bước chăm sóc toàn diện"
+        ],
+        "isPopular": true,
+        "priceString": "từ 270.000đ",
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 300000,
+        "savingsString": "30.000đ",
+        "discountPercent": 10,
+        "originalPriceString": "từ 300.000đ"
+      }
+    },
+    {
+      "id": "MVN-71590",
+      "code": "MVN-71590",
+      "customerId": "c0712ec3-c76a-4296-adcd-f0f69fc9a3a0",
+      "createdAt": "2026-10-28T08:20:05.541Z",
+      "cats": 1,
+      "dbId": "d39c98ce-7eb4-42ed-a440-da3d9cf86d45",
+      "petIds": [
+        "1793175588429"
+      ],
+      "roomId": "VIP-01",
+      "status": "cancelled",
+      "checkIn": "2026-10-29",
+      "catNames": "meo2",
+      "checkOut": "2026-10-31",
+      "packages": [
+        "Gói Mèo Thượng Đế",
+        "Dịch Vụ Đưa Đón & Y Tế Tận Nơi"
+      ],
+      "addCamera": false,
+      "hasCamera": false,
+      "ownerName": "mailinh",
+      "ownerTier": "Vàng",
+      "ownerPhone": "0102030405",
+      "totalPrice": 351000,
+      "petProfiles": [
+        {
+          "id": "1793175588429",
+          "age": "2",
+          "name": "meo2",
+          "breed": "",
+          "gender": "Đực",
+          "habits": "",
+          "health": {
+            "allergy": "",
+            "medication": "",
+            "vaccinated": "Rồi",
+            "medicalHistory": "",
+            "medicalCondition": ""
+          },
+          "weight": "",
+          "ownerId": "c0712ec3-c76a-4296-adcd-f0f69fc9a3a0",
+          "updatedAt": "2026-10-28T08:19:49.381Z",
+          "personality": {
+            "shy": false,
+            "other": false,
+            "stress": false,
+            "friendly": false,
+            "hardToReach": false,
+            "otherDetail": ""
+          },
+          "imagePreview": "",
+          "isSpecialCare": false,
+          "patePreference": "",
+          "specialRequests": ""
+        }
+      ],
+      "totalAmount": 351000,
+      "customerName": "mailinh",
+      "selectedRoom": {
+        "id": "VIP-01",
+        "type": "VIP",
+        "isFull": false,
+        "status": "available",
+        "capacity": 2,
+        "isBooked": false,
+        "occupied": 0,
+        "remaining": 2,
+        "conflictingBooking": null
+      },
+      "customerPhone": "0102030405",
+      "depositAmount": 0,
+      "paymentStatus": "pay_at_checkin",
+      "selectedExtra": {
+        "bg": "bg-primary-light",
+        "id": "s2",
+        "desc": "Đưa đón bé mèo tận nhà bằng xe chuyên dụng an toàn, kiểm tra sức khỏe ban đầu",
+        "name": "Dịch Vụ Đưa Đón & Y Tế Tận Nơi",
+        "image": "/images/service_care.png",
+        "price": 135000,
+        "border": "border-green-100",
+        "period": "/chuyến",
+        "isPromo": true,
+        "category": "Dịch vụ khác",
+        "features": [
+          "Xe đưa đón có máy lạnh",
+          "Lồng chuyên dụng êm ái",
+          "Kiểm tra cân nặng & thân nhiệt",
+          "Cập nhật lộ trình theo thời gian thực"
+        ],
+        "priceString": "135.000đ",
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 150000,
+        "savingsString": "15.000đ",
+        "discountPercent": 10,
+        "originalPriceString": "150.000đ"
+      },
+      "depositRequired": false,
+      "pending_changes": null,
+      "previous_status": null,
+      "selectedLodging": {
+        "bg": "bg-primary-light",
+        "id": "p3",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "name": "Gói Mèo Thượng Đế",
+        "image": "/images/rooms/vip.png",
+        "price": 108000,
+        "border": "border-green-100",
+        "period": "/ngày",
+        "isPromo": true,
+        "category": "Lưu trú",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "basePrice": 108000,
+        "surcharge": 0,
+        "priceString": "108.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 120000,
+        "savingsString": "12.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 120000,
+        "originalPriceString": "120.000đ"
+      },
+      "selectedPackage": {
+        "bg": "bg-primary-light",
+        "id": "p3",
+        "desc": "Ăn 3 bữa/ngày 1 pate + 2 hạt, cập nhật tình hình hàng ngày. Có thể thêm camera +10k.",
+        "name": "Gói Mèo Thượng Đế",
+        "image": "/images/rooms/vip.png",
+        "price": 108000,
+        "border": "border-green-100",
+        "period": "/ngày",
+        "isPromo": true,
+        "category": "Lưu trú",
+        "features": [
+          "Ăn 3 bữa/ngày: 1 pate + 2 hạt",
+          "Cát khoáng Bentonite — dọn 1 lần/ngày",
+          "Cập nhật tình hình hàng ngày (camera +10k)",
+          "Tắm miễn phí khi gửi từ 8 ngày",
+          "Free đón trả trong vòng 5km"
+        ],
+        "basePrice": 108000,
+        "surcharge": 0,
+        "priceString": "108.000đ",
+        "forRoomTypes": [
+          "VIP",
+          "VVIP",
+          "DELUXE"
+        ],
+        "discountBadge": "Lần 2: -10%",
+        "originalPrice": 120000,
+        "savingsString": "12.000đ",
+        "discountPercent": 10,
+        "baseOriginalPrice": 120000,
+        "originalPriceString": "120.000đ"
+      },
+      "cancelReason": "Hủy đơn",
+      "cancelledAt": "2026-10-28T12:02:11.815Z",
+      "cancelledBy": "customer"
+    },
+    {
       "id": "MVN-65412",
       "customerName": "Trần Minh Hoàng",
       "customerPhone": "0988776655",
@@ -481,6 +1007,36 @@
       "source": "Google",
       "imagePreview": "",
       "updatedAt": "2026-10-06T00:35:08.850Z"
+    },
+    {
+      "name": "kiki",
+      "age": "2",
+      "gender": "Đực",
+      "breed": "kiki",
+      "weight": "3",
+      "imagePreview": "",
+      "health": {
+        "vaccinated": "Rồi",
+        "medicalCondition": "",
+        "medicalHistory": "",
+        "medication": "",
+        "allergy": ""
+      },
+      "habits": "",
+      "patePreference": "",
+      "personality": {
+        "friendly": false,
+        "shy": false,
+        "stress": false,
+        "hardToReach": false,
+        "other": false,
+        "otherDetail": ""
+      },
+      "specialRequests": "",
+      "id": "d3c160f0-cb7e-445e-9726-15327ba59d96",
+      "isSpecialCare": false,
+      "ownerId": "d72123a9-e8c1-46e6-8ef2-53f3f4764867",
+      "updatedAt": "2026-11-03T03:48:09.044Z"
     }
   ],
   "profiles": [
@@ -509,7 +1065,21 @@
       ],
       "createdAt": "2026-10-06T00:41:25.097Z",
       "updatedAt": "2026-10-06T00:41:25.097Z"
+    },
+    {
+      "id": "c0712ec3-c76a-4296-adcd-f0f69fc9a3a0",
+      "fullName": "mailinh",
+      "phone": "0102030405",
+      "email": "0102030405@meovangnha.vn",
+      "createdAt": "2026-10-28T08:18:49.85985Z"
+    },
+    {
+      "id": "d72123a9-e8c1-46e6-8ef2-53f3f4764867",
+      "fullName": "mai",
+      "phone": "0966527770",
+      "email": "0966527770@meovangnha.vn",
+      "createdAt": "2026-11-03T03:47:17.754415Z"
     }
   ],
-  "updatedAt": "2026-10-12T10:12:59.491Z"
+  "updatedAt": "2026-11-03T03:52:45.492Z"
 }

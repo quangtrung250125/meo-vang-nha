@@ -19,6 +19,7 @@ import {
   Send,
   Undo2,
   MessageSquare,
+  PencilLine,
   X
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -34,15 +35,14 @@ import {
   PROPOSAL_TYPE,
   getBookingStatus,
   normalizeStatusValue,
-  isClosedStatus,
   formatDateRange,
   formatDateSingle
 } from '../../utils/bookingStatus';
 import CustomerApprovalModal from '../../components/CustomerApprovalModal';
-import CustomerRescheduleModal from '../../components/CustomerRescheduleModal';
+import CustomerEditBookingModal from '../../components/CustomerEditBookingModal';
 import CustomerCancelModal from '../../components/CustomerCancelModal';
 import AdminProposeChangeModal from '../../components/AdminProposeChangeModal';
-import { hasBookingCode, todayInVietnam, PAYMENT_STATUS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
+import { hasBookingCode, todayInVietnam, PAYMENT_STATUS, getDepositDueAt, formatVietnamDateTime, depositToTransferOf } from '../../utils/bookingDeposit';
 import { toast } from 'react-hot-toast';
 import { buildInvoice } from '../../utils/bookingInvoice';
 import { ADDONS } from '../../components/ServiceManagement';
@@ -59,6 +59,10 @@ const getPaymentBadge = (booking) => {
   }
   if (booking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
     return { label: 'Chờ đặt cọc', className: 'bg-amber-100 text-amber-700' };
+  }
+  // Đơn đã trả phòng thì không còn nhắc cọc bổ sung, chỉ còn khoản thanh toán
+  if (booking.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && booking.normalizedStatus !== BOOKING_STATUS.COMPLETED) {
+    return { label: `Cần cọc thêm ${depositToTransferOf(booking).toLocaleString('vi-VN')}đ`, className: 'bg-amber-100 text-amber-700' };
   }
   if (booking.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) {
     return { label: `Đã cọc ${Number(booking.depositAmount || 0).toLocaleString()}đ`, className: 'bg-sky-100 text-sky-700' };
@@ -107,7 +111,6 @@ const MyBooking = () => {
     updateBooking,
     customerAcceptProposal,
     customerRejectProposal,
-    customerReschedule,
     customerCancel,
     customerUpdateNote,
     adminCheckIn,
@@ -124,7 +127,7 @@ const MyBooking = () => {
 
   const [activeTab, setActiveTab] = useState('ALL');
   const [selectedBookingForApproval, setSelectedBookingForApproval] = useState(null);
-  const [selectedBookingForReschedule, setSelectedBookingForReschedule] = useState(null);
+  const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
   const [selectedBookingForProposal, setSelectedBookingForProposal] = useState(null);
   const [selectedBookingForNote, setSelectedBookingForNote] = useState(null);
@@ -147,12 +150,6 @@ const MyBooking = () => {
       return false;
     }
     return true;
-  };
-
-  const handleCustomerReschedule = (id, dates) => {
-    const booking = globalBookingList.find(b => b.id === id);
-    if (booking && !hasRoomCapacity(booking, dates.newCheckIn, dates.newCheckOut)) return false;
-    return customerReschedule(id, dates);
   };
 
   const handleAcceptProposal = (id) => {
@@ -201,24 +198,9 @@ const MyBooking = () => {
     ? globalBookingList.filter((booking) => isBookingOfCustomer(booking, activeCustomer, isAdmin))
     : globalBookingList;
 
-  // Trạng thái cọc / trạng thái đơn lấy từ kho phòng trên server (cập nhật mỗi 2 giây), để khi admin
-  // xác nhận cọc hay Check-in thì trang của khách đổi theo ngay, không phụ thuộc bản lưu cũ trên trình duyệt
-  const liveByCode = {};
-  Object.values(roomBookings || {}).flat().forEach((b) => {
-    if (b?.code) liveByCode[b.code] = b;
-  });
-
-  const processedBookings = myBookings.map(rawBooking => {
-    const live = liveByCode[rawBooking.code || rawBooking.id];
-    const booking = { ...rawBooking };
-    // Đơn đã kết thúc thì giữ nguyên: server không còn trả về đơn đã hủy / đã trả phòng
-    if (live && !isClosedStatus(rawBooking.status)) {
-      ['paymentStatus', 'depositAmount', 'status'].forEach((key) => {
-        // Khách đã thanh toán đủ thì giữ 'Đã thanh toán', không để trạng thái cọc trên kho phòng đè lại
-        if (key === 'paymentStatus' && rawBooking.paymentStatus === 'Đã thanh toán') return;
-        if (live[key] !== undefined) booking[key] = live[key];
-      });
-    }
+  // Trạng thái đơn, đề xuất của Admin, tiền cọc... đã được RoomStateContext cập nhật vào "Lịch đặt" theo kho phòng
+  // trên server mỗi 2 giây (src/utils/liveBookings.js), nên trang khách đổi theo ngay khi Admin thao tác ở máy khác
+  const processedBookings = myBookings.map(booking => {
     const normalizedStatus = getBookingStatus(booking);
     return {
       ...booking,
@@ -256,12 +238,11 @@ const MyBooking = () => {
         onReject={(id) => customerRejectProposal(id)}
       />
 
-      <CustomerRescheduleModal
-        key={`reschedule-${selectedBookingForReschedule?.id || 'none'}`}
-        isOpen={Boolean(selectedBookingForReschedule)}
-        booking={selectedBookingForReschedule}
-        onClose={() => setSelectedBookingForReschedule(null)}
-        onConfirm={handleCustomerReschedule}
+      <CustomerEditBookingModal
+        key={`edit-${selectedBookingForEdit?.id || 'none'}`}
+        isOpen={Boolean(selectedBookingForEdit)}
+        booking={selectedBookingForEdit}
+        onClose={() => setSelectedBookingForEdit(null)}
       />
 
       <CustomerCancelModal
@@ -386,7 +367,8 @@ const MyBooking = () => {
               const dynamicPets = (booking.petIds || []).map(id => petList.find(p => p.id === id)).filter(Boolean);
               const resolvedPets = dynamicPets.length > 0 ? dynamicPets : (booking.petProfiles || []);
               const petsName = resolvedPets.map(p => p.name).join(', ') || 'Chưa rõ';
-              const packageDesc = booking.selectedPackage?.name || 'Gói chăm sóc tiêu chuẩn';
+              const packageDesc = booking.packages?.length ? booking.packages.join(' + ') : (booking.selectedPackage?.name || 'Gói chăm sóc tiêu chuẩn');
+              const roomLabel = booking.selectedRoom?.name || booking.roomId || booking.selectedRoom?.id;
               const firstPetImage = resolvedPets[0]?.imagePreview;
 
               const isUpcoming = booking.normalizedStatus === BOOKING_STATUS.UPCOMING;
@@ -491,8 +473,8 @@ const MyBooking = () => {
                       </div>
 
                       <p className="text-gray-600 text-sm font-medium mb-1">
-                        {booking.selectedRoom?.name ? <strong className="text-primary">Phòng {booking.selectedRoom.name}</strong> : ''} 
-                        {booking.selectedRoom?.name ? ' • ' : ''}
+                        {roomLabel ? <strong className="text-primary">Phòng {roomLabel}</strong> : ''}
+                        {roomLabel ? ' • ' : ''}
                         {packageDesc}
                       </p>
 
@@ -506,10 +488,15 @@ const MyBooking = () => {
                           <span className="font-mono text-gray-400">Mã đơn: #{booking.id}</span>
                         ) : (
                           <span className="text-amber-700">
-                            Chuyển khoản cọc {Number(booking.depositAmount || 0).toLocaleString()}đ (nội dung: COC {booking.id}) để nhận mã đặt phòng
+                            Chuyển khoản cọc {depositToTransferOf(booking).toLocaleString()}đ (nội dung: COC {booking.id}) để nhận mã đặt phòng
                             {formatVietnamDateTime(getDepositDueAt(booking)) && (
                               <strong className="text-red-600"> trước {formatVietnamDateTime(getDepositDueAt(booking))}, nếu không đơn có thể bị hủy</strong>
                             )}
+                          </span>
+                        )}
+                        {booking.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && !isClosed && (
+                          <span className="text-amber-700">
+                            Cọc bổ sung {depositToTransferOf(booking).toLocaleString()}đ (nội dung: COC {booking.id}), mã đặt phòng giữ nguyên
                           </span>
                         )}
                         {booking.totalAmount && (
@@ -592,11 +579,11 @@ const MyBooking = () => {
                       {!isAdmin && isUpcoming && booking.checkIn >= todayInVietnam() && (
                         <>
                           <button
-                            onClick={() => setSelectedBookingForReschedule(booking)}
+                            onClick={() => setSelectedBookingForEdit(booking)}
                             className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all flex items-center justify-center gap-1 cursor-pointer"
                           >
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Thay đổi lịch</span>
+                            <PencilLine className="w-3.5 h-3.5" />
+                            <span>Chỉnh sửa đơn</span>
                           </button>
 
                           <button

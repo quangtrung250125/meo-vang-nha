@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { promotionInfo } from '../../mockData/servicesData';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 import { Flame, Check, Sparkles, Bath, Car, BedDouble, X } from 'lucide-react';
+import { lodgingPricingForRoom } from '../../utils/bookingPricing';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,21 +17,6 @@ const ROOM_TYPE_COLORS = {
   VVIP:   'text-purple-600 bg-purple-50 border-purple-200',
   DELUXE: 'text-sky-600 bg-sky-50 border-sky-200',
 };
-
-/**
- * Tính giá gói lưu trú có tính phụ phí phòng.
- */
-function calcPricing(pkg, roomType, ROOM_SURCHARGES) {
-  const surcharge    = ROOM_SURCHARGES?.[roomType] ?? 0;
-  const baseOrig     = pkg.baseOriginalPrice ?? pkg.originalPrice;
-  const basePrc      = pkg.basePrice         ?? pkg.price;
-  const originalPrice = baseOrig + surcharge;
-  const pct           = pkg.discountPercent ?? 10;
-  const price         = basePrc  + Math.round(surcharge * (1 - pct / 100));
-  const savings       = originalPrice - price;
-  const fmt = (n) => n.toLocaleString('vi-VN') + 'đ';
-  return { price, originalPrice, priceString: fmt(price), originalPriceString: fmt(originalPrice), savingsString: fmt(savings), surcharge };
-}
 
 // ── Section header ────────────────────────────────────────────────────────────
 const SectionTitle = ({ icon: Icon, color, title, subtitle }) => (
@@ -125,7 +111,7 @@ const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
 
   // Khi chọn gói lưu trú — tính lại giá theo phòng và lưu vào cả selectedPackage (tương thích Step4)
   const handleSelectLodging = (pkg) => {
-    const pricing = calcPricing(pkg, roomType, ROOM_SURCHARGES);
+    const pricing = lodgingPricingForRoom(pkg, roomType, ROOM_SURCHARGES);
     updateData({
       selectedLodging: { ...pkg, ...pricing },
       selectedPackage: { ...pkg, ...pricing },
@@ -191,7 +177,7 @@ const Step2Packages = ({ data, updateData, onNext, onPrev }) => {
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {lodgingPkgs.map((pkg) => {
-            const pricing = calcPricing(pkg, roomType, ROOM_SURCHARGES);
+            const pricing = lodgingPricingForRoom(pkg, roomType, ROOM_SURCHARGES);
             return (
               <PackageCard
                 key={pkg.id}

@@ -13,6 +13,11 @@ import { BOOKING_STATUS, STORED_STATUS, PROPOSAL_TYPE, PROPOSAL_LABEL, normalize
 import { withoutDemoBookings } from '../utils/demoBookings';
 import { updateBookingRows } from '../utils/bookingRows';
 import { bookingFromDbRow, bookingKey, dedupeBookingsByCode, buildAuthoritativeBookings } from '../utils/bookingSync';
+import { getLiveBookingUpdates } from '../utils/liveBookings';
+import { getEditedDepositState } from '../utils/bookingDeposit';
+
+// Trường tiền cọc server tính lại sau khi khách chỉnh sửa đơn
+const DEPOSIT_FIELDS = ['paymentStatus', 'depositRequired', 'depositAmount', 'depositReceivedAmount', 'depositDueAt'];
 
 // ─── Helper: Merge hai danh sách booking, ưu tiên bản mới nhất (theo updatedAt / createdAt)
 // Giải quyết lỗi đếm khác nhau giữa 2 thiết bị: nếu cùng id/code, chọn cái có timestamp mới hơn
@@ -392,7 +397,9 @@ export const BookingHistoryProvider = ({ children }) => {
 
   // ── 5. Cập nhật booking theo ID ──
   // options.syncRoom = false khi thao tác xuất phát từ trang Tình trạng phòng (đã tự cập nhật kho phòng)
-  const updateBooking = (bookingId, updatedData, { syncRoom = true } = {}) => {
+  // options.serverUpdates: gửi đúng nội dung này lên kho phòng thay vì tự lọc từ updatedData
+  // Trả về Promise { ok, message?, serverBooking? } khi kho phòng trên server đã nhận (hoặc từ chối) thay đổi
+  const updateBooking = (bookingId, updatedData, { syncRoom = true, serverUpdates = null } = {}) => {
     const target = bookingListRef.current.find(b => b.id === bookingId || b.code === bookingId);
     // Đánh timestamp để mergeBookings trên thiết bị khác luôn chọn bản mới nhất
     const dataWithTimestamp = { ...updatedData, updatedAt: new Date().toISOString() };
@@ -416,27 +423,29 @@ export const BookingHistoryProvider = ({ children }) => {
     // C. Đồng bộ kho phòng trung tâm (/api/bookings) để trang Tình trạng phòng cập nhật theo
     const roomId = target?.roomId || target?.selectedRoom?.id;
     let waitForServer = false;
+    let serverResult = Promise.resolve({ ok: true });
     if (syncRoom && roomId) {
       const roomFields = [
         'status', 'checkIn', 'checkOut', 'pending_changes', 'checkedInAt', 'checkedOutAt',
         'rescheduledAt', 'cancelReason', 'cancelledAt', 'cancelledBy',
         'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
       ];
-      const roomUpdates = Object.fromEntries(
+      const roomUpdates = serverUpdates || Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
       );
       if (Object.keys(roomUpdates).length > 0) {
         waitForServer = true;
-        (async () => {
+        serverResult = (async () => {
           try {
+            const code = target.code || target.id;
             const res = await fetch('/api/bookings', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
-              body: JSON.stringify({ roomId, code: target.code || target.id, updates: roomUpdates }),
+              body: JSON.stringify({ roomId, code, updates: roomUpdates }),
             });
+            const json = await res.json().catch(() => ({}));
             // Server từ chối (VD: phòng vừa hết chỗ, đã qua ngày nhận phòng) -> trả đơn về như trước
             if (!res.ok) {
-              const json = await res.json().catch(() => ({}));
               const restored = Object.fromEntries(Object.keys(updatedData).map((key) => [key, target[key] ?? null]));
               const revertedList = bookingListRef.current.map(b =>
                 (b.id === bookingId || b.code === bookingId) ? { ...b, ...restored } : b
@@ -447,12 +456,18 @@ export const BookingHistoryProvider = ({ children }) => {
                 pushServerSync({ bookings: [revertedBooking] });
                 broadcastEvent('BOOKINGS_UPDATED', { bookings: [revertedBooking] });
               }
-              toast.error(json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.');
-              return;
+              const message = json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.';
+              toast.error(message);
+              return { ok: false, message };
             }
             // Server đã chấp nhận thì mới ghi lên Supabase, tránh lệch dữ liệu khi bị từ chối
             writeToSupabase();
-          } catch (e) {}
+            const serverBooking = Object.values(json.allBookings || {}).flat()
+              .find((b) => b && (b.code === code || b.id === code)) || null;
+            return { ok: true, serverBooking };
+          } catch (e) {
+            return { ok: true };
+          }
         })();
       }
     }
@@ -466,6 +481,33 @@ export const BookingHistoryProvider = ({ children }) => {
         petNames: target?.catNames || target?.petName || 'Bé mèo',
       });
     }
+    return serverResult;
+  };
+
+  // Ghi vài trường vào đơn chỉ trong trình duyệt này (dữ liệu vừa lấy từ server, không gửi ngược lại)
+  const applyLocalFields = (bookingId, fields) => {
+    const next = bookingListRef.current.map((b) =>
+      (b.id === bookingId || b.code === bookingId) ? { ...b, ...fields } : b
+    );
+    commitList(next);
+  };
+
+  // ── 5b. Cập nhật theo kho phòng trên server (RoomStateContext gọi sau mỗi lần tải /api/bookings) ──
+  // Đề xuất của Admin, Check-in / Check-out, hủy đơn, xác nhận cọc ở máy khác hiện ngay trên trang khách
+  const applyServerSnapshot = (liveBookings = [], closedBookings = []) => {
+    const liveByCode = new Map((liveBookings || []).filter(Boolean).map((b) => [b.code || b.id, b]));
+    const closedByCode = new Map((closedBookings || []).filter(Boolean).map((b) => [b.code, b]));
+    if (liveByCode.size === 0 && closedByCode.size === 0) return;
+    const now = Date.now();
+    let changed = false;
+    const next = bookingListRef.current.map((b) => {
+      const key = b.code || b.id;
+      const updates = getLiveBookingUpdates(b, { live: liveByCode.get(key), closed: closedByCode.get(key), now });
+      if (!updates) return b;
+      changed = true;
+      return { ...b, ...updates };
+    });
+    if (changed) commitList(next);
   };
 
 
@@ -701,6 +743,45 @@ export const BookingHistoryProvider = ({ children }) => {
     return true;
   };
 
+  // ── 16. KHÁCH HÀNG: Chỉnh sửa đơn (mèo, lịch, phòng, gói dịch vụ) — áp dụng ngay ──
+  // changes: các trường mới của đơn (giá đã tính lại như lúc đặt phòng), summary: tóm tắt thay đổi cho Admin
+  // Trả về Promise { ok, booking?, message? }
+  const customerEditBooking = async (bookingId, changes, summary = '') => {
+    const booking = findBooking(bookingId);
+    if (!booking || !ensureCustomerCanModify(booking, 'chỉnh sửa đơn')) return { ok: false };
+    const checkIn = changes.checkIn ?? booking.checkIn;
+    const checkOut = changes.checkOut ?? booking.checkOut;
+    const now = new Date().toISOString();
+    const datesChanged = checkIn !== booking.checkIn || checkOut !== booking.checkOut;
+    const editFields = {
+      ...changes,
+      // Giá mới đã tính trọn theo lịch mới nên hóa đơn không cộng thêm phần chênh lệch số đêm
+      originalCheckIn: checkIn,
+      originalCheckOut: checkOut,
+      ...(datesChanged ? { rescheduledAt: now } : {}),
+      editedAt: now,
+      lastEditSummary: summary,
+      // Đơn đã đổi nên đề xuất cũ của Admin (nếu có) không còn phù hợp
+      pending_changes: null,
+    };
+    // Tính trước tiền cọc để trang khách hiện ngay, server tính lại và trả về bản chính thức
+    const deposit = getEditedDepositState({ booking, checkIn, checkOut, total: changes.totalPrice ?? booking.totalPrice });
+
+    const result = await updateBooking(bookingId, { ...editFields, ...deposit }, {
+      serverUpdates: { ...editFields, customerEdit: true },
+    });
+    if (!result.ok) return { ok: false, message: result.message };
+    if (result.serverBooking) {
+      const serverDeposit = Object.fromEntries(
+        DEPOSIT_FIELDS.filter((key) => result.serverBooking[key] !== undefined).map((key) => [key, result.serverBooking[key]])
+      );
+      applyLocalFields(bookingId, serverDeposit);
+    }
+    broadcastSync('CUSTOMER_EDIT', bookingId, `Khách hàng đã chỉnh sửa đơn #${bookingId}${summary ? `: ${summary}` : ''}`);
+    toast.success('Đã cập nhật đơn đặt phòng!');
+    return { ok: true, booking: findBooking(bookingId) };
+  };
+
   return (
     <BookingHistoryContext.Provider
       value={{
@@ -717,6 +798,8 @@ export const BookingHistoryProvider = ({ children }) => {
         customerReschedule,
         customerCancel,
         customerUpdateNote,
+        customerEditBooking,
+        applyServerSnapshot,
       }}
     >
       {children}

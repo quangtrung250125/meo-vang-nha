@@ -2,7 +2,7 @@
 // (thêm dịch vụ, đổi lịch) hoặc khi Admin check-out sớm / muộn. Không cần ai chỉnh tay số tiền.
 // Doanh thu cuối cùng của đơn = invoice.total, chỉ ghi nhận khi đã thanh toán đủ và đã check-out.
 
-import { todayInVietnam } from './bookingDeposit.js';
+import { todayInVietnam, depositReceivedOf } from './bookingDeposit.js';
 
 const PAID_LABEL = 'Đã thanh toán';
 const COMPLETED = ['check-out', 'đã hoàn tất', 'hoàn tất', 'completed', 'đã hoàn thành'];
@@ -199,7 +199,8 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const isPaid = String(booking.paymentStatus || '').trim() === PAID_LABEL;
   // Đơn cũ đã thanh toán nhưng chưa lưu số tiền: coi như đã trả đủ
   const paidAmount = isPaid ? Number(booking.paidAmount ?? total) || 0 : 0;
-  const depositPaid = !isPaid && booking.paymentStatus === 'deposit_paid' ? Number(booking.depositAmount) || 0 : 0;
+  // Tiền cọc đã chuyển (kể cả phần đã cọc trước khi khách sửa đơn và đang chờ cọc bổ sung)
+  const depositPaid = isPaid ? 0 : depositReceivedOf(booking);
   const received = isPaid ? paidAmount : depositPaid;
 
   return {
