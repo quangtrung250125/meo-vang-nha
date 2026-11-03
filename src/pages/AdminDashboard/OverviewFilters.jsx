@@ -21,6 +21,7 @@ const OverviewFilters = ({
   setCustomRange,
   comparePrevious,
   setComparePrevious,
+  showCompare = true,
 }) => {
   return (
     <div className="bg-white p-4 sm:p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
@@ -74,6 +75,7 @@ const OverviewFilters = ({
         )}
 
         {/* Toggle So sánh với kỳ trước */}
+        {showCompare && (
         <label className="flex items-center gap-2.5 cursor-pointer bg-orange-50/70 hover:bg-orange-50 border border-orange-200/60 px-3.5 py-2 rounded-2xl transition-colors">
           <input
             type="checkbox"
@@ -86,6 +88,7 @@ const OverviewFilters = ({
             <span>So sánh kỳ trước</span>
           </div>
         </label>
+        )}
       </div>
     </div>
   );
