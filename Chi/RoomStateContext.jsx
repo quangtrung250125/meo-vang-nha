@@ -805,7 +805,16 @@ export const RoomStateProvider = ({ children }) => {
     try {
       const res = await callBookingsApi('POST', { roomId, booking });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      // Hệ thống bận / lỗi máy chủ: đơn CHƯA được ghi. Không tự cấp mã ở trình duyệt, để khách bấm gửi lại.
+      if (!data.conflict && !data.invalid && (res.status >= 500 || data.retryable)) {
+        return {
+          success: false,
+          retryable: true,
+          message: data.message || 'Chưa gửi được yêu cầu đặt phòng do hệ thống đang bận. Thông tin bạn điền vẫn được giữ nguyên, vui lòng bấm gửi lại.',
+        };
+      }
 
       if (!res.ok || data.conflict) {
         if (data.allBookings) {
@@ -868,78 +877,22 @@ export const RoomStateProvider = ({ children }) => {
         return { success: true, booking: data.booking, allBookings: data.allBookings };
       }
     } catch (err) {
-      console.warn('[addNewBooking] Không kết nối được server, fallback local:', err);
-    }
-
-    // 2. Fallback kiểm tra bộ nhớ local (nếu offline)
-    const current = bookings[roomId] || [];
-
-    // Kiểm tra nếu cùng mã booking gửi lại -> cập nhật đúng đơn đó
-    const duplicateByCode = current.find((existing) => {
-      return (booking.code && existing.code === booking.code) || (booking.id && existing.id === booking.id);
-    });
-
-    if (duplicateByCode) {
-      const updated = {
-        ...bookings,
-        [roomId]: current.map((item) =>
-          item.code === duplicateByCode.code || item.id === duplicateByCode.id
-            ? { ...item, ...booking }
-            : item
-        ),
-      };
-      setBookings(updated);
-      try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
-      return { success: true, isDuplicate: true, booking };
-    }
-
-    const room = ROOM_CONFIG.find((r) => r.id === roomId);
-    const capacity = room?.capacity || 2;
-    const newCats = Number(booking.cats) || 1;
-
-    const currentOccupied = getPeakOccupancyForRoom(
-      roomId,
-      bookings,
-      booking.checkIn,
-      booking.checkOut,
-      [booking.code, booking.id].filter(Boolean)
-    );
-
-    const availableSlots = Math.max(0, capacity - currentOccupied);
-
-    if (availableSlots < newCats) {
-      const conflictItem = current.find(
-        (b) =>
-          b.checkIn &&
-          b.checkOut &&
-          booking.checkIn &&
-          booking.checkOut &&
-          isDateRangeOverlap(b.checkIn, b.checkOut, booking.checkIn, booking.checkOut)
-      );
-
+      // Mất mạng: không giả lập đặt phòng thành công ở trình duyệt (mã đặt phòng giả sẽ không có trên hệ thống)
+      console.warn('[addNewBooking] Không kết nối được server:', err);
       return {
         success: false,
-        conflict: true,
-        reason: 'ROOM_CAPACITY_FULL',
-        message:
-          availableSlots === 0
-            ? `Phòng ${roomId} đã kín chỗ (${capacity}/${capacity} chỗ) từ ngày ${booking.checkIn} đến ngày ${booking.checkOut}. Vui lòng bấm "Chọn phòng khác"!`
-            : `Phòng ${roomId} chỉ còn ${availableSlots} chỗ trống trong thời gian này (bạn đang đặt ${newCats} bé). Vui lòng bấm "Chọn phòng khác"!`,
-        availableSlots,
-        capacity,
-        conflictedRoomId: roomId,
-        conflictBooking: conflictItem,
+        retryable: true,
+        message: 'Không kết nối được tới Mèo Vắng Nhà. Thông tin bạn điền vẫn được giữ nguyên, vui lòng kiểm tra mạng rồi bấm gửi lại.',
       };
     }
 
-    const updated = {
-      ...bookings,
-      [roomId]: [...current, booking],
+    // Máy chủ trả lời bất thường: coi như chưa đặt được, khách bấm gửi lại
+    return {
+      success: false,
+      retryable: true,
+      message: 'Chưa gửi được yêu cầu đặt phòng. Thông tin bạn điền vẫn được giữ nguyên, vui lòng bấm gửi lại.',
     };
-    setBookings(updated);
-    try { localStorage.setItem('mvn_room_bookings', JSON.stringify(updated)); } catch (e) {}
-    return { success: true, booking };
-  }, [bookings]);
+  }, []);
 
   /**
    * Cập nhật thông tin booking (chỉnh sửa)

@@ -5,6 +5,7 @@ import { getDepositPolicy, getEditedDepositState, isAwaitingDeposit, PAYMENT_STA
 import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
 import { stayEntriesForRoom, validateStayPlan } from '../../src/utils/staySegments.js';
+import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -391,95 +392,109 @@ export function getAllBookings() {
  * Xử lý đặt phòng Atomic: Đảm bảo khi 2 tài khoản bấm cùng lúc chỉ có 1 tài khoản đặt thành công
  */
 export async function addBookingAtomic({ roomId, booking }) {
-  // Chờ lượt lock trước hoàn tất
+  // Hai lớp khoá: khoá trong máy chủ này (xếp hàng các request cùng máy) và khoá dùng chung
+  // trên Supabase (xếp hàng giữa các máy chủ Vercel khác nhau). Ai tới trước được kiểm tra phòng trước.
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
       try {
-        // Đọc đơn mới nhất từ database trước khi kiểm tra phòng trống
-        await syncFromDb(true);
-        const room = ROOM_CONFIG.find((r) => r.id === roomId);
-        if (!room) {
-          return resolve({ success: false, message: `Không tìm thấy phòng ${roomId}` });
-        }
-
-        const validationError = validateNewBooking(booking, room);
-        if (validationError) {
-          return resolve({ success: false, invalid: true, message: validationError });
-        }
-
-        const capacity = room.capacity;
-        const newCats = Number(booking.cats);
-        const currentList = globalBookings[roomId] || [];
-
-        // 1. Không bao giờ ghi đè đơn đã có: nếu mã bị trùng thì cấp mã mới
-        const requestedCode = booking.code || booking.id;
-        if (!requestedCode || isCodeTaken(requestedCode) || (booking.id && booking.code && booking.id !== booking.code)) {
-          const freshCode = generateUniqueCode();
-          booking = { ...booking, id: freshCode, code: freshCode };
-        }
-
-        // 2. Tính số chỗ đang bị chiếm dụng cao điểm trong thời gian khách đặt
-        const occupied = getPeakOccupancyForRoom(
-          roomId,
-          globalBookings,
-          booking.checkIn,
-          booking.checkOut,
-          [booking.code, booking.id].filter(Boolean)
-        );
-
-        const availableSlots = Math.max(0, capacity - occupied);
-
-        // 3. Nếu số chỗ còn lại không đủ cho số mèo khách muốn gửi -> BÁO TRÙNG / HẾT CHỖ
-        if (availableSlots < newCats) {
-          const conflictBooking = currentList.find(
-            (b) =>
-              b.checkIn &&
-              b.checkOut &&
-              booking.checkIn &&
-              booking.checkOut &&
-              isDateRangeOverlap(b.checkIn, b.checkOut, booking.checkIn, booking.checkOut)
-          );
-
-          return resolve({
-            success: false,
-            conflict: true,
-            reason: 'ROOM_CAPACITY_FULL',
-            message:
-              availableSlots === 0
-                ? `Phòng ${roomId} đã kín chỗ (${capacity}/${capacity} chỗ) từ ngày ${booking.checkIn} đến ngày ${booking.checkOut}. Vui lòng bấm "Chọn phòng khác"!`
-                : `Phòng ${roomId} chỉ còn ${availableSlots} chỗ trống trong thời gian này (bạn đang đặt ${newCats} bé). Vui lòng bấm "Chọn phòng khác"!`,
-            availableSlots,
-            capacity,
-            conflictedRoomId: roomId,
-            conflictBooking,
-            allBookings: globalBookings,
-          });
-        }
-
-        // 4. Còn đủ chỗ -> GHI NHẬN ĐẶT PHÒNG THÀNH CÔNG VÀO BỘ NHỚ TRUNG TÂM
-        const updatedBooking = {
-          ...booking,
-          cats: newCats,
-          roomId,
-          createdAt: booking.createdAt || new Date().toISOString(),
-        };
-        updatedBooking.dbId = await saveStoredBooking(updatedBooking);
-
-        globalBookings[roomId] = [...(globalBookings[roomId] || []), updatedBooking];
-        persistBookings();
-        syncToSyncStore(updatedBooking);
-
-        return resolve({
-          success: true,
-          booking: updatedBooking,
-          remainingSlots: availableSlots - newCats,
-          allBookings: globalBookings,
-        });
+        resolve(await withSharedBookingLock(() => reserveRoom({ roomId, booking })));
       } catch (err) {
-        return resolve({ success: false, error: err.message });
+        resolve({
+          success: false,
+          retryable: true,
+          busy: err instanceof LockBusyError,
+          error: err.message,
+          message: err instanceof LockBusyError
+            ? err.message
+            : 'Chưa gửi được yêu cầu đặt phòng do hệ thống đang bận. Thông tin bạn điền vẫn được giữ nguyên, vui lòng bấm gửi lại.',
+        });
       }
     });
   });
+}
+
+// Kiểm tra chỗ trống và ghi đơn. Chỉ gọi khi đang giữ khoá đặt phòng.
+async function reserveRoom({ roomId, booking }) {
+  // Đọc đơn mới nhất từ database trước khi kiểm tra phòng trống
+  await syncFromDb(true);
+  const room = ROOM_CONFIG.find((r) => r.id === roomId);
+  if (!room) {
+    return { success: false, message: `Không tìm thấy phòng ${roomId}` };
+  }
+
+  const validationError = validateNewBooking(booking, room);
+  if (validationError) {
+    return { success: false, invalid: true, message: validationError };
+  }
+
+  const capacity = room.capacity;
+  const newCats = Number(booking.cats);
+  const currentList = globalBookings[roomId] || [];
+
+  // 1. Không bao giờ ghi đè đơn đã có: nếu mã bị trùng thì cấp mã mới
+  const requestedCode = booking.code || booking.id;
+  if (!requestedCode || isCodeTaken(requestedCode) || (booking.id && booking.code && booking.id !== booking.code)) {
+    const freshCode = generateUniqueCode();
+    booking = { ...booking, id: freshCode, code: freshCode };
+  }
+
+  // 2. Tính số chỗ đang bị chiếm dụng cao điểm trong thời gian khách đặt
+  const occupied = getPeakOccupancyForRoom(
+    roomId,
+    globalBookings,
+    booking.checkIn,
+    booking.checkOut,
+    [booking.code, booking.id].filter(Boolean)
+  );
+
+  const availableSlots = Math.max(0, capacity - occupied);
+
+  // 3. Nếu số chỗ còn lại không đủ cho số mèo khách muốn gửi -> BÁO TRÙNG / HẾT CHỖ
+  if (availableSlots < newCats) {
+    const conflictBooking = currentList.find(
+      (b) =>
+        b.checkIn &&
+        b.checkOut &&
+        booking.checkIn &&
+        booking.checkOut &&
+        isDateRangeOverlap(b.checkIn, b.checkOut, booking.checkIn, booking.checkOut)
+    );
+
+    return {
+      success: false,
+      conflict: true,
+      reason: 'ROOM_CAPACITY_FULL',
+      message:
+        availableSlots === 0
+          ? `Phòng ${roomId} đã kín chỗ (${capacity}/${capacity} chỗ) từ ngày ${booking.checkIn} đến ngày ${booking.checkOut}. Vui lòng bấm "Chọn phòng khác"!`
+          : `Phòng ${roomId} chỉ còn ${availableSlots} chỗ trống trong thời gian này (bạn đang đặt ${newCats} bé). Vui lòng bấm "Chọn phòng khác"!`,
+      availableSlots,
+      capacity,
+      conflictedRoomId: roomId,
+      conflictBooking,
+      allBookings: globalBookings,
+    };
+  }
+
+  // 4. Còn đủ chỗ -> GHI NHẬN ĐẶT PHÒNG THÀNH CÔNG VÀO BỘ NHỚ TRUNG TÂM
+  const updatedBooking = {
+    ...booking,
+    cats: newCats,
+    roomId,
+    createdAt: booking.createdAt || new Date().toISOString(),
+  };
+  updatedBooking.dbId = await saveStoredBooking(updatedBooking);
+
+  globalBookings[roomId] = [...(globalBookings[roomId] || []), updatedBooking];
+  persistBookings();
+  syncToSyncStore(updatedBooking);
+
+  return {
+    success: true,
+    booking: updatedBooking,
+    remainingSlots: availableSlots - newCats,
+    allBookings: globalBookings,
+  };
 }
 
 function syncToSyncStore(booking) {
@@ -656,6 +671,10 @@ export async function handleAddBooking(req, res) {
   }
   if (result.conflict) {
     return res.status(409).json(result);
+  }
+  // Lỗi hệ thống / chờ khoá quá lâu: đơn CHƯA được ghi, khách bấm gửi lại
+  if (!result.success) {
+    return res.status(result.retryable ? 503 : 400).json(result);
   }
   return res.status(200).json(result);
 }

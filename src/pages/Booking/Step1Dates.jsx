@@ -127,13 +127,19 @@ const TYPE_META = {
    Main Step 1 Component
 ------------------------------------------------ */
 const Step1Dates = ({ data, updateData, onNext }) => {
-  const [error, setError] = useState('');
-  const [availableGroups, setAvailableGroups] = useState(null); // nhóm theo hạng
-  const [noRooms, setNoRooms] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
-
   // Kết nối với shared RoomStateContext
   const { getRoomAvailability, bookings } = useRoomState();
+
+  const [error, setError] = useState('');
+  // Quay lại từ bước Xác nhận vì phòng vừa bị người khác đặt trước: hiện ngay danh sách phòng đã cập nhật,
+  // khách không phải bấm "Kiểm tra phòng trống" lại
+  const [availableGroups, setAvailableGroups] = useState(() => (
+    data.conflictedRoomId && data.checkIn && data.checkOut
+      ? getRoomAvailability(data.catCount || 1, data.checkIn, data.checkOut)
+      : null
+  )); // nhóm theo hạng
+  const [noRooms, setNoRooms] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   // Kiểm tra nếu ngày check-in là Thứ 5 (getDay() === 4)
   const isThursdayCheckIn = () => {
