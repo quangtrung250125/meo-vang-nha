@@ -25,8 +25,11 @@ const FunnelBar = ({ label, value, total, color, icon: Icon }) => {
   );
 };
 
-const Tab4Results = ({ results }) => {
+const DAYS = { '7d': 7, '30d': 30, '90d': 90 };
+
+const Tab4Results = ({ resultsFor }) => {
   const [timeFilter, setTimeFilter] = useState('30d');
+  const results = resultsFor(DAYS[timeFilter] || 30);
   const s = results.summary;
 
   const funnelSteps = [
@@ -38,9 +41,8 @@ const Tab4Results = ({ results }) => {
 
   return (
     <div className="space-y-6">
-      {/* CẢNH BÁO: Dữ liệu mẫu */}
-      <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-700 font-medium">
-        ⚠️ Dữ liệu mẫu — chưa nối với hệ thống tracking tin nhắn thật. Sau khi kết nối, biểu đồ sẽ cập nhật theo thời gian thực.
+      <div className="px-4 py-2.5 bg-sky-50 border border-sky-100 rounded-xl text-[11px] text-sky-700 font-medium">
+        Số liệu thật từ các tin Web Push đã gửi. "Đã mở" là khi thông báo hiện trên thiết bị của khách, "Đã bấm" là khi khách bấm vào thông báo, "Thành đơn" là khách đặt phòng trong 7 ngày sau khi nhận tin.
       </div>
 
       {/* Bộ lọc thời gian */}
@@ -92,6 +94,9 @@ const Tab4Results = ({ results }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
+              {results.byScenario.length === 0 && (
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">Chưa có tin nào được gửi trong khoảng thời gian này.</td></tr>
+              )}
               {results.byScenario.map(row => (
                 <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-5 py-3.5 text-sm font-bold text-gray-800">{row.name}</td>

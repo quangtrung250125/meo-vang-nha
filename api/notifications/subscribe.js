@@ -1,4 +1,5 @@
 import { upsertSubscription } from '../_lib/db.js';
+import { checkPushAccess } from '../_lib/pushAccess.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -31,6 +32,9 @@ export default async function handler(req, res) {
         error: 'Thiếu khóa mã hóa p256dh hoặc auth trong subscription.',
       });
     }
+
+    const access = await checkPushAccess(req, userId);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
 
     const saved = await upsertSubscription({
       userId: userId || 'anonymous',

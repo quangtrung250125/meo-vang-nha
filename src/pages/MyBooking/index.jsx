@@ -22,7 +22,7 @@ import {
   PencilLine,
   X
 } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
@@ -126,6 +126,9 @@ const MyBooking = () => {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('ALL');
+  // Mở từ thông báo đẩy (/my-booking?code=MVN-...): cuộn tới và tô sáng đúng đơn đó
+  const [searchParams] = useSearchParams();
+  const highlightCode = searchParams.get('code') || '';
   const [selectedBookingForApproval, setSelectedBookingForApproval] = useState(null);
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
@@ -208,6 +211,16 @@ const MyBooking = () => {
       statusConfig: BOOKING_STATUS_CONFIG[normalizedStatus] || BOOKING_STATUS_CONFIG[BOOKING_STATUS.UPCOMING],
     };
   });
+
+  const highlighted = highlightCode ? processedBookings.find(b => b.code === highlightCode || b.id === highlightCode) : null;
+  const highlightKey = highlighted ? (highlighted.code || highlighted.id) : '';
+  useEffect(() => {
+    if (!highlightKey) return undefined;
+    const timer = setTimeout(() => {
+      document.getElementById(`booking-${highlightKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [highlightKey]);
 
   const filteredBookings = processedBookings.filter(booking => {
     if (activeTab === 'ALL') return true;
@@ -384,8 +397,12 @@ const MyBooking = () => {
               return (
                 <div 
                   key={booking.id}
+                  id={`booking-${booking.code || booking.id}`}
+                  data-highlighted={highlightCode && (booking.code === highlightCode || booking.id === highlightCode) ? 'true' : undefined}
                   className={`bg-white border rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-5 ${
-                    isPendingApproval 
+                    highlightCode && (booking.code === highlightCode || booking.id === highlightCode)
+                      ? 'border-orange-400 ring-4 ring-orange-100'
+                      : isPendingApproval 
                       ? 'border-purple-300 ring-2 ring-purple-100 shadow-purple-50' 
                       : 'border-gray-100'
                   }`}

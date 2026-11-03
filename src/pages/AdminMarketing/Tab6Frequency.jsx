@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
-import { Save, Clock, AlarmClock, MessageSquare, ShieldAlert } from 'lucide-react';
+import { Save, Clock, AlarmClock, MessageSquare, ShieldAlert, Ticket } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { MKT_STORAGE_KEYS, saveToStorage } from './marketingStore';
+import { DEFAULT_PROMO_CODE } from '../../utils/marketingEngine';
 
-const Tab6Frequency = ({ frequency, setFrequency }) => {
+const Tab6Frequency = ({ frequency, saveConfig }) => {
   const [form, setForm] = useState({ ...frequency });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (form.maxPerWeek < 1 || form.maxPerWeek > 30) { toast.error('Số tin tối đa phải từ 1 đến 30!'); return; }
     if (form.minGapHours < 1) { toast.error('Khoảng cách tối thiểu phải lớn hơn 0 giờ!'); return; }
-    setFrequency(form);
-    saveToStorage(MKT_STORAGE_KEYS.FREQUENCY, form);
-    toast.success('Đã lưu cài đặt giới hạn tần suất!');
+    const ok = await saveConfig({ frequency: { ...form, promoCode: String(form.promoCode || '').trim().toUpperCase() } });
+    if (ok) toast.success('Đã lưu cài đặt giới hạn tần suất! Áp dụng ngay cho các tin gửi tự động.');
   };
 
   return (
     <div className="space-y-6">
       <form onSubmit={handleSave}>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-xs p-6 space-y-6">
-          <h3 className="text-sm font-bold text-gray-800">Cài đặt giới hạn tần suất gửi tin</h3>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">Cài đặt giới hạn tần suất gửi tin</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Áp dụng cho tin gửi tự động theo kịch bản. Tin admin chủ động gửi thủ công không bị giới hạn nhưng vẫn được tính vào số tin của khách.</p>
+          </div>
 
           {/* Số tin tối đa */}
           <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
@@ -86,11 +88,25 @@ const Tab6Frequency = ({ frequency, setFrequency }) => {
               <div>
                 <label className="block text-sm font-bold text-gray-800 mb-0.5">Tạm dừng với khách có khiếu nại chưa xử lý</label>
                 <p className="text-xs text-gray-500">Khách hàng có khiếu nại chưa giải quyết sẽ không nhận tin marketing cho đến khi khiếu nại được đóng</p>
+                <p className="text-[11px] text-amber-600 mt-1">Web chưa có mục ghi nhận khiếu nại nên cài đặt này chưa có tác dụng.</p>
               </div>
               <button type="button" onClick={() => set('pauseOnComplaint', !form.pauseOnComplaint)}
                 className={`relative inline-flex w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${form.pauseOnComplaint ? 'bg-emerald-500' : 'bg-gray-300'}`}>
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.pauseOnComplaint ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
+            </div>
+          </div>
+
+          {/* Mã ưu đãi */}
+          <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+              <Ticket className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-bold text-gray-800 mb-0.5">Mã ưu đãi điền vào biến {'{ma_uu_dai}'}</label>
+              <p className="text-xs text-gray-500 mb-3">Dùng cho các mẫu tin có nhắc mã ưu đãi. Nên trùng với một mã đang chạy ở trang Khuyến mãi.</p>
+              <input value={form.promoCode ?? ''} onChange={e => set('promoCode', e.target.value)} placeholder={DEFAULT_PROMO_CODE} maxLength={30}
+                className="w-48 border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-emerald-300" />
             </div>
           </div>
 

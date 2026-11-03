@@ -1,4 +1,6 @@
 import { sendPushToUser, broadcastPush } from '../_lib/pushService.js';
+import { getRequestUser } from '../_lib/auth.js';
+import { checkPushAccess } from '../_lib/pushAccess.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,6 +30,8 @@ export default async function handler(req, res) {
     };
 
     if (broadcast) {
+      const user = await getRequestUser(req);
+      if (!user?.isAdmin) return res.status(403).json({ error: 'Chỉ Admin mới gửi thông báo cho tất cả khách.' });
       const result = await broadcastPush(payload);
       return res.status(200).json({
         success: result.success,
@@ -42,6 +46,9 @@ export default async function handler(req, res) {
         error: 'Cần cung cấp userId của người nhận thông báo.',
       });
     }
+
+    const access = await checkPushAccess(req, userId);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
 
     const result = await sendPushToUser(userId, payload);
 

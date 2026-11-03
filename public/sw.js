@@ -55,6 +55,7 @@ self.addEventListener('push', (event) => {
     image: data.image || undefined,
     data: {
       url: data.url || data.data?.url || '/booking',
+      messageId: data.data?.messageId || null,
       timestamp: Date.now(),
     },
     vibrate: [200, 100, 200],
@@ -68,9 +69,40 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Mèo Vắng Nhà 🐾', notificationOptions)
+    Promise.all([
+      self.registration.showNotification(data.title || 'Mèo Vắng Nhà 🐾', notificationOptions),
+      trackMarketing(notificationOptions.data.messageId, 'shown'),
+    ])
   );
 });
+
+// Báo server khách đã thấy / đã bấm tin Marketing (để tab Kết quả đếm lượt mở, lượt bấm)
+function trackMarketing(messageId, event) {
+  if (!messageId) return Promise.resolve();
+  return fetch('/api/marketing/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId, event }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+// Mở đúng trang của khách khi bấm thông báo: dùng lại tab web đang mở nếu có, không thì mở tab mới
+function openNotificationTarget(rawUrl) {
+  const urlToOpen = new URL(rawUrl || '/', self.location.origin).href;
+  return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+    for (const client of windowClients) {
+      if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+        const navigated = 'navigate' in client ? client.navigate(urlToOpen).catch(() => null) : Promise.resolve(null);
+        // Tab chưa do Service Worker quản lý thì không chuyển trang được: mở tab mới
+        return navigated.then((c) => (c ? c.focus() : clients.openWindow(urlToOpen)));
+      }
+    }
+    if (clients.openWindow) return clients.openWindow(urlToOpen);
+    return null;
+  });
+}
+self.openNotificationTarget = openNotificationTarget;
 
 // ── Click vào thông báo ──────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
@@ -78,25 +110,12 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'close') return;
 
-  const rawUrl = event.notification.data?.url || '/booking';
-  const urlToOpen = new URL(rawUrl, self.location.origin).href;
-
+  const data = event.notification.data || {};
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // 1. Nếu tab đã mở thuộc cùng origin → focus & chuyển trang
-      for (const client of windowClients) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          if ('navigate' in client) {
-            client.navigate(urlToOpen);
-          }
-          return client.focus();
-        }
-      }
-      // 2. Nếu chưa có tab nào mở → mở tab mới
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
+    Promise.all([
+      openNotificationTarget(data.url || '/booking'),
+      trackMarketing(data.messageId, 'click'),
+    ])
   );
 });
 

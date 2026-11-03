@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments')) {
+        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing')) {
           return next();
         }
 
@@ -67,6 +67,13 @@ function apiDevPlugin() {
               const { handleRemoveBooking } = await import('./api/_lib/bookingsService.js');
               return handleRemoveBooking(req, res);
             }
+          }
+          if (urlPath.startsWith('/api/marketing/')) {
+            if (req.method === 'POST' || req.method === 'PUT') {
+              req.body = await parseBody();
+            }
+            const { default: handler } = await import('./api/marketing/[action].js');
+            return handler(req, res);
           }
           if (urlPath === '/api/payments/sepay') {
             req.body = await parseBody();

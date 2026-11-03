@@ -1,23 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, Eye, Mail, MessageSquare, Phone, Bell, Edit2 } from 'lucide-react';
+import { Plus, Eye, Mail, MessageSquare, Phone, Bell, Edit2, Send, ExternalLink } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { CHANNELS, MKT_STORAGE_KEYS, saveToStorage } from './marketingStore';
+import { CHANNELS } from './marketingStore';
+import { PUSH_DESTINATIONS, TEMPLATE_VARIABLES, fillTemplate, destinationLabel } from '../../utils/marketingEngine';
 
-const SAMPLE_DATA = { ten_chu: 'Nguyễn Lan Anh', ten_meo: 'Bơ', ngay_nhan: '30/10/2026', ma_uu_dai: 'BOSS20', hang: 'Vàng' };
+const SAMPLE_DATA = { ten_chu: 'Nguyễn Lan Anh', ten_meo: 'Bơ', ngay_nhan: '30/10/2026', ma_don: 'MVN-12345', ma_uu_dai: 'MEOVANG', hang: 'Vàng' };
 
-const fillVariables = (body) => {
-  return body
-    .replace(/\{ten_chu\}/g, SAMPLE_DATA.ten_chu)
-    .replace(/\{ten_meo\}/g, SAMPLE_DATA.ten_meo)
-    .replace(/\{ngay_nhan\}/g, SAMPLE_DATA.ngay_nhan)
-    .replace(/\{ma_uu_dai\}/g, SAMPLE_DATA.ma_uu_dai)
-    .replace(/\{hang\}/g, SAMPLE_DATA.hang);
-};
+const fillVariables = (body) => fillTemplate(body, SAMPLE_DATA);
 
 const CHANNEL_ICONS = { zalo: MessageSquare, email: Mail, sms: Phone, webpush: Bell, call: Phone };
 const CHANNEL_COLORS = { zalo: 'bg-sky-100 text-sky-700 border-sky-200', email: 'bg-purple-100 text-purple-700 border-purple-200', sms: 'bg-emerald-100 text-emerald-700 border-emerald-200', webpush: 'bg-orange-100 text-orange-700 border-orange-200', call: 'bg-rose-100 text-rose-700 border-rose-200' };
 
-const TemplateCard = ({ tpl, onEdit }) => {
+const TemplateCard = ({ tpl, onEdit, onSend }) => {
   const [showPreview, setShowPreview] = useState(false);
   const Icon = CHANNEL_ICONS[tpl.channel] || MessageSquare;
   return (
@@ -34,7 +28,11 @@ const TemplateCard = ({ tpl, onEdit }) => {
           <Edit2 className="h-4 w-4" />
         </button>
       </div>
-      <p className="text-xs text-gray-500 leading-relaxed line-clamp-3 bg-gray-50 rounded-xl p-3">{tpl.body}</p>
+      <div className="bg-gray-50 rounded-xl p-3">
+        <p className="text-xs font-bold text-gray-700 mb-1">{tpl.title}</p>
+        <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{tpl.body}</p>
+      </div>
+      <p className="text-[11px] text-gray-400 flex items-center gap-1"><ExternalLink className="h-3 w-3" />Bấm thông báo mở: <b className="text-gray-600">{destinationLabel(tpl.url)}</b></p>
       {tpl.variables?.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {tpl.variables.map(v => (
@@ -50,20 +48,25 @@ const TemplateCard = ({ tpl, onEdit }) => {
       {showPreview && (
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
           <p className="text-[11px] font-bold text-emerald-700 mb-1.5">Xem trước (dữ liệu mẫu):</p>
+          <p className="text-sm font-bold text-gray-800">{fillVariables(tpl.title)}</p>
           <p className="text-sm text-gray-700 leading-relaxed">{fillVariables(tpl.body)}</p>
         </div>
       )}
+      <button onClick={() => onSend(tpl)} className="mt-auto inline-flex items-center justify-center gap-2 px-3 py-2 border border-orange-200 text-orange-600 hover:bg-orange-50 rounded-xl text-xs font-bold transition-colors cursor-pointer">
+        <Send className="h-3.5 w-3.5" />
+        Gửi mẫu này cho khách
+      </button>
     </div>
   );
 };
 
 const TemplateModal = ({ template, onClose, onSave }) => {
-  const [form, setForm] = useState(template ? { ...template } : { name: '', channel: 'zalo', body: '', variables: [], status: 'active' });
+  const [form, setForm] = useState(template ? { ...template } : { name: '', channel: 'webpush', title: '', body: '', url: '/booking', variables: [], status: 'active' });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.body.trim()) { toast.error('Vui lòng điền đầy đủ thông tin!'); return; }
-    const vars = [...form.body.matchAll(/\{[^}]+\}/g)].map(m => m[0]);
+    const vars = [...`${form.title || ''} ${form.body}`.matchAll(/\{[^}]+\}/g)].map(m => m[0]);
     onSave({ ...form, id: form.id || `tpl-${Date.now()}`, variables: [...new Set(vars)] });
   };
   return (
@@ -84,13 +87,25 @@ const TemplateModal = ({ template, onClose, onSave }) => {
             </select>
           </div>
           <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Tiêu đề thông báo (Web Push)</label>
+            <input value={form.title || ''} onChange={e => set('title', e.target.value)} maxLength={100} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Ví dụ: ⏰ Sắp đến ngày gửi bé {ten_meo}" />
+          </div>
+          <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">Nội dung tin *</label>
-            <p className="text-[11px] text-gray-400 mb-1.5">Biến cá nhân hóa: {'{ten_chu}'}, {'{ten_meo}'}, {'{ngay_nhan}'}, {'{ma_uu_dai}'}, {'{hang}'}</p>
+            <p className="text-[11px] text-gray-400 mb-1.5">Biến cá nhân hóa: {TEMPLATE_VARIABLES.join(', ')}</p>
             <textarea value={form.body} onChange={e => set('body', e.target.value)} rows={5} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none" placeholder="Nội dung tin nhắn... Dùng {ten_chu} để cá nhân hóa" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1.5">Khi khách bấm vào thông báo, mở trang</label>
+            <select value={form.url || '/'} onChange={e => set('url', e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white">
+              {PUSH_DESTINATIONS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Chọn "Lịch đặt của tôi" thì tin về một đơn cụ thể sẽ mở đúng đơn đó.</p>
           </div>
           {form.body && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
               <p className="text-[11px] font-bold text-emerald-700 mb-1">Xem trước:</p>
+              {form.title && <p className="text-sm font-bold text-gray-800">{fillVariables(form.title)}</p>}
               <p className="text-sm text-gray-700">{fillVariables(form.body)}</p>
             </div>
           )}
@@ -104,7 +119,7 @@ const TemplateModal = ({ template, onClose, onSave }) => {
   );
 };
 
-const Tab2Templates = ({ templates, setTemplates }) => {
+const Tab2Templates = ({ templates, saveConfig, openManual }) => {
   const [channelFilter, setChannelFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
@@ -113,8 +128,7 @@ const Tab2Templates = ({ templates, setTemplates }) => {
 
   const handleSave = (tpl) => {
     const next = editingTemplate ? templates.map(t => t.id === tpl.id ? tpl : t) : [...templates, tpl];
-    setTemplates(next);
-    saveToStorage(MKT_STORAGE_KEYS.TEMPLATES, next);
+    saveConfig({ templates: next });
     toast.success(editingTemplate ? 'Đã cập nhật mẫu tin nhắn!' : 'Đã tạo mẫu tin nhắn mới!');
     setModalOpen(false);
     setEditingTemplate(null);
@@ -127,7 +141,7 @@ const Tab2Templates = ({ templates, setTemplates }) => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-gray-800">Mẫu tin nhắn theo kênh</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Biến cá nhân hóa: tên chủ, tên mèo, ngày nhận, mã ưu đãi, hạng</p>
+            <p className="text-xs text-gray-500 mt-0.5">Biến cá nhân hóa: tên chủ, tên mèo, ngày nhận, mã đơn, mã ưu đãi, hạng. Mọi mẫu đều gửi được qua Web Push.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Channel filter pills */}
@@ -150,7 +164,7 @@ const Tab2Templates = ({ templates, setTemplates }) => {
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(tpl => (
-            <TemplateCard key={tpl.id} tpl={tpl} onEdit={(t) => { setEditingTemplate(t); setModalOpen(true); }} />
+            <TemplateCard key={tpl.id} tpl={tpl} onEdit={(t) => { setEditingTemplate(t); setModalOpen(true); }} onSend={(t) => openManual({ templateId: t.id })} />
           ))}
         </div>
       )}

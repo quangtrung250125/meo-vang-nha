@@ -10,3 +10,4 @@ api/lib/bookings_store.json
 repomix-output.*
 test-results
 playwright-report
+api/_lib/marketing_store.json

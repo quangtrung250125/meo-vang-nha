@@ -154,3 +154,40 @@ export async function getAllSubscriptions() {
 
   return list;
 }
+
+/**
+ * Lấy subscriptions của nhiều mã người dùng một lúc (mã tài khoản, số điện thoại…), bỏ trùng theo endpoint
+ */
+export async function getSubscriptionsByUserIds(userIds = []) {
+  const ids = [...new Set((userIds || []).map((id) => String(id || '')).filter(Boolean))];
+  if (ids.length === 0) return [];
+  const byEndpoint = new Map();
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('*')
+      .in('user_id', ids);
+    if (!error && Array.isArray(data)) data.forEach((sub) => byEndpoint.set(sub.endpoint, sub));
+  } catch (err) {
+    console.warn('[DB Push] Lỗi đọc từ Supabase:', err.message);
+  }
+
+  memorySubscriptions.forEach((sub) => {
+    if (ids.includes(sub.user_id) && !byEndpoint.has(sub.endpoint)) byEndpoint.set(sub.endpoint, sub);
+  });
+
+  return [...byEndpoint.values()];
+}
+
+/**
+ * Số thiết bị đã bật thông báo theo từng mã người dùng: { [user_id]: số thiết bị }
+ */
+export async function countSubscriptionsByUser() {
+  const all = await getAllSubscriptions();
+  return all.reduce((acc, sub) => {
+    const id = String(sub.user_id || '');
+    if (id) acc[id] = (acc[id] || 0) + 1;
+    return acc;
+  }, {});
+}
