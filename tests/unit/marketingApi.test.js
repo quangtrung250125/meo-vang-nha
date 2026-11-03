@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { handleMarketing, safeUrl } from '../../api/_lib/marketingService.js';
-import { resetMarketingMemory, insertMessage, listMessages } from '../../api/_lib/marketingDb.js';
+import { resetMarketingMemory, insertMessage, listMessages, saveContact } from '../../api/_lib/marketingDb.js';
 import { setTokenVerifier } from '../../api/_lib/auth.js';
 import { ownPushIds } from '../../api/_lib/pushAccess.js';
 
@@ -81,6 +81,16 @@ describe('API Marketing tự động', () => {
     expect(safeUrl('https://evil.example')).toBe('/');
     expect(safeUrl('//evil.example')).toBe('/');
   });
+
+  it('trả họ tên, SĐT tài khoản khách cho trang Marketing', async () => {
+    await saveContact({ id: 'k1', fullName: 'Lan Anh', phone: '0901234567', email: '0901234567@meovangnha.vn' });
+    await saveContact({ id: 'a1', isAdmin: true, fullName: 'Admin' });
+    const res = mockRes();
+    await handleMarketing(req('GET', '/api/marketing/audience', { token: 'admin' }), res, 'audience');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.accounts).toEqual([expect.objectContaining({ id: 'k1', fullName: 'Lan Anh', phone: '0901234567' })]);
+    expect(res.body.subscriptionStore).toHaveProperty('ok');
+  }, 20000);
 
   it('khách chỉ dùng thông báo cho mã tài khoản / SĐT của mình', () => {
     expect(ownPushIds({ id: 'k1', email: '0901234567@meovangnha.vn' })).toEqual(['k1', '0901234567']);

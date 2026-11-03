@@ -1,5 +1,6 @@
 import { upsertSubscription } from '../_lib/db.js';
 import { checkPushAccess } from '../_lib/pushAccess.js';
+import { saveContact } from '../_lib/marketingDb.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,6 +44,18 @@ export default async function handler(req, res) {
       auth,
       userAgent: userAgent || req.headers['user-agent'] || '',
     });
+
+    // Ghi lại họ tên / SĐT của khách để trang Marketing hiển thị đúng
+    await saveContact(access.user).catch(() => {});
+
+    // Trên Vercel, không lưu được vào Supabase thì thiết bị chỉ được nhớ tạm trên một máy chủ và sẽ mất: báo lỗi rõ.
+    // Chạy thử trên máy (không có Vercel) vẫn dùng bộ nhớ tạm như trước.
+    if (saved?.persisted === false && process.env.VERCEL) {
+      console.error('[API Subscribe] Không lưu được thiết bị vào push_subscriptions:', saved.dbError);
+      return res.status(503).json({
+        error: 'Máy chủ chưa lưu được thiết bị nhận thông báo (thiếu bảng push_subscriptions trên Supabase). Vui lòng báo Mèo Vắng Nhà.',
+      });
+    }
 
     return res.status(200).json({
       success: true,

@@ -49,11 +49,14 @@ async function loadFromSupabase() {
   };
 }
 
+const NO_PROFILES = [];
+
 /**
  * Dữ liệu khách hàng cho trang Admin: gom từ server đồng bộ (/api/sync), bảng Supabase
  * và dữ liệu đang có trên trình duyệt; tự làm mới khi khách đặt phòng hoặc tạo hồ sơ mèo.
+ * extraProfiles: họ tên / SĐT tài khoản khách do máy chủ đọc thêm (vd. trang Marketing).
  */
-export default function useCustomerData() {
+export default function useCustomerData({ extraProfiles = NO_PROFILES } = {}) {
   const { globalBookingList = [] } = useBookingHistory() || {};
   const { petList = [] } = usePetProfile() || {};
   const { authenticatedCustomer } = useCustomerProfile() || {};
@@ -113,12 +116,12 @@ export default function useCustomerData() {
 
   const customers = useMemo(
     () => buildCustomers({
-      profiles: [...db.profiles, ...server.profiles],
+      profiles: [...db.profiles, ...extraProfiles, ...server.profiles],
       bookings: [...db.bookings, ...globalBookingList, ...server.bookings],
       pets: [...db.pets, ...petList, ...server.pets],
       excludeIds: [authenticatedCustomer?.id],
     }),
-    [db, server, globalBookingList, petList, authenticatedCustomer?.id]
+    [db, server, extraProfiles, globalBookingList, petList, authenticatedCustomer?.id]
   );
 
   return { customers, loading, lastSyncedAt, refresh };

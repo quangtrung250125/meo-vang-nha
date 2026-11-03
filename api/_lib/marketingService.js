@@ -1,5 +1,7 @@
 import { getRequestUser } from './auth.js';
-import { supabaseAdmin, countSubscriptionsByUser } from './db.js';
+import { supabaseAdmin, countSubscriptionsByUser, hasServiceRole, getSubscriptionDbError } from './db.js';
+import { getAdminEmails, isAdminUser } from '../../src/utils/adminAccess.js';
+import { normalizeVnPhone } from '../../src/utils/phone.js';
 import { listStoredBookings } from './bookingsDb.js';
 import { getSyncData } from './syncService.js';
 import { isPushConfigured, sendPushToUserIds, PUSH_NOT_CONFIGURED } from './pushService.js';
@@ -13,6 +15,7 @@ import {
   saveDraft,
   clearDraft,
   listDrafts,
+  listContacts,
   newMessageId,
   isUsingDatabase,
 } from './marketingDb.js';
@@ -153,24 +156,89 @@ export async function sendMarketingMessages({ messages = [], source = 'manual', 
 const countBy = (results) => results.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] || 0) + 1 }), {});
 
 // ---------- Dữ liệu khách cho lần chạy tự động trên server ----------
-async function loadServerCustomers() {
-  const safe = async (fn) => {
-    try {
-      const { data, error } = await Promise.race([fn(), new Promise((resolve) => setTimeout(() => resolve({ data: null }), 6000))]);
-      return !error && Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+const safeRows = async (fn) => {
+  try {
+    const { data, error } = await Promise.race([fn(), new Promise((resolve) => setTimeout(() => resolve({ data: null }), 6000))]);
+    return !error && Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+const phoneOfEmail = (email = '') => /^(\d{9,12})@meovangnha\.vn$/i.exec(email)?.[1] || '';
+
+// Tài khoản Supabase (cần service role): họ tên và SĐT khách nhập lúc đăng ký nằm trong user_metadata
+async function listAuthUsers() {
+  if (!hasServiceRole) return [];
+  const adminEmails = getAdminEmails({
+    emails: process.env.ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS,
+    phones: process.env.ADMIN_PHONES || process.env.VITE_ADMIN_PHONES,
+  });
+  const out = [];
+  try {
+    for (let page = 1; page <= 20; page += 1) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) break;
+      const users = data?.users || [];
+      users.forEach((u) => {
+        if (!u?.id || isAdminUser(u, adminEmails)) return;
+        const meta = u.user_metadata || {};
+        out.push({
+          id: u.id,
+          fullName: meta.full_name || meta.fullName || meta.name || '',
+          phone: meta.phone || u.phone || phoneOfEmail(u.email),
+          email: phoneOfEmail(u.email) ? '' : (u.email || ''),
+          createdAt: u.created_at || null,
+        });
+      });
+      if (users.length < 1000) break;
     }
+  } catch (err) {
+    console.warn('[Marketing] Không đọc được danh sách tài khoản:', err?.message);
+  }
+  return out;
+}
+
+/**
+ * Họ tên, SĐT của từng tài khoản khách: gom từ danh sách tài khoản Supabase, bảng customer_profiles
+ * và thông tin khách gửi lên khi bật thông báo. Giá trị đầu tiên có dữ liệu được dùng.
+ */
+export async function loadAccounts() {
+  const [users, profileRows, contacts] = await Promise.all([
+    listAuthUsers(),
+    safeRows(() => supabaseAdmin.from('customer_profiles').select('*')),
+    listContacts().catch(() => []),
+  ]);
+  const map = new Map();
+  const add = (p) => {
+    if (!p?.id) return;
+    const id = String(p.id);
+    const cur = map.get(id) || { id, fullName: '', phone: '', email: '', createdAt: null };
+    const clean = {
+      fullName: String(p.fullName || p.full_name || '').trim(),
+      phone: normalizeVnPhone(p.phone || ''),
+      email: String(p.email || '').trim(),
+      createdAt: p.createdAt || p.created_at || null,
+    };
+    Object.entries(clean).forEach(([k, v]) => { if (v && !cur[k]) cur[k] = v; });
+    map.set(id, cur);
   };
-  const [stored, profileRows, petRows] = await Promise.all([
+  profileRows.forEach(add);
+  users.forEach(add);
+  contacts.forEach(add);
+  return [...map.values()];
+}
+
+async function loadServerCustomers() {
+  const [stored, accounts, petRows] = await Promise.all([
     listStoredBookings().then((x) => x || []),
-    safe(() => supabaseAdmin.from('customer_profiles').select('*')),
-    safe(() => supabaseAdmin.from('pets').select('*')),
+    loadAccounts(),
+    safeRows(() => supabaseAdmin.from('pets').select('*')),
   ]);
   const sync = getSyncData() || {};
   return groupCustomers({
     profiles: [
-      ...profileRows.map((p) => ({ id: p.id, fullName: p.full_name, phone: p.phone, createdAt: p.created_at })),
+      ...accounts,
       ...(sync.profiles || []).filter((p) => p?.id),
     ],
     bookings: [...stored, ...(sync.bookings || [])],
@@ -248,9 +316,25 @@ export async function handleMessages(req, res) {
 export async function handleAudience(req, res) {
   const user = await requireAdmin(req, res);
   if (!user) return;
-  const [devices, drafts] = await Promise.all([countSubscriptionsByUser(), listDrafts()]);
-  return res.status(200).json({ devices, drafts, pushConfigured: isPushConfigured() });
+  const [devices, drafts, accounts] = await Promise.all([countSubscriptionsByUser(), listDrafts(), loadAccounts()]);
+  const dbError = getSubscriptionDbError();
+  return res.status(200).json({
+    devices,
+    drafts,
+    accounts,
+    pushConfigured: isPushConfigured(),
+    serviceRole: hasServiceRole,
+    // Không đọc / ghi được bảng push_subscriptions: thiết bị khách bật thông báo không được lưu lại
+    subscriptionStore: dbError ? { ok: false, error: describeDbError(dbError) } : { ok: true },
+  });
 }
+
+const describeDbError = (msg = '') => {
+  const m = String(msg);
+  if (/push_subscriptions/i.test(m) && /(does not exist|schema cache|not find)/i.test(m)) return 'Chưa có bảng push_subscriptions trên Supabase.';
+  if (/row-level security|permission denied/i.test(m)) return 'Supabase chặn ghi bảng push_subscriptions (thiếu SUPABASE_SERVICE_ROLE_KEY trên Vercel hoặc chưa có quyền).';
+  return m.slice(0, 200);
+};
 
 // Khách (hoặc Service Worker) báo đã thấy / đã bấm thông báo; khách đang đặt phòng dở
 export async function handleTrack(req, res) {

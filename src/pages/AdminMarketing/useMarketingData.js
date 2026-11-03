@@ -41,7 +41,8 @@ const localConfig = () => ({
  * khách đã bật thông báo và danh sách khách đến hạn nhận tin theo từng kịch bản.
  */
 export default function useMarketingData() {
-  const { customers: adminCustomers = [], refresh: refreshCustomers } = useCustomerData();
+  const [accounts, setAccounts] = useState([]);
+  const { customers: adminCustomers = [], refresh: refreshCustomers } = useCustomerData({ extraProfiles: accounts });
   const [config, setConfig] = useState(localConfig);
   const [messages, setMessages] = useState([]);
   const [devices, setDevices] = useState({});
@@ -58,7 +59,14 @@ export default function useMarketingData() {
     if (audRes.status === 'fulfilled') {
       setDevices(audRes.value.devices || {});
       setDrafts(audRes.value.drafts || {});
-      setStatus((s) => ({ ...s, pushConfigured: audRes.value.pushConfigured }));
+      const nextAccounts = audRes.value.accounts || [];
+      setAccounts((prev) => (JSON.stringify(prev) === JSON.stringify(nextAccounts) ? prev : nextAccounts));
+      setStatus((s) => ({
+        ...s,
+        pushConfigured: audRes.value.pushConfigured,
+        serviceRole: audRes.value.serviceRole,
+        subscriptionStore: audRes.value.subscriptionStore || null,
+      }));
     }
     setLastUpdated(new Date());
   }, []);

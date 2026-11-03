@@ -38,6 +38,10 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
 // Bộ nhớ đệm fallback trong trường hợp DB Supabase chưa chạy migration
 const memorySubscriptions = new Map();
 
+// Lỗi gần nhất khi đọc / ghi bảng push_subscriptions (vd. chưa tạo bảng): thiết bị chỉ được nhớ tạm, sẽ mất
+let lastSubscriptionDbError = null;
+export const getSubscriptionDbError = () => lastSubscriptionDbError;
+
 /**
  * Lưu hoặc cập nhật Subscription của thiết bị
  */
@@ -66,12 +70,15 @@ export async function upsertSubscription({ userId, endpoint, p256dh, auth, userA
 
     if (error) {
       console.warn('[DB Push] Cảnh báo Supabase upsert (sử dụng in-memory fallback):', error.message);
-      return payload;
+      lastSubscriptionDbError = error.message;
+      return { ...payload, persisted: false, dbError: error.message };
     }
-    return data?.[0] || payload;
+    lastSubscriptionDbError = null;
+    return { ...(data?.[0] || payload), persisted: true };
   } catch (err) {
     console.warn('[DB Push] Không thể kết nối Supabase, fallback in-memory:', err.message);
-    return payload;
+    lastSubscriptionDbError = err.message;
+    return { ...payload, persisted: false, dbError: err.message };
   }
 }
 
@@ -141,9 +148,13 @@ export async function getAllSubscriptions() {
 
     if (!error && Array.isArray(data)) {
       list = data;
+      lastSubscriptionDbError = null;
+    } else if (error) {
+      lastSubscriptionDbError = error.message;
     }
   } catch (err) {
     console.warn('[DB Push] Lỗi lấy all subs:', err.message);
+    lastSubscriptionDbError = err.message;
   }
 
   memorySubscriptions.forEach((sub) => {
