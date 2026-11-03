@@ -88,7 +88,10 @@ describe('API Marketing tự động', () => {
     const res = mockRes();
     await handleMarketing(req('GET', '/api/marketing/audience', { token: 'admin' }), res, 'audience');
     expect(res.statusCode).toBe(200);
-    expect(res.body.accounts).toEqual([expect.objectContaining({ id: 'k1', fullName: 'Lan Anh', phone: '0901234567' })]);
+    // Máy CI đọc được Supabase thật nên có thể có thêm tài khoản khác: chỉ kiểm tra khách k1 và không có Admin
+    const ids = (res.body.accounts || []).map((a) => a.id);
+    expect(ids).not.toContain('a1');
+    expect(res.body.accounts.find((a) => a.id === 'k1')).toMatchObject({ fullName: 'Lan Anh', phone: '0901234567' });
     expect(res.body.subscriptionStore).toHaveProperty('ok');
   }, 20000);
 
