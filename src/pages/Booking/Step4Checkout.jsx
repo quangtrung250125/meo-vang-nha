@@ -14,6 +14,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [isCouponApplied, setIsCouponApplied] = useState(true);
   const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
   const [conflictError, setConflictError] = useState('');
+  // 'conflict': phòng vừa hết chỗ | 'retry': hệ thống bận / mất mạng, đơn chưa được ghi | 'invalid': dữ liệu sai
+  const [errorKind, setErrorKind] = useState('conflict');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addCamera, setAddCamera] = useState(Boolean(data.addCamera));
 
@@ -82,6 +84,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const handleSubmit = async () => {
     const roomId = data.selectedRoom?.id;
     if (!roomId) {
+      setErrorKind('invalid');
       setConflictError('Vui lòng chọn phòng trước khi gửi yêu cầu.');
       return;
     }
@@ -154,11 +157,15 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       const msg =
         roomResult.message ||
         `Rất tiếc, phòng ${roomId} không còn đủ chỗ trống trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
+      const kind = roomResult.retryable ? 'retry' : roomResult.invalid ? 'invalid' : 'conflict';
+      setErrorKind(kind);
       setConflictError(msg);
-      sendWebNotification('⚠️ Phòng vừa hết chỗ!', {
-        body: msg,
-      });
-      if (updateData && !roomResult.invalid) {
+      if (kind === 'conflict') {
+        sendWebNotification('⚠️ Đặt phòng chưa thành công', {
+          body: `Phòng ${roomId} vừa có khách khác đặt trước bạn. Tình trạng phòng đã được cập nhật lại, thông tin bạn điền vẫn được giữ nguyên.`,
+        });
+      }
+      if (updateData && kind === 'conflict') {
         updateData({ conflictedRoomId: roomResult.conflictedRoomId || roomId });
       }
       return;
@@ -421,9 +428,32 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-left animate-in fade-in slide-in-from-top-2">
           <AlertTriangle className="w-6 h-6 text-red-500 shrink-0 mt-0.5 animate-pulse" />
           <div className="flex-1">
-            <h4 className="font-bold text-red-800 text-base">Phòng vừa có khách đặt trước!</h4>
+            <h4 className="font-bold text-red-800 text-base">
+              {errorKind === 'retry' ? 'Chưa gửi được yêu cầu đặt phòng' : errorKind === 'invalid' ? 'Thông tin đặt phòng chưa hợp lệ' : 'Đặt phòng chưa thành công'}
+            </h4>
+            {errorKind === 'conflict' && (
+              <p className="text-red-800 text-sm mt-1 leading-relaxed font-semibold" data-testid="booking-conflict-reason">
+                Phòng {data.selectedRoom?.id} vừa có khách khác đặt trước bạn trong cùng thời gian. Tình trạng phòng đã được cập nhật lại.
+              </p>
+            )}
             <p className="text-red-700 text-sm mt-1 leading-relaxed">{conflictError}</p>
+            {errorKind !== 'invalid' && (
+              <p className="text-red-700 text-sm mt-1 leading-relaxed">
+                Thông tin bạn đã điền (ngày gửi, bé mèo, gói dịch vụ) vẫn được giữ nguyên, bạn chỉ cần {errorKind === 'retry' ? 'bấm gửi lại' : 'chọn phòng khác rồi gửi lại'}.
+              </p>
+            )}
             <div className="mt-3 flex gap-3">
+              {errorKind === 'retry' ? (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-60"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Gửi lại</span>
+              </button>
+              ) : (
               <button
                 type="button"
                 onClick={() => {
@@ -440,6 +470,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
                 <span>Chọn phòng khác</span>
                 <span aria-hidden="true">→</span>
               </button>
+              )}
             </div>
           </div>
         </div>
