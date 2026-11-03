@@ -20,7 +20,7 @@ const RevenueChart = ({ chartData }) => {
   const addonPct = totalRevenue > 0 ? (totalAddons / totalRevenue) * 100 : 0;
 
   // Tìm giá trị max để scale chiều cao cột
-  const maxVal = Math.max(...currentSeries.map((d) => (d.stayRevenue || 0) + (d.addonRevenue || 0)), 1000000);
+  const maxVal = Math.max(...currentSeries.map((d) => (d.stayRevenue || 0) + (d.addonRevenue || 0)), 1);
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
@@ -36,7 +36,7 @@ const RevenueChart = ({ chartData }) => {
             </h2>
           </div>
           <p className="text-xs text-gray-500">
-            Tách riêng dịch vụ lưu trú (tiền phòng) và các dịch vụ cộng thêm (Spa, ăn uống, đưa đón)
+            Tổng hóa đơn các đơn đã check-out & thanh toán, tính theo ngày gửi mèo. Tách tiền phòng và dịch vụ thêm (Spa, đưa đón, camera, dịch vụ mua thêm)
           </p>
         </div>
 
@@ -99,6 +99,12 @@ const RevenueChart = ({ chartData }) => {
         </div>
       </div>
 
+      {totalRevenue === 0 && (
+        <p className="text-xs text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-xl px-3 py-2 mb-2">
+          Chưa có đơn nào đã check-out và thanh toán trong khoảng này.
+        </p>
+      )}
+
       {/* Interactive Bar Chart Visualization */}
       <div className="relative pt-6 pb-2">
         {/* Tooltip khi hover */}
@@ -125,6 +131,12 @@ const RevenueChart = ({ chartData }) => {
                 <span>Tổng:</span>
                 <span>{formatMoney(currentSeries[hoveredIndex].stayRevenue + currentSeries[hoveredIndex].addonRevenue)}</span>
               </div>
+              {currentSeries[hoveredIndex].bookings !== undefined && (
+                <div className="flex justify-between gap-2 text-gray-400">
+                  <span>Đơn đã chốt:</span>
+                  <span>{currentSeries[hoveredIndex].bookings}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -148,7 +160,7 @@ const RevenueChart = ({ chartData }) => {
                   className={`w-full max-w-[42px] flex flex-col justify-end rounded-t-xl overflow-hidden transition-all duration-200 ${
                     isHovered ? 'ring-2 ring-orange-400 scale-[1.03]' : 'opacity-90 hover:opacity-100'
                   }`}
-                  style={{ height: `${Math.min(100, Math.max(6, stayH + addonH))}%` }}
+                  style={{ height: `${stayH + addonH > 0 ? Math.min(100, Math.max(6, stayH + addonH)) : 0}%` }}
                 >
                   {/* Phần Dịch vụ thêm (trên) */}
                   <div
