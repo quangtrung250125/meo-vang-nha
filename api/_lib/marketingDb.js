@@ -202,6 +202,26 @@ export async function listMessages({ days = 90 } = {}) {
   return [...fromDb, ...fromMemory].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
+// Tin Admin đã gửi cho một khách (theo các mã của khách: mã tài khoản, SĐT), mới nhất trước
+export async function listMessagesForCustomer(customerIds = [], { days = 90, limit = 50 } = {}) {
+  const ids = [...new Set(customerIds.map(String).filter(Boolean))];
+  if (!ids.length) return [];
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const res = await tryDb(() => supabaseAdmin
+    .from('marketing_messages')
+    .select('*')
+    .in('customer_id', ids)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(limit));
+  const fromDb = res.ok ? (res.data || []).map(fromRow) : [];
+  const seen = new Set(fromDb.map((m) => m.id));
+  const fromMemory = memory.messages.filter((m) => !seen.has(m.id) && ids.includes(String(m.customerId)) && m.createdAt >= since);
+  return [...fromDb, ...fromMemory]
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, limit);
+}
+
 export async function hasSentDedupeKey(dedupeKey) {
   if (!dedupeKey) return false;
   const res = await tryDb(() => supabaseAdmin.from('marketing_messages').select('id').eq('dedupe_key', dedupeKey).eq('status', 'sent').limit(1));

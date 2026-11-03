@@ -61,13 +61,16 @@ export async function sendPushToSubscription(sub, payload) {
     const statusCode = error.statusCode;
     console.warn(`[WebPush] Thất bại khi gửi tới endpoint (${statusCode}):`, error.message);
 
-    // Xóa subscription nếu đã hết hạn hoặc không còn tồn tại trên Push Service
-    if (statusCode === 404 || statusCode === 410) {
-      console.log(`[WebPush] Xóa subscription hết hạn (${statusCode}):`, sub.endpoint);
+    // Xóa subscription nếu đã hết hạn / không còn tồn tại, hoặc được tạo bằng khóa VAPID khác
+    // (FCM: "...does not correspond to the sender ID...", Apple: VapidPkHashMismatch). Khách mở lại web sẽ tự đăng ký lại.
+    const body = String(error.body || '');
+    const staleKey = (statusCode === 400 || statusCode === 401 || statusCode === 403) && /correspond|VapidPkHashMismatch|mismatch/i.test(body);
+    if (statusCode === 404 || statusCode === 410 || staleKey) {
+      console.log(`[WebPush] Xóa subscription không dùng được (${statusCode}):`, sub.endpoint);
       await deleteSubscriptionByEndpoint(sub.endpoint);
     }
 
-    return { success: false, endpoint: sub.endpoint, statusCode, error: error.message };
+    return { success: false, endpoint: sub.endpoint, statusCode, staleRemoved: staleKey, error: `${error.message}${body ? `: ${body.slice(0, 200)}` : ''}` };
   }
 }
 
@@ -134,8 +137,15 @@ export async function sendPushToUserIds(userIds = [], payload) {
   if (subscriptions.length === 0) return { success: false, sentCount: 0, totalTargets: 0 };
   const results = await Promise.allSettled(subscriptions.map((sub) => sendPushToSubscription(sub, payload)));
   const ok = results.filter((r) => r.status === 'fulfilled' && r.value.success);
-  const firstError = results.map((r) => (r.status === 'fulfilled' ? r.value.error : r.reason?.message)).find(Boolean);
-  return { success: ok.length > 0, sentCount: ok.length, totalTargets: subscriptions.length, error: ok.length ? null : firstError };
+  const firstFail = results.map((r) => (r.status === 'fulfilled' ? r.value : { error: r.reason?.message })).find((v) => v && !v.success);
+  return {
+    success: ok.length > 0,
+    sentCount: ok.length,
+    totalTargets: subscriptions.length,
+    error: ok.length ? null : firstFail?.error,
+    statusCode: ok.length ? null : firstFail?.statusCode,
+    staleRemoved: !ok.length && Boolean(firstFail?.staleRemoved),
+  };
 }
 
 export { vapidPublicKey };

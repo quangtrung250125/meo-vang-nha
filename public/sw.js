@@ -72,6 +72,10 @@ self.addEventListener('push', (event) => {
     Promise.all([
       self.registration.showNotification(data.title || 'Mèo Vắng Nhà 🐾', notificationOptions),
       trackMarketing(notificationOptions.data.messageId, 'shown'),
+      // Báo các tab đang mở để chuông "Thông báo đơn đặt" tải lại tin mới
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((list) => list.forEach((c) => c.postMessage({ type: 'mvn-push-received', messageId: notificationOptions.data.messageId })))
+        .catch(() => {}),
     ])
   );
 });

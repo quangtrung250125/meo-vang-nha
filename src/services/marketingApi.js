@@ -23,6 +23,17 @@ export const fetchMarketingMessages = (days = 120) => call(`messages?days=${days
 export const fetchMarketingAudience = () => call('audience');
 export const sendMarketingMessages = (messages, source = 'manual') => call('send', { method: 'POST', body: { messages, source } });
 export const runMarketingNow = () => call('run', { method: 'POST' });
+export const fetchMarketingInbox = () => call('inbox');
+
+// Khách bấm vào tin trong chuông thông báo: ghi nhận đã bấm (giống bấm thông báo đẩy)
+export function trackInboxClick(messageId) {
+  fetch('/api/marketing/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId, event: 'click' }),
+    keepalive: true,
+  }).catch(() => {});
+}
 
 // Khách đang đặt phòng dở (cho kịch bản "Bỏ dở đặt phòng"); không chặn luồng đặt phòng nếu lỗi
 export async function trackBookingDraft(event, { step, phone } = {}) {

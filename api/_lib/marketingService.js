@@ -2,6 +2,7 @@ import { getRequestUser } from './auth.js';
 import { supabaseAdmin, countSubscriptionsByUser, hasServiceRole, getSubscriptionDbError } from './db.js';
 import { getAdminEmails, isAdminUser } from '../../src/utils/adminAccess.js';
 import { normalizeVnPhone } from '../../src/utils/phone.js';
+import { ownPushIds } from './pushAccess.js';
 import { listStoredBookings } from './bookingsDb.js';
 import { getSyncData } from './syncService.js';
 import { isPushConfigured, sendPushToUserIds, PUSH_NOT_CONFIGURED } from './pushService.js';
@@ -16,6 +17,7 @@ import {
   clearDraft,
   listDrafts,
   listContacts,
+  listMessagesForCustomer,
   newMessageId,
   isUsingDatabase,
 } from './marketingDb.js';
@@ -137,7 +139,7 @@ export async function sendMarketingMessages({ messages = [], source = 'manual', 
       url,
       status,
       deviceCount: push.sentCount || 0,
-      error: status === 'failed' ? clip(push.error, 300) : null,
+      error: status === 'failed' ? clip(`${push.statusCode || ''} ${push.error || ''}`.trim(), 300) : null,
       sentBy,
       createdAt: new Date(now).toISOString(),
     });
@@ -147,11 +149,24 @@ export async function sendMarketingMessages({ messages = [], source = 'manual', 
       customerId,
       status,
       devices: push.sentCount || 0,
-      reason: status === 'no_device' ? 'Khách chưa bật thông báo trên thiết bị nào' : status === 'failed' ? (push.error || 'Dịch vụ thông báo từ chối') : null,
+      reason: status === 'no_device' ? 'Khách chưa bật thông báo trên thiết bị nào' : status === 'failed' ? describePushError(push) : null,
     });
   }
   return { results };
 }
+
+// Lý do gửi lỗi, viết dễ hiểu cho Admin
+export const describePushError = (push = {}) => {
+  const code = Number(push.statusCode) || 0;
+  const msg = String(push.error || '');
+  if (push.staleRemoved) {
+    return 'Thiết bị của khách đăng ký bằng khóa Web Push cũ nên không nhận được. Khách mở lại web (đã đăng nhập) là tự bật lại; tin vẫn được lưu trong mục Thông báo của khách.';
+  }
+  if (code === 401 || code === 403) return `Dịch vụ thông báo từ chối khóa Web Push của máy chủ (mã ${code}). Kiểm tra lại VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY trên Vercel.`;
+  if (code === 404 || code === 410) return 'Thiết bị của khách đã tắt hoặc hết hạn nhận thông báo. Tin vẫn được lưu trong mục Thông báo của khách.';
+  if (code === 413) return 'Nội dung thông báo quá dài.';
+  return (msg || 'Dịch vụ thông báo từ chối').slice(0, 200);
+};
 
 const countBy = (results) => results.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] || 0) + 1 }), {});
 
@@ -313,6 +328,20 @@ export async function handleMessages(req, res) {
   return res.status(200).json({ messages, database: isUsingDatabase() });
 }
 
+// Khách xem các tin Admin đã gửi cho mình (hiện trong chuông "Thông báo đơn đặt")
+export async function handleInbox(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Chỉ chấp nhận GET.' });
+  const user = await getRequestUser(req);
+  if (!user) return res.status(401).json({ error: 'Cần đăng nhập.' });
+  const own = ownPushIds(user);
+  const phones = [user.phone, ...own].map((v) => normalizeVnPhone(v)).filter((p) => /^0\d{9}$/.test(p));
+  const ids = [...own, ...phones, ...phones.map((p) => `phone:${p}`)];
+  const list = await listMessagesForCustomer(ids, { days: 90, limit: 50 });
+  return res.status(200).json({
+    messages: list.map((m) => ({ id: m.id, title: m.title, body: m.body, url: safeUrl(m.url), createdAt: m.createdAt, clickedAt: m.clickedAt || null })),
+  });
+}
+
 export async function handleAudience(req, res) {
   const user = await requireAdmin(req, res);
   if (!user) return;
@@ -374,6 +403,7 @@ export async function handleMarketing(req, res, action) {
     case 'send': return handleSend(req, res);
     case 'messages': return handleMessages(req, res);
     case 'audience': return handleAudience(req, res);
+    case 'inbox': return handleInbox(req, res);
     case 'track': return handleTrack(req, res);
     case 'run': return handleRun(req, res);
     default: return res.status(404).json({ error: 'Không có API này.' });
