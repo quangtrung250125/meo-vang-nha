@@ -41,19 +41,25 @@ export function isPushNotificationSupported() {
 /**
  * Lấy VAPID Public Key từ biến môi trường hoặc API
  */
+// Ưu tiên khóa của máy chủ: máy chủ ký tin bằng khóa này, nên thiết bị phải đăng ký đúng khóa đó.
+// Khóa VITE_VAPID_PUBLIC_KEY build sẵn chỉ dùng khi không gọi được máy chủ (có thể lệch nếu nhập sai trên Vercel).
+let serverKeyPromise = null;
 export async function getVapidPublicKey() {
+  if (!serverKeyPromise) {
+    serverKeyPromise = fetch('/api/notifications/vapid-public-key')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data?.publicKey || null)
+      .catch((err) => {
+        console.warn('[Push] Không thể lấy VAPID key từ API:', err);
+        return null;
+      });
+  }
+  const serverKey = await serverKeyPromise;
+  if (serverKey) return serverKey;
+  serverKeyPromise = null;
+
   const envKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
   if (envKey) return envKey;
-
-  try {
-    const res = await fetch('/api/notifications/vapid-public-key');
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.publicKey) return data.publicKey;
-    }
-  } catch (err) {
-    console.warn('[Push] Không thể lấy VAPID key từ API:', err);
-  }
 
   throw new Error('Máy chủ chưa cấu hình khóa Web Push. Vui lòng báo Mèo Vắng Nhà.');
 }

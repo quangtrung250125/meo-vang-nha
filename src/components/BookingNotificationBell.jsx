@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet } from 'lucide-react';
+import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet, Megaphone } from 'lucide-react';
 import { useBookingHistory, isBookingOfCustomer } from '../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 import { useUI } from '../contexts/UIContext';
 import { PROPOSAL_LABEL, formatDateRange, isClosedStatus } from '../utils/bookingStatus';
 import { PAYMENT_STATUS, depositToTransferOf } from '../utils/bookingDeposit';
+import useMarketingInbox from '../hooks/useMarketingInbox';
+import { trackInboxClick } from '../services/marketingApi';
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_MS;
@@ -23,6 +25,8 @@ const BookingNotificationBell = ({ className = '' }) => {
   const { globalBookingList } = useBookingHistory();
   const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
   const { openApprovalModal } = useUI();
+  // Tin Admin gửi qua Marketing tự động (Web Push) cũng được lưu ở đây cho khách xem lại
+  const inbox = useMarketingInbox(!isAdmin ? authenticatedCustomer?.id : null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -116,15 +120,42 @@ const BookingNotificationBell = ({ className = '' }) => {
         });
       }
     });
+    if (!isAdmin) {
+      inbox.messages.forEach((m) => {
+        list.push({
+          key: `mkt-${m.id}`,
+          messageId: m.id,
+          url: m.url,
+          icon: Megaphone,
+          tone: 'bg-emerald-100 text-emerald-600',
+          title: m.title || 'Thông báo từ Mèo Vắng Nhà',
+          desc: m.body,
+          time: m.createdAt,
+          unread: inbox.isUnread(m),
+        });
+      });
+    }
     return list.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
-  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin]);
+  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread]);
+
+  // Mở chuông thì tin Marketing đang hiện được tính là đã xem (lần sau không đếm trên chấm đỏ nữa)
+  useEffect(() => {
+    if (!open) return undefined;
+    const t = setTimeout(inbox.markAllSeen, 1500);
+    return () => clearTimeout(t);
+  }, [open, inbox.markAllSeen]);
 
   const actionableCount = items.filter(i => i.actionable).length;
-  const badgeCount = isAdmin ? items.length : items.filter(i => i.actionable || i.reminder).length;
+  const badgeCount = isAdmin ? items.length : items.filter(i => i.actionable || i.reminder || i.unread).length;
   const bookingPath = location.pathname.startsWith('/admin') ? '/admin/my-booking' : '/my-booking';
 
   const handleItemClick = (item) => {
     setOpen(false);
+    if (item.messageId) {
+      trackInboxClick(item.messageId);
+      navigate(item.url || '/');
+      return;
+    }
     if (item.actionable) openApprovalModal(item.bookingId);
     navigate(bookingPath);
   };
@@ -133,7 +164,10 @@ const BookingNotificationBell = ({ className = '' }) => {
     <div className={`relative ${className}`} ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => {
+          setOpen((o) => !o);
+          if (!open) inbox.refresh();
+        }}
         className="relative hover:text-primary transition-colors p-2 rounded-full hover:bg-orange-50 cursor-pointer flex items-center justify-center"
         title="Thông báo đơn đặt"
         aria-label="Thông báo đơn đặt"
@@ -166,7 +200,8 @@ const BookingNotificationBell = ({ className = '' }) => {
                   key={item.key}
                   type="button"
                   onClick={() => handleItemClick(item)}
-                  className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition cursor-pointer ${item.actionable ? 'bg-purple-50/40' : ''}`}
+                  data-testid={item.messageId ? 'inbox-marketing-item' : undefined}
+                  className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition cursor-pointer ${item.actionable ? 'bg-purple-50/40' : item.unread ? 'bg-emerald-50/50' : ''}`}
                 >
                   <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${item.tone}`}>
                     <Icon className="w-4 h-4" />
@@ -175,6 +210,12 @@ const BookingNotificationBell = ({ className = '' }) => {
                     <span className="block text-xs font-bold text-gray-800 leading-snug">{item.title}</span>
                     {item.desc && <span className="block text-[11px] text-gray-500 mt-0.5 line-clamp-2">{item.desc}</span>}
                     {item.actionable && <span className="block text-[11px] font-bold text-purple-700 mt-1">Bấm để xem & xác nhận →</span>}
+                    {item.messageId && item.time && (
+                      <span className="block text-[10px] text-gray-400 mt-1">
+                        {new Date(item.time).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                        {item.unread && <span className="ml-1.5 font-bold text-emerald-600">• Mới</span>}
+                      </span>
+                    )}
                   </span>
                 </button>
               );

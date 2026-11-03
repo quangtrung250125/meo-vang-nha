@@ -107,7 +107,10 @@ const ManualSendModal = ({ customers = [], templates = [], deviceCountOf, initia
                 const cfg = RESULT_LABELS[r.status] || RESULT_LABELS.failed;
                 return (
                   <div key={`${r.customerId}-${i}`} className="px-4 py-2.5 flex items-center gap-3 text-sm">
-                    <span className="flex-1 font-bold text-gray-800 truncate">{nameOf(r.customerId)}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-bold text-gray-800 truncate">{nameOf(r.customerId)}</span>
+                      {r.reason && r.status !== 'sent' && <span className="block text-[11px] text-gray-500 mt-0.5" data-testid="send-result-reason">{r.reason}</span>}
+                    </span>
                     {r.devices > 0 && <span className="text-xs text-gray-400">{r.devices} thiết bị</span>}
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${cfg.cls}`}>{cfg.label}</span>
                   </div>
