@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { PAYMENT_STATUS } from "../src/utils/bookingDeposit";
+import { buildInvoice, checkOutTimingLabel } from "../src/utils/bookingInvoice";
+import { ADDONS } from "../src/components/ServiceManagement";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
@@ -35,8 +37,9 @@ const DetailRow = ({ icon, label, children }) => (
   </div>
 );
 
-// Hóa đơn thanh toán
-const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
+// Hóa đơn thanh toán khi check-out: dùng đúng hóa đơn ghi doanh thu (bookingInvoice),
+// tính theo ngày check-out thực tế: đúng hạn giữ nguyên, sớm thì bớt, muộn thì cộng thêm số đêm tương ứng
+const CheckoutInvoiceModal = ({ booking, historyBooking, roomId, onPay, onClose }) => {
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
@@ -44,26 +47,26 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
     return () => document.removeEventListener("mousedown", h);
   }, [onClose]);
 
-  const checkInDate = booking?.checkIn ? new Date(booking.checkIn) : new Date();
-  const checkOutDate = booking?.checkOut ? new Date(booking.checkOut) : new Date();
-  const nights = Math.max(Math.ceil((checkOutDate - checkInDate) / 86400000), 1);
-  const typeFromId = (roomId || "VIP").split("-")[0];
-  const pricePerNight = typeFromId === "DELUXE" ? 250000 : typeFromId === "VVIP" ? 180000 : 120000;
-  const cats = booking?.cats || 1;
-  const roomFee = pricePerNight * cats * nights;
-  const pkgPrices = { "Tắm & Vệ Sinh": 100000, "Cắt Tỉa Lông": 150000, "Khám Sức Khỏe": 200000, "Spa Mèo": 250000, "Chụp Ảnh Kỷ Niệm": 80000 };
-  const pkgs = booking?.packages || [];
-  const pkgFee = pkgs.reduce((s, p) => s + (pkgPrices[p] || 0), 0);
-  const subtotal = roomFee + pkgFee;
-  const vat = Math.round(subtotal * 0.1);
-  const total = subtotal + vat;
+  const checkedOutAt = useMemo(() => new Date().toISOString(), []);
+  const invoice = useMemo(
+    () => buildInvoice({ ...(booking || {}), ...(historyBooking || {}), status: "check-out", checkedOutAt }, ADDONS),
+    [booking, historyBooking, checkedOutAt]
+  );
+  const timingLabel = checkOutTimingLabel(invoice);
+  const timingCls = invoice.checkOutTiming === "early"
+    ? "bg-sky-50 border-sky-200 text-sky-800"
+    : invoice.checkOutTiming === "late"
+      ? "bg-rose-50 border-rose-200 text-rose-800"
+      : "bg-emerald-50 border-emerald-200 text-emerald-800";
+  const total = invoice.total;
   const pts = Math.floor(total / 10000);
-  const depositPaid = booking?.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID ? Number(booking.depositAmount) || 0 : 0;
-  const fmtVND = (n) => n.toLocaleString("vi-VN") + " đ";
+  const received = invoice.received;
+  const fmtVND = (n) => Number(n || 0).toLocaleString("vi-VN") + " đ";
+  const fmtDay = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("vi-VN") : "—");
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}>
-      <div ref={ref} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ animation: "slideInUp 0.25s ease" }}>
+      <div ref={ref} className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" style={{ animation: "slideInUp 0.25s ease" }}>
         <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 text-white flex justify-between items-start">
           <div>
             <div className="text-[10px] font-bold uppercase opacity-80 tracking-widest mb-0.5">Hóa Đơn Thanh Toán</div>
@@ -73,38 +76,51 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
           <button onClick={onClose} className="p-1.5 rounded-xl bg-white/20 hover:bg-white/35 transition-colors"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
+          {timingLabel && (
+            <div className={`rounded-xl border-2 px-3 py-2 text-sm font-bold ${timingCls}`}>
+              📝 {timingLabel}
+              <div className="text-xs font-medium mt-0.5">
+                Hẹn đón {fmtDay(invoice.plannedCheckOut)}, đón thực tế {fmtDay(invoice.checkOut)}
+                {invoice.checkOutTiming === "early" && " · số tiền giảm theo số đêm không ở"}
+                {invoice.checkOutTiming === "late" && " · số tiền tăng theo số đêm ở thêm"}
+              </div>
+            </div>
+          )}
           <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm">
             {[
-              ["Khách hàng", booking?.ownerName || "—"],
+              ["Khách hàng", booking?.ownerName || booking?.customerName || "—"],
               ["Phòng", roomId],
-              ["Check-in", booking?.checkIn ? new Date(booking.checkIn).toLocaleDateString("vi-VN") : "—"],
-              ["Check-out", booking?.checkOut ? new Date(booking.checkOut).toLocaleDateString("vi-VN") : "—"],
-              ["Số đêm", `${nights} đêm`],
+              ["Check-in", fmtDay(invoice.checkIn)],
+              ["Check-out", fmtDay(invoice.checkOut)],
+              ["Số đêm", `${invoice.nights} đêm`],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-semibold text-gray-800">{v}</span></div>
             ))}
           </div>
           <div className="space-y-2">
             <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Chi tiết khoản phí</div>
-            <div className="flex justify-between text-sm"><span className="text-gray-600">Phòng {roomId} ({cats} mèo × {nights} đêm)</span><span className="font-semibold">{fmtVND(roomFee)}</span></div>
-            {pkgs.filter(p => pkgPrices[p]).map(p => (
-              <div key={p} className="flex justify-between text-sm"><span className="text-gray-600">{p}</span><span className="font-semibold">{fmtVND(pkgPrices[p])}</span></div>
+            {invoice.lines.map((l) => (
+              <div key={l.key} className="flex justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <div className={`font-medium ${l.kind === "early" ? "text-sky-700" : l.kind === "late" ? "text-rose-700" : "text-gray-700"}`}>{l.label}</div>
+                  {l.detail && <div className="text-[11px] text-gray-400">{l.detail}</div>}
+                </div>
+                <span className={`font-semibold whitespace-nowrap ${l.amount < 0 ? "text-sky-700" : ""}`}>
+                  {l.kind !== "base" && l.amount > 0 ? "+" : ""}{fmtVND(l.amount)}
+                </span>
+              </div>
             ))}
-            <div className="border-t border-dashed border-gray-200 pt-2 space-y-1.5">
-              <div className="flex justify-between text-sm text-gray-500"><span>Tạm tính</span><span>{fmtVND(subtotal)}</span></div>
-              <div className="flex justify-between text-sm text-gray-500"><span>VAT (10%)</span><span>{fmtVND(vat)}</span></div>
-            </div>
             <div className="border-t-2 border-orange-200 pt-2 flex justify-between">
               <span className="font-extrabold text-gray-800 text-base">Tổng cộng</span>
               <span className="font-black text-xl text-orange-600">{fmtVND(total)}</span>
             </div>
-            {depositPaid > 0 && (
+            {received > 0 && (
               <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-sm text-emerald-700"><span>Đã đặt cọc</span><span>- {fmtVND(depositPaid)}</span></div>
-                {total >= depositPaid ? (
-                  <div className="flex justify-between text-sm font-bold text-gray-800"><span>Còn phải thu</span><span>{fmtVND(total - depositPaid)}</span></div>
+                <div className="flex justify-between text-sm text-emerald-700"><span>{invoice.depositPaid ? "Đã đặt cọc" : "Đã nhận"}</span><span>- {fmtVND(received)}</span></div>
+                {total >= received ? (
+                  <div className="flex justify-between text-sm font-bold text-gray-800"><span>Còn phải thu</span><span>{fmtVND(total - received)}</span></div>
                 ) : (
-                  <div className="flex justify-between text-sm font-bold text-blue-700"><span>Hoàn lại khách</span><span>{fmtVND(depositPaid - total)}</span></div>
+                  <div className="flex justify-between text-sm font-bold text-blue-700"><span>Hoàn lại khách</span><span>{fmtVND(received - total)}</span></div>
                 )}
               </div>
             )}
@@ -116,7 +132,7 @@ const CheckoutInvoiceModal = ({ booking, roomId, onPay, onClose }) => {
         </div>
         <div className="px-5 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Hủy</button>
-          <button onClick={() => onPay(pts)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-sm shadow-lg shadow-orange-200 hover:scale-[1.02] active:scale-[0.98] transition-all">💳 Thanh toán {fmtVND(total)}</button>
+          <button onClick={() => onPay(pts, { checkedOutAt, timingLabel })} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-sm shadow-lg shadow-orange-200 hover:scale-[1.02] active:scale-[0.98] transition-all">💳 Thanh toán {fmtVND(Math.max(0, total - received))}</button>
         </div>
       </div>
     </div>
@@ -426,9 +442,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     setTimeout(() => onClose(), 1500);
   };
 
-  const handlePay = (pts) => {
-    onCheckOut(roomId, code);
-    showToast(`💳 Thanh toán thành công! +${pts} điểm tích lũy.`);
+  const handlePay = (pts, { checkedOutAt, timingLabel } = {}) => {
+    onCheckOut(roomId, code, { checkedOutAt, checkOutNote: timingLabel || null });
+    showToast(`💳 Thanh toán thành công! ${timingLabel ? `${timingLabel}. ` : ""}+${pts} điểm tích lũy.`);
     setShowInvoice(false);
     setTimeout(() => onClose(), 1500);
   };
@@ -604,7 +620,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
         </div>
       )}
 
-      {showInvoice && <CheckoutInvoiceModal booking={effectiveBooking} roomId={roomId} onPay={handlePay} onClose={() => setShowInvoice(false)} />}
+      {showInvoice && <CheckoutInvoiceModal booking={effectiveBooking} historyBooking={historyBooking} roomId={roomId} onPay={handlePay} onClose={() => setShowInvoice(false)} />}
       {showDeleteConfirm && <DeleteConfirmModal booking={effectiveBooking} needsCustomerApproval={Boolean(historyBooking)} onConfirm={handleDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} />}
       {showEdit && <EditBookingModal booking={effectiveBooking} needsCustomerApproval={Boolean(historyBooking) && isUpcoming} onSave={handleSaveEdit} onClose={() => setShowEdit(false)} />}
 

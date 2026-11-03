@@ -16,7 +16,7 @@ import {
   Phone,
   XCircle,
 } from 'lucide-react';
-import { useRoomState, ROOM_CONFIG, getRoomStatus } from './RoomStateContext';
+import { useRoomState, ROOM_CONFIG, getRoomStatus, displayCheckOut } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
 import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, isDepositOverdue, getDepositDueAt, formatVietnamDateTime } from '../src/utils/bookingDeposit';
 
@@ -236,7 +236,8 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
     ) return false;
     // Chỉ tính đang ở phòng nếu ngày đang xem nằm trong khoảng [checkIn, checkOut]
     if (!b.checkIn || !b.checkOut) return true;
-    return selectedDateStr >= b.checkIn && selectedDateStr <= b.checkOut;
+    // Bé đang ở quá ngày hẹn đón vẫn hiện tới hôm nay để Admin check-out muộn
+    return selectedDateStr >= b.checkIn && selectedDateStr <= displayCheckOut(b);
   });
 
   const totalCats = bks.reduce((s, b) => s + (Number(b.cats) || 1), 0);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, FileDown, Receipt, History } from 'lucide-react';
+import { checkOutTimingLabel } from '../../utils/bookingInvoice';
 import { bookingStage, formatMoney, formatDate, formatMonth, invoiceOf, isRevenueBooking, paymentStateOf, revenueMonthOf } from './customerUtils';
 import { PaymentBadge, StageBadge } from './shared';
 
@@ -40,6 +41,7 @@ export function exportInvoice(customer, booking, invoice) {
   <div>Mèo: ${escapeHtml(booking.catNames || `${booking.cats || 1} bé`)}</div>
   <div>Gửi mèo: ${escapeHtml(formatDate(invoice.checkIn))}</div>
   <div>Đón mèo: ${escapeHtml(formatDate(invoice.checkOut))} (${invoice.nights} đêm)</div>
+  ${checkOutTimingLabel(invoice) ? `<div><strong>Ghi chú: ${escapeHtml(checkOutTimingLabel(invoice))}</strong> (hẹn đón ${escapeHtml(formatDate(invoice.plannedCheckOut))})</div>` : ''}
 </div>
 <table>
   <thead><tr><th>Nội dung</th><th class="num">Thành tiền</th></tr></thead>
@@ -85,6 +87,13 @@ const InvoiceDetailModal = ({ customer, booking, onClose }) => {
             <div className="flex flex-wrap gap-2 mt-2">
               <PaymentBadge state={paymentStateOf(booking)} />
               <StageBadge stage={bookingStage(booking)} />
+              {checkOutTimingLabel(invoice) && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                  invoice.checkOutTiming === 'early' ? 'bg-sky-100 text-sky-700' : invoice.checkOutTiming === 'late' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  📝 {checkOutTimingLabel(invoice)}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
