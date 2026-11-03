@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { PAYMENT_STATUS, isAwaitingDeposit, depositToTransferOf } from "../src/utils/bookingDeposit";
 import { buildInvoice, checkOutTimingLabel } from "../src/utils/bookingInvoice";
 import { ADDONS } from "../src/components/ServiceManagement";
+import { describeSegment, getStaySegments, shortDate } from "../src/utils/staySegments";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
@@ -404,6 +405,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
       checkOut,
       packages,
       status,
+      // Lịch theo chặng khi khách tự gia hạn / đổi phòng / đổi gói
+      staySegments: booking.staySegments || historyMatch?.staySegments || null,
+      stayChanges: historyMatch?.stayChanges || booking.stayChanges || [],
     };
   }, [booking]);
 
@@ -516,6 +520,17 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
             <DetailRow icon={<Home className="h-4 w-4 text-orange-500" />} label="Phòng">
               <span className="font-extrabold text-gray-800">{roomId}</span>
             </DetailRow>
+            {Array.isArray(effectiveBooking.staySegments) && effectiveBooking.staySegments.length > 0 && (
+              <DetailRow icon={<CalendarCheck className="h-4 w-4 text-primary" />} label="Lịch lưu trú (khách tự gia hạn / đổi phòng)">
+                <ul className="space-y-0.5">
+                  {getStaySegments(effectiveBooking).map((seg) => (
+                    <li key={seg.from} className="font-semibold text-gray-800">
+                      {shortDate(seg.from)} – {shortDate(seg.to)}: {describeSegment(seg)}
+                    </li>
+                  ))}
+                </ul>
+              </DetailRow>
+            )}
             <DetailRow icon={<User className="h-4 w-4 text-blue-500" />} label="Chủ nuôi">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold text-gray-800">{ownerName || "—"}</span>

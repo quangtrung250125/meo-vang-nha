@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { stayEntriesForRoom } from '../src/utils/staySegments';
 import {
   ChevronLeft,
   ChevronRight,
@@ -224,8 +225,10 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
     return `${y}-${m}-${day}`;
   })();
 
-  const bks = (bookings[room.id] || []).filter((b) => {
+  // Gồm cả bé của đơn phòng khác chuyển sang phòng này theo lịch khách tự đổi phòng / gia hạn
+  const bks = stayEntriesForRoom(room.id, bookings).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
+    if (b._movesOutOn && selectedDateStr >= b._movesOutOn) return false;
     // Bỏ qua nếu đơn đã check-out, đã hoàn tất hoặc bị hủy
     if (
       b.status === 'check-out' ||
@@ -382,7 +385,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                 return (
                   <div key={bk.code} className="flex flex-col gap-1">
                   <div
-                    onClick={() => isClickable && onBookingClick && onBookingClick(bk, room.id)}
+                    onClick={() => isClickable && onBookingClick && onBookingClick(bk._booking || bk, bk._homeRoomId || room.id)}
                     className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
                       isNew
                         ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300 ring-offset-1 animate-pulse'

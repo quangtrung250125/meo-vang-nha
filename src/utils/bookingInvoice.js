@@ -3,6 +3,7 @@
 // Doanh thu cuối cùng của đơn = invoice.total, chỉ ghi nhận khi đã thanh toán đủ và đã check-out.
 
 import { todayInVietnam, depositReceivedOf } from './bookingDeposit.js';
+import { addDays, baseSegmentOf, describeSegment, getStaySegments, nightsOf, sameStay, shortDate } from './staySegments.js';
 
 const PAID_LABEL = 'Đã thanh toán';
 const COMPLETED = ['check-out', 'đã hoàn tất', 'hoàn tất', 'completed', 'đã hoàn thành'];
@@ -45,8 +46,11 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const baseTotal = Number(booking.baseTotalPrice ?? booking.totalPrice) || 0;
   const checkIn = booking.checkIn;
   const plannedCheckOut = booking.checkOut;
+  // Khách tự gia hạn / đổi phòng / đổi gói: lịch theo chặng, ngày đón theo đơn trước khi tự gia hạn là baseCheckOut
+  const hasSegments = Array.isArray(booking.staySegments) && booking.staySegments.length > 0;
+  const basePlanEnd = hasSegments ? (booking.baseCheckOut || plannedCheckOut) : plannedCheckOut;
   const bookedCheckIn = booking.originalCheckIn || checkIn;
-  const bookedCheckOut = booking.originalCheckOut || plannedCheckOut;
+  const bookedCheckOut = booking.originalCheckOut || basePlanEnd;
   const bookedNights = nightsBetween(bookedCheckIn, bookedCheckOut);
 
   // Giá phòng 1 đêm (cho tất cả các bé) để tính thêm/bớt khi đổi lịch hoặc trả mèo sớm
@@ -88,16 +92,64 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const changes = [];
 
   const plannedNights = nightsBetween(checkIn, plannedCheckOut);
-  if (plannedNights !== bookedNights) {
-    const diff = plannedNights - bookedNights;
+  const basePlanNights = nightsBetween(checkIn, basePlanEnd);
+  if (basePlanNights !== bookedNights) {
+    const diff = basePlanNights - bookedNights;
     lines.push({
       key: 'reschedule',
       kind: 'reschedule',
       label: `Đổi lịch: ${diff > 0 ? 'thêm' : 'bớt'} ${Math.abs(diff)} đêm`,
-      detail: `${bookedCheckIn} → ${bookedCheckOut} thành ${checkIn} → ${plannedCheckOut}`,
+      detail: `${bookedCheckIn} → ${bookedCheckOut} thành ${checkIn} → ${basePlanEnd}`,
       amount: diff * nightly,
     });
   }
+
+  // Lịch lưu trú theo chặng: mỗi khoảng ngày ở phòng nào, gói nào. Đêm nằm trong đơn gốc mà vẫn đúng phòng & gói
+  // thì đã có trong "Đơn đặt ban đầu"; đêm đổi phòng / gói thì tính chênh lệch; đêm gia hạn thì tính đủ giá chặng đó.
+  const baseSeg = { ...baseSegmentOf(booking, basePlanEnd), pricePerNight: nightly };
+  const segments = getStaySegments(booking);
+  const chargeOfNight = (day) => {
+    const seg = segments.find((x) => x.from <= day && day < x.to);
+    if (!seg) return null;
+    if (day < basePlanEnd && sameStay(seg, baseSeg)) return nightly;
+    return Number(seg.pricePerNight) || nightly;
+  };
+  if (hasSegments) {
+    segments.forEach((seg, i) => {
+      const price = Number(seg.pricePerNight) || nightly;
+      const parts = [
+        { kind: 'change', from: seg.from, to: seg.to < basePlanEnd ? seg.to : basePlanEnd },
+        { kind: 'extend', from: seg.from > basePlanEnd ? seg.from : basePlanEnd, to: seg.to },
+      ];
+      parts.forEach((part) => {
+        const n = nightsOf(part.from, part.to);
+        if (n <= 0) return;
+        const range = `${shortDate(part.from)} – ${shortDate(part.to)}`;
+        if (part.kind === 'change') {
+          if (sameStay(seg, baseSeg)) return;
+          const diff = price - nightly;
+          lines.push({
+            key: `stay-change-${i}`,
+            kind: 'stay-change',
+            label: `Ngày ${range}: đổi sang ${describeSegment(seg)}`,
+            detail: `${n} đêm × chênh lệch ${diff.toLocaleString('vi-VN')}đ (giá mới ${price.toLocaleString('vi-VN')}đ/đêm, đã tính ${nightly.toLocaleString('vi-VN')}đ/đêm trong đơn gốc)`,
+            amount: diff * n,
+          });
+        } else {
+          lines.push({
+            key: `stay-extend-${i}`,
+            kind: 'stay-extend',
+            label: `Gia hạn ngày ${range}: ${describeSegment(seg)}`,
+            detail: `${n} đêm × ${price.toLocaleString('vi-VN')}đ`,
+            amount: price * n,
+          });
+        }
+      });
+    });
+  }
+  (booking.stayChanges || []).forEach((c) => {
+    if (c?.text) changes.push({ at: c.at, text: `Khách tự ${c.text}` });
+  });
   if (booking.rescheduledAt) {
     changes.push({ at: booking.rescheduledAt, text: `Đổi lịch gửi mèo sang ${checkIn} → ${plannedCheckOut}` });
   }
@@ -126,6 +178,14 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const lastExt = extensions[extensions.length - 1];
   const extPerDay = Number(lastExt?.pricePerDay) || nightly;
   const refundForNights = (n) => {
+    if (hasSegments) {
+      // Hoàn đúng giá từng đêm không ở (theo chặng phòng / gói của đêm đó)
+      let sum = 0;
+      for (let d = addDays(extendedCheckOut, -n); d < extendedCheckOut; d = addDays(d, 1)) {
+        sum += chargeOfNight(d) ?? extPerDay;
+      }
+      return sum;
+    }
     const fromExtension = Math.min(n, extendedNights);
     return fromExtension * extPerDay + (n - fromExtension) * nightly;
   };
@@ -148,12 +208,14 @@ export function buildInvoice(booking, addonCatalog = {}) {
   let extraNights = 0;
   if (lateCheckOut) {
     extraNights = nightsBetween(extendedCheckOut, lateCheckOut);
+    // Đêm ở quá hạn tính theo giá của chặng cuối (phòng & gói khách đang dùng lúc đón)
+    const lateNightly = hasSegments ? (Number(segments[segments.length - 1]?.pricePerNight) || nightly) : nightly;
     lines.push({
       key: 'late',
       kind: 'late',
       label: `Trả mèo muộn: thêm ${extraNights} đêm`,
-      detail: `Đón ngày ${lateCheckOut} thay vì ${extendedCheckOut} · ${nightly.toLocaleString('vi-VN')}đ × ${extraNights} đêm`,
-      amount: extraNights * nightly,
+      detail: `Đón ngày ${lateCheckOut} thay vì ${extendedCheckOut} · ${lateNightly.toLocaleString('vi-VN')}đ × ${extraNights} đêm`,
+      amount: extraNights * lateNightly,
     });
     changes.push({ at: booking.checkedOutAt, text: `Check-out muộn ngày ${lateCheckOut} (hẹn đón ${extendedCheckOut}), thêm ${extraNights} đêm` });
   }
@@ -203,8 +265,23 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const depositPaid = isPaid ? 0 : depositReceivedOf(booking);
   const received = isPaid ? paidAmount : depositPaid;
 
+  // Lịch lưu trú hiển thị trên hóa đơn: ngày a – b ở phòng nào, gói nào (cắt theo ngày đón thực tế)
+  const stayPlan = segments
+    .map((seg) => ({ ...seg, to: seg.to > endDay ? endDay : seg.to }))
+    .filter((seg) => seg.from < seg.to)
+    .map((seg) => ({
+      from: seg.from,
+      to: seg.to,
+      nights: nightsOf(seg.from, seg.to),
+      roomId: seg.roomId,
+      packageName: seg.packageName,
+      pricePerNight: Number(seg.pricePerNight) || nightly,
+      label: `${shortDate(seg.from)} – ${shortDate(seg.to)}: ${describeSegment(seg)}`,
+    }));
+
   return {
     code: booking.code || booking.id,
+    stayPlan,
     checkIn,
     checkOut: endDay,
     plannedCheckOut: extendedCheckOut,

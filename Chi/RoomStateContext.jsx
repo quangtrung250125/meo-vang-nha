@@ -5,6 +5,7 @@ import { isClosedStatus, STORED_STATUS, BOOKING_STATUS, normalizeStatusValue } f
 import { latestPendingChanges } from '../src/utils/liveBookings';
 import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
+import { stayEntriesForRoom } from '../src/utils/staySegments';
 
 // Gọi /api/bookings kèm token đăng nhập (server chỉ cho admin sửa/xóa đơn và xem đầy đủ thông tin)
 const callBookingsApi = async (method = 'GET', body) =>
@@ -130,8 +131,10 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
   const d = String(t.getDate()).padStart(2, '0');
   const targetDateStr = `${y}-${m}-${d}`;
 
-  const bks = (bookings[roomId] || []).filter((b) => {
+  const bks = stayEntriesForRoom(roomId, bookings).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
+    // Bé chuyển sang phòng khác từ ngày này thì không còn ở phòng này
+    if (b._movesOutOn && targetDateStr >= b._movesOutOn) return false;
     // Bỏ qua các đơn đã check-out, đã hoàn tất hoặc bị hủy
     if (
       isClosedStatus(b.status)
@@ -191,7 +194,8 @@ export const isDateRangeOverlap = (startA, endA, startB, endB) => {
  * @returns {number} Số chỗ cao nhất đã được đặt (peak occupied cats)
  */
 export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, checkOut, excludeCodes = []) {
-  const list = (allBookingsByRoom[roomId] || []).filter((b) => {
+  // Gồm cả những ngày bé của đơn phòng khác chuyển sang ở phòng này (khách tự đổi phòng / gia hạn sang phòng khác)
+  const list = stayEntriesForRoom(roomId, allBookingsByRoom).filter((b) => {
     if (!b || b.code?.includes('BK')) return false;
     if (excludeCodes.length > 0 && (excludeCodes.includes(b.code) || excludeCodes.includes(b.id))) {
       return false;
@@ -394,6 +398,8 @@ export const RoomStateProvider = ({ children }) => {
           // Bản cũ trong "Lịch đặt" không được xóa mất đề xuất Admin vừa gửi từ máy khác
           pending_changes: latestPendingChanges(hb, current),
           specialNote: hb.specialNote || current.specialNote,
+          // Lịch lưu trú theo chặng (khách tự gia hạn / đổi phòng) để tính chỗ trống đúng theo ngày
+          staySegments: hb.staySegments ?? current.staySegments ?? null,
         };
         const differs = Object.keys(synced).some(
           (k) => JSON.stringify(current[k] ?? null) !== JSON.stringify(synced[k] ?? null)

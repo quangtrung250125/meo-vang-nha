@@ -37,12 +37,14 @@ export function exportInvoice(customer, booking, invoice) {
 <div class="grid">
   <div>Khách hàng: <strong>${escapeHtml(customer?.fullName || booking.customerName || '')}</strong></div>
   <div>Số điện thoại: ${escapeHtml(customer?.phone || booking.customerPhone || '')}</div>
-  <div>Phòng: ${escapeHtml(booking.roomId || booking.selectedRoom?.name || '')}</div>
+  <div>Phòng: ${escapeHtml([...new Set((invoice.stayPlan || []).map((seg) => seg.roomId))].join(', ') || booking.roomId || booking.selectedRoom?.name || '')}</div>
   <div>Mèo: ${escapeHtml(booking.catNames || `${booking.cats || 1} bé`)}</div>
   <div>Gửi mèo: ${escapeHtml(formatDate(invoice.checkIn))}</div>
   <div>Đón mèo: ${escapeHtml(formatDate(invoice.checkOut))} (${invoice.nights} đêm)</div>
   ${checkOutTimingLabel(invoice) ? `<div><strong>Ghi chú: ${escapeHtml(checkOutTimingLabel(invoice))}</strong> (hẹn đón ${escapeHtml(formatDate(invoice.plannedCheckOut))})</div>` : ''}
 </div>
+${(invoice.stayPlan || []).length > 1 ? `<h3 style="font-size:14px;margin:8px 0 4px">Lịch lưu trú theo từng khoảng ngày</h3>
+<table><tbody>${invoice.stayPlan.map((seg) => `<tr><td>${escapeHtml(seg.label)}</td><td class="num">${seg.nights} đêm × ${escapeHtml(formatMoney(seg.pricePerNight))}</td></tr>`).join('')}</tbody></table>` : ''}
 <table>
   <thead><tr><th>Nội dung</th><th class="num">Thành tiền</th></tr></thead>
   <tbody>${rows}
@@ -110,6 +112,19 @@ const InvoiceDetailModal = ({ customer, booking, onClose }) => {
         </div>
 
         <div className="p-6 space-y-6">
+          {(invoice.stayPlan || []).length > 0 && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Lịch lưu trú (phòng & gói theo từng khoảng ngày)</p>
+              <ul className="space-y-1">
+                {invoice.stayPlan.map((seg) => (
+                  <li key={seg.from} className="flex justify-between gap-3 text-sm">
+                    <span className="text-gray-800 font-semibold">{seg.label}</span>
+                    <span className="text-gray-500 whitespace-nowrap">{seg.nights} đêm × {formatMoney(seg.pricePerNight)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-wide bg-gray-50/60">
