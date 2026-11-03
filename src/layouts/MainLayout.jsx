@@ -7,6 +7,7 @@ import CustomerWelcomeModal from '../components/CustomerWelcomeModal';
 import SearchModal from '../components/SearchModal';
 import PolicyModal from '../components/PolicyModal';
 import AuthModal from '../components/AuthModal';
+import GooglePhonePrompt from '../components/GooglePhonePrompt';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 import { usePetProfile } from '../contexts/PetContext';
 import { useUI } from '../contexts/UIContext';
@@ -79,6 +80,7 @@ const MainLayout = () => {
       <SearchModal />
       <PolicyModal />
       <AuthModal isOpen={isAuthOpen} onClose={closeAuth} />
+      <GooglePhonePrompt />
     </div>
   );
 };
