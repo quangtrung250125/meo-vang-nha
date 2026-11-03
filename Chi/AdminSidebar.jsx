@@ -18,6 +18,7 @@ import {
   Users,
   Zap,
   Radio,
+  BarChart3,
 } from 'lucide-react';
 import { useCustomerProfile } from '../src/contexts/CustomerContext';
 import { toast } from 'react-hot-toast';
@@ -50,6 +51,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
     { name: 'Hồ sơ mèo', path: `${basePrefix}/pet-profile`, icon: PawPrint },
     { name: 'Đặt phòng', path: `${basePrefix}/booking`, icon: Calendar },
     { name: 'Đánh giá & Phản hồi', path: `${basePrefix}/reviews`, icon: Star },
+    { name: 'Báo cáo', path: `${basePrefix}/reports`, icon: BarChart3 },
     { name: 'Cài đặt', path: `${basePrefix}/settings`, icon: Settings },
   ];
 

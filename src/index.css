@@ -392,3 +392,21 @@ input[type="range"].appearance-none::-moz-range-thumb {
 input[type="range"].appearance-none:focus {
   outline: none;
 }
+
+/* Trang Báo cáo admin: Xuất PDF chỉ in nội dung báo cáo */
+@media print {
+  body:has(.admin-report) aside,
+  body:has(.admin-report) header,
+  body:has(.admin-report) footer,
+  body:has(.admin-report) .fixed,
+  .admin-report .no-print {
+    display: none !important;
+  }
+  body:has(.admin-report) {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .admin-report .break-inside-avoid {
+    break-inside: avoid;
+  }
+}

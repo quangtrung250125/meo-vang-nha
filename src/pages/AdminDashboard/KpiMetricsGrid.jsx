@@ -63,7 +63,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-amber-500 to-orange-500',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
-      hint: 'Lưu trú & dịch vụ thêm',
+      hint: 'Đơn đã check-out & thanh toán, theo ngày gửi',
     },
     {
       id: 'bookings',
@@ -75,7 +75,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-blue-500 to-indigo-500',
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
-      hint: 'Tổng đơn trong kỳ',
+      hint: 'Đặt trong kỳ, không tính đơn hủy',
     },
     {
       id: 'occupancy',
@@ -87,7 +87,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-emerald-500 to-teal-500',
       bgColor: 'bg-emerald-50',
       textColor: 'text-emerald-600',
-      hint: 'Công suất phòng bình quân',
+      hint: 'Đêm có mèo ở / tổng đêm phòng',
     },
     {
       id: 'adr',
@@ -99,7 +99,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-purple-500 to-pink-500',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
-      hint: 'Giá bán bình quân (ADR)',
+      hint: 'Tiền lưu trú / số đêm đã bán (ADR)',
     },
     {
       id: 'new_customers',
@@ -111,7 +111,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-sky-500 to-blue-500',
       bgColor: 'bg-sky-50',
       textColor: 'text-sky-600',
-      hint: 'Khách đặt lần đầu',
+      hint: 'Đơn đầu tiên đặt trong kỳ',
     },
     {
       id: 'returning_customers',
@@ -123,7 +123,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       color: 'from-emerald-500 to-green-600',
       bgColor: 'bg-emerald-50',
       textColor: 'text-emerald-700',
-      hint: 'Đặt từ 2 đơn trở lên',
+      hint: 'Đặt trong kỳ, đã từng đặt trước đó',
     },
     {
       id: 'cancel_rate',
@@ -136,7 +136,7 @@ const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
       bgColor: 'bg-rose-50',
       textColor: 'text-rose-600',
       isInverse: true,
-      hint: 'Đơn bị hủy trong kỳ',
+      hint: 'Đơn hủy / đơn đặt trong kỳ',
     },
   ];
 

@@ -9,6 +9,8 @@ import useCustomerData from '../AdminCustomers/useCustomerData';
 import { activeBookings as mockActiveBookings } from '../../mockData/activeBookings';
 import { triggerCareLogUpdateNotification } from '../../services/notificationTriggers';
 import { mockReviews } from '../AdminReviews';
+import { computeDashboardKpis, computeRevenueSeries, computeRoomHeatmap } from '../../utils/dashboardReport';
+import { todayInVietnam } from '../../utils/bookingDeposit';
 
 // Các thành phần thuộc Thẻ 1: Tổng quan
 import OverviewFilters from './OverviewFilters';
@@ -155,183 +157,35 @@ const AdminDashboard = () => {
   // ─────────────────────────────────────────────────────────────
   // 4. TÍNH TOÁN CÁC CHỈ SỐ DOANH NGHIỆP KPI (Đồng bộ từ Khách hàng & Lịch đặt)
   // ─────────────────────────────────────────────────────────────
-  const kpiMetrics = useMemo(() => {
-    let daysInPeriod = 30;
-    if (timePreset === 'today') daysInPeriod = 1;
-    else if (timePreset === '7d') daysInPeriod = 7;
-    else if (timePreset === '30d') daysInPeriod = 30;
-    else if (timePreset === 'quarter') daysInPeriod = 90;
-
-    const currentBookings = globalBookingList;
-    const completedOrActive = currentBookings.filter(
-      (b) => normalizeStatusValue(b.status) !== BOOKING_STATUS.CANCELLED
-    );
-    const cancelled = currentBookings.filter(
-      (b) => normalizeStatusValue(b.status) === BOOKING_STATUS.CANCELLED
-    );
-
-    // Đồng bộ doanh thu thực tế từ Khách hàng (customers) và Đơn hàng (globalBookingList)
-    const customerSpentSum = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
-    const bookingPriceSum = completedOrActive.reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
-    const rawRev = Math.max(customerSpentSum, bookingPriceSum);
-    const baseRev = Math.max(rawRev, daysInPeriod * 1250000);
-    const prevRev = baseRev * 0.88;
-
-    const totalRooms = ROOM_CONFIG.length || 11;
-    const totalRoomNights = totalRooms * daysInPeriod;
-    const soldNights = Math.max(12, Math.round(daysInPeriod * 7.8));
-    const occupancyRateCurrent = Math.min(94, (soldNights / totalRoomNights) * 100);
-    const occupancyRatePrev = occupancyRateCurrent * 0.92;
-
-    const adrCurrent = Math.round(baseRev / soldNights);
-    const adrPrev = Math.round(prevRev / (soldNights * 0.95));
-
-    const totalBookingsCount = Math.max(currentBookings.length, Math.round(daysInPeriod * 1.6));
-    const prevBookingsCount = Math.max(1, Math.round(totalBookingsCount * 0.86));
-
-    // Đồng bộ số khách mới và khách quay lại trực tiếp từ tệp khách hàng thực tế
-    const realNewCust = customers.filter((c) => c.segment === 'first' || c.bookingCount === 1).length;
-    const realReturningCust = customers.filter((c) => c.segment === 'returning' || c.segment === 'vip' || c.bookingCount >= 2).length;
-
-    const newCustCurrent = Math.max(realNewCust, Math.max(3, Math.round(totalBookingsCount * 0.6)));
-    const newCustPrev = Math.max(1, Math.round(newCustCurrent * 0.85));
-
-    const returningCustCurrent = Math.max(realReturningCust, Math.max(2, Math.round(totalBookingsCount * 0.4)));
-    const returningCustPrev = Math.max(1, Math.round(returningCustCurrent * 0.82));
-
-    const cancelRateCurrent = totalBookingsCount > 0 ? (Math.max(cancelled.length, 1) / totalBookingsCount) * 100 : 3.5;
-    const cancelRatePrev = cancelRateCurrent * 1.15;
-
-    const calcDiff = (curr, prev) => {
-      if (!prev || prev === 0) return 0;
-      return ((curr - prev) / prev) * 100;
-    };
-
-    return {
-      revenue: { current: baseRev, previous: prevRev, diff: calcDiff(baseRev, prevRev) },
-      bookingCount: { current: totalBookingsCount, previous: prevBookingsCount, diff: calcDiff(totalBookingsCount, prevBookingsCount) },
-      occupancyRate: { current: occupancyRateCurrent, previous: occupancyRatePrev, diff: calcDiff(occupancyRateCurrent, occupancyRatePrev) },
-      adr: { current: adrCurrent, previous: adrPrev, diff: calcDiff(adrCurrent, adrPrev) },
-      newCustomers: { current: newCustCurrent, previous: newCustPrev, diff: calcDiff(newCustCurrent, newCustPrev) },
-      returningCustomers: { current: returningCustCurrent, previous: returningCustPrev, diff: calcDiff(returningCustCurrent, returningCustPrev) },
-      cancelRate: { current: cancelRateCurrent, previous: cancelRatePrev, diff: calcDiff(cancelRateCurrent, cancelRatePrev) },
-    };
-  }, [globalBookingList, customers, timePreset]);
+  const kpiMetrics = useMemo(
+    () => computeDashboardKpis(customers, { preset: timePreset, customRange, totalRooms: ROOM_CONFIG.length || 11 }),
+    [customers, timePreset, customRange]
+  );
 
   // ─────────────────────────────────────────────────────────────
-  // 5. BIỂU ĐỒ DOANH THU (Ngày / Tuần / Tháng)
+  // 5. BIỂU ĐỒ DOANH THU (Ngày / Tuần / Tháng) — từ hóa đơn các đơn đã check-out & thanh toán
   // ─────────────────────────────────────────────────────────────
-  const revenueChartData = useMemo(() => {
-    const today = new Date();
-
-    const daysSeries = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() - (6 - i));
-      const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-      const dayName = i === 6 ? 'Hôm nay' : `T${d.getDay() === 0 ? 'CN' : d.getDay() + 1}`;
-      return {
-        label: `${dayName} (${dateStr})`,
-        shortLabel: dateStr,
-        stayRevenue: 1200000 + (i % 3) * 450000,
-        addonRevenue: 350000 + (i % 2) * 200000,
-      };
-    });
-
-    const weeksSeries = [
-      { label: 'Tuần 1 (01-07)', shortLabel: 'Tuần 1', stayRevenue: 8500000, addonRevenue: 2400000 },
-      { label: 'Tuần 2 (08-14)', shortLabel: 'Tuần 2', stayRevenue: 9800000, addonRevenue: 3100000 },
-      { label: 'Tuần 3 (15-21)', shortLabel: 'Tuần 3', stayRevenue: 11200000, addonRevenue: 3800000 },
-      { label: 'Tuần 4 (22-28)', shortLabel: 'Tuần 4', stayRevenue: 12500000, addonRevenue: 4200000 },
-    ];
-
-    const monthsSeries = [
-      { label: 'T6/2026', shortLabel: 'T6', stayRevenue: 38000000, addonRevenue: 12000000 },
-      { label: 'T7/2026', shortLabel: 'T7', stayRevenue: 42000000, addonRevenue: 14500000 },
-      { label: 'T8/2026', shortLabel: 'T8', stayRevenue: 46000000, addonRevenue: 16000000 },
-      { label: 'T9/2026', shortLabel: 'T9', stayRevenue: 51000000, addonRevenue: 18500000 },
-      { label: 'T10/2026', shortLabel: 'T10', stayRevenue: 56000000, addonRevenue: 21000000 },
-      { label: 'T11/2026', shortLabel: 'T11', stayRevenue: 62000000, addonRevenue: 23500000 },
-    ];
-
-    return {
-      day: daysSeries,
-      week: weeksSeries,
-      month: monthsSeries,
-    };
-  }, []);
+  const revenueChartData = useMemo(() => computeRevenueSeries(customers), [customers]);
 
   // ─────────────────────────────────────────────────────────────
   // 6. BẢN ĐỒ NHIỆT CÔNG SUẤT PHÒNG 14-30 NGÀY TỚI (Đồng bộ Tình trạng phòng)
   // ─────────────────────────────────────────────────────────────
-  const heatmapData = useMemo(() => {
-    const totalRooms = ROOM_CONFIG.length || 11;
-    const today = new Date();
-
-    return Array.from({ length: 30 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${day}`;
-      const displayDate = `${day}/${m}`;
-      const dayName = i === 0 ? 'Hôm nay' : `T${d.getDay() === 0 ? 'CN' : d.getDay() + 1}`;
-
-      // Tính số phòng đã được đặt vào ngày này từ RoomStateContext bookings & maintenance
-      let occupiedCount = 0;
-      const roomsDetail = ROOM_CONFIG.map((room) => {
-        const isMaint = !!maintenanceRooms[room.id];
-        const roomList = roomBookings[room.id] || [];
-        const isBooked = roomList.some((b) => {
-          if (!b.checkIn || !b.checkOut) return false;
-          return dateStr >= b.checkIn && dateStr <= b.checkOut;
-        });
-        if (isBooked || isMaint) occupiedCount++;
-        return { id: room.id, isBooked, isMaintenance: isMaint };
-      });
-
-      // Nếu là dữ liệu demo ban đầu, tạo mức nhiệt tự nhiên cho admin trực quan
-      if (occupiedCount === 0) {
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6 || d.getDay() === 5;
-        occupiedCount = isWeekend ? Math.min(11, 7 + (i % 5)) : Math.min(11, 3 + (i % 6));
-        roomsDetail.forEach((r, rIdx) => {
-          r.isBooked = rIdx < occupiedCount;
-        });
-      }
-
-      const rate = (occupiedCount / totalRooms) * 100;
-
-      return {
-        dateStr,
-        displayDate,
-        dayName,
-        occupied: occupiedCount,
-        total: totalRooms,
-        rate,
-        roomsDetail,
-      };
-    });
-  }, [roomBookings, maintenanceRooms]);
+  const heatmapData = useMemo(
+    () => computeRoomHeatmap(roomBookings, maintenanceRooms, ROOM_CONFIG, { days: 30 }),
+    [roomBookings, maintenanceRooms]
+  );
 
   // ─────────────────────────────────────────────────────────────
   // 7. CẦN XỬ LÝ HÔM NAY (Đồng bộ Lịch đặt & Đánh giá/Phản hồi)
   // ─────────────────────────────────────────────────────────────
-  const todayDateStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayDateStr = todayInVietnam();
 
-  // Danh sách cần Check-in hôm nay
+  // Danh sách cần Check-in hôm nay (chỉ đơn có ngày gửi là hôm nay)
   const todayCheckInList = useMemo(() => {
-    const list = globalBookingList.filter((b) => {
+    return globalBookingList.filter((b) => {
       const status = normalizeStatusValue(b.status);
       return status === BOOKING_STATUS.UPCOMING && b.checkIn === todayDateStr;
     });
-
-    if (list.length === 0) {
-      return globalBookingList
-        .filter((b) => normalizeStatusValue(b.status) === BOOKING_STATUS.UPCOMING)
-        .slice(0, 3);
-    }
-    return list;
   }, [globalBookingList, todayDateStr]);
 
   // Danh sách cần Check-out hôm nay
@@ -622,7 +476,7 @@ const AdminDashboard = () => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-xs font-bold text-white transition-colors"
           >
             <BedDouble className="w-3.5 h-3.5" />
-            <span>Phòng: {heatmapData[0]?.occupied || 0}/11</span>
+            <span>Phòng: {heatmapData[0]?.occupied || 0}/{heatmapData[0]?.total || ROOM_CONFIG.length}</span>
           </Link>
           <Link
             to={`${basePrefix}/customers`}
