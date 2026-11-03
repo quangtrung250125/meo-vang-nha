@@ -145,3 +145,19 @@ describe('Hóa đơn theo từng chặng', () => {
     expect(buildInvoice(b).total).toBe(540000 + 150000);
   });
 });
+
+describe('Khách sửa lại đơn sắp tới sau khi đã tự gia hạn', () => {
+  it('server bỏ lịch theo chặng cũ để đơn tính lại theo lịch & phòng mới', () => {
+    const upcoming = { ...lan, status: 'check-in', checkIn: '2026-11-10', checkOut: '2026-11-12' };
+    const plan = extend(upcoming, '2026-11-14', 'VIP-02');
+    const booked = { ...upcoming, staySegments: plan.segments, checkOut: plan.checkOut, baseCheckOut: '2026-11-12' };
+    const all = { 'VIP-01': [booked], 'VIP-02': [], 'VVIP-01': [] };
+    const result = service.checkCustomerUpdate({
+      userId: 'lan', roomId: 'VIP-01', code: lan.code,
+      updates: { customerEdit: true, checkIn: '2026-11-10', checkOut: '2026-11-13', totalPrice: 405000 },
+    }, all, '2026-11-03');
+    expect(result.ok).toBe(true);
+    expect(result.updates.staySegments).toBeNull();
+    expect(result.updates.baseCheckOut).toBeNull();
+  });
+});

@@ -6,7 +6,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
-import { getDepositPolicy, DEPOSIT_FREE_MAX_DAYS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { getDepositPolicy, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
@@ -65,8 +65,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     addCamera,
   });
 
-  // ── Đặt cọc: đặt trước hơn 5 ngày thì cọc 50% mới nhận mã đặt phòng ──
-  const deposit = getDepositPolicy({ checkIn: data.checkIn, total });
+  // ── Đặt cọc: gửi bé từ 5 ngày trở lên thì cọc 50% mới nhận mã đặt phòng ──
+  const deposit = getDepositPolicy({ checkIn: data.checkIn, checkOut: data.checkOut, total });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -126,6 +126,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       selectedRoom: data.selectedRoom,
       hasCamera: cameraIncluded || addCamera,
       addCamera: !cameraIncluded && addCamera,
+      // Ghi lại để khi khách chỉnh sửa đơn, giá mới tính cùng ưu đãi như lúc đặt
+      couponApplied: isCouponApplied,
       roomId,
       petIds: data.petProfiles?.map(p => p.id) || [],
       petProfiles: data.petProfiles,
@@ -181,7 +183,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
     if (confirmedBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
       sendWebNotification('🏠 Đã giữ phòng cho các bé!', {
-        body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ để nhận mã đặt phòng.`,
+        body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ trong vòng ${DEPOSIT_DEADLINE_HOURS} giờ để nhận mã đặt phòng, nếu không đơn có thể bị hủy.`,
       });
     } else {
       sendWebNotification('🎉 Đặt phòng thành công!', {
@@ -397,8 +399,11 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 text-sm text-amber-900 space-y-1.5">
           <p className="font-bold text-base">💰 Cần đặt cọc 50% để nhận mã đặt phòng</p>
           <p>
-            Bạn đặt trước {deposit.leadDays} ngày (hơn {DEPOSIT_FREE_MAX_DAYS} ngày) nên cần chuyển khoản cọc{' '}
+            Bạn gửi bé {deposit.stayDays} ngày (từ {DEPOSIT_MIN_STAY_DAYS} ngày trở lên) nên cần chuyển khoản cọc{' '}
             <strong>{deposit.amount.toLocaleString()}đ</strong>. Mèo Vàng Nhà giữ phòng cho bạn và gửi mã đặt phòng ngay khi nhận được tiền cọc.
+          </p>
+          <p className="font-bold text-red-700">
+            ⏰ Vui lòng chuyển tiền cọc trong vòng {DEPOSIT_DEADLINE_HOURS} giờ kể từ lúc đặt phòng. Quá {DEPOSIT_DEADLINE_HOURS} giờ chưa nhận được cọc, đơn đặt phòng có thể bị hủy và phòng được nhường cho khách khác.
           </p>
           <p>Số còn lại thanh toán khi hoàn thành dịch vụ. Nếu tiền cọc nhiều hơn số tiền thực tế phải trả, phần dư sẽ được hoàn lại khi hoàn thành dịch vụ.</p>
         </div>
@@ -406,7 +411,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900 space-y-1.5">
           <p className="font-bold text-base">✅ Không cần đặt cọc trước</p>
           <p>
-            Ngày gửi bé chỉ còn {Math.max(deposit.leadDays, 0)} ngày (không quá {DEPOSIT_FREE_MAX_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi hoàn thành dịch vụ.
+            Bạn gửi bé {deposit.stayDays} ngày (dưới {DEPOSIT_MIN_STAY_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi hoàn thành dịch vụ.
           </p>
         </div>
       )}

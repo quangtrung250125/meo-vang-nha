@@ -310,22 +310,35 @@ describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
 });
 
 describe('Đặt cọc khi đặt phòng', () => {
-  it('đặt trước hơn 5 ngày thì đơn chờ cọc 50%', async () => {
+  it('gửi bé từ 5 ngày trở lên thì đơn chờ cọc 50%', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
       token: 'token-a',
-      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(30), checkOut: addDays(32), totalPrice: 600000 }) },
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(30), checkOut: addDays(35), totalPrice: 600000 }) },
     });
     expect(res.payload.success).toBe(true);
     expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
     expect(res.payload.booking.depositAmount).toBe(300000);
+    // Hạn chuyển cọc 24 giờ do server ghi, khách không tự đặt được
+    const due = Date.parse(res.payload.booking.depositDueAt);
+    expect(Math.abs(due - (Date.now() + 24 * 3600 * 1000))).toBeLessThan(60 * 1000);
   });
 
-  it('đặt sát ngày (≤ 5 ngày) thì không cần cọc', async () => {
+  it('gửi đúng 5 ngày cũng cần cọc, kể cả đặt sát ngày', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
       token: 'token-a',
-      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(2), checkOut: addDays(3), totalPrice: 300000 }) },
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(2), checkOut: addDays(7), totalPrice: 500000 }) },
+    });
+    expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
+    expect(res.payload.booking.depositAmount).toBe(250000);
+  });
+
+  it('gửi dưới 5 ngày thì không cần cọc, kể cả đặt trước lâu', async () => {
+    const res = await call(api.handleAddBooking, {
+      method: 'POST',
+      token: 'token-a',
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(45), checkOut: addDays(49), totalPrice: 300000 }) },
     });
     expect(res.payload.booking.paymentStatus).toBe('pay_at_checkin');
     expect(res.payload.booking.depositAmount).toBe(0);
@@ -337,7 +350,7 @@ describe('Đặt cọc khi đặt phòng', () => {
       token: 'token-a',
       body: {
         roomId: 'VIP-01',
-        booking: newBooking({ checkIn: addDays(40), checkOut: addDays(41), totalPrice: 200000, paymentStatus: 'deposit_paid' }),
+        booking: newBooking({ checkIn: addDays(40), checkOut: addDays(45), totalPrice: 200000, paymentStatus: 'deposit_paid' }),
       },
     });
     expect(created.payload.booking.paymentStatus).toBe('awaiting_deposit');
@@ -372,7 +385,7 @@ describe('Tự xác nhận cọc khi ngân hàng báo (SePay)', () => {
   const createAwaiting = async () => {
     const created = await call(api.handleAddBooking, {
       method: 'POST', token: 'token-a',
-      body: { roomId: 'VIP-03', booking: newBooking({ code: `MVN-${50000 + seq}`, id: `MVN-${50000 + seq}`, checkIn: addDays(60 + seq * 3), checkOut: addDays(62 + seq * 3), totalPrice: 300000 }) },
+      body: { roomId: 'VIP-03', booking: newBooking({ code: `MVN-${50000 + seq}`, id: `MVN-${50000 + seq}`, checkIn: addDays(60 + seq * 3), checkOut: addDays(65 + seq * 3), totalPrice: 300000 }) },
     });
     expect(created.payload.booking.paymentStatus).toBe('awaiting_deposit');
     return created.payload.booking;
@@ -420,6 +433,115 @@ describe('Tự xác nhận cọc khi ngân hàng báo (SePay)', () => {
     const none = await callSepay({ id: 9302, transferType: 'in', transferAmount: 500000, content: 'tien an trua' }, AUTH);
     expect(none.payload.matched).toBe(false);
     expect(statusOf(b.code)).toBe('awaiting_deposit');
+  });
+});
+
+describe('Trang khách biết đơn đã kết thúc (Check-out / hủy) dù server đã trả phòng', () => {
+  const createOwn = async (roomId, overrides) => {
+    const res = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId, booking: newBooking(overrides) } });
+    return res.payload.booking.code;
+  };
+  const closedFor = async (token) => (await call(api.handleGetBookings, { token })).payload.closed;
+
+  it('admin Check-in rồi Check-out: chủ đơn nhận trạng thái "check-out", người khác không thấy', async () => {
+    const code = await createOwn('VVIP-01', { checkIn: addDays(0), checkOut: addDays(2) });
+    const put = (updates) => call(api.handleUpdateBooking, { method: 'PUT', token: 'token-admin', body: { roomId: 'VVIP-01', code, updates } });
+    await put({ status: 'đang ở' });
+    await put({ status: 'check-out', checkedOutAt: new Date().toISOString(), checkOutNote: 'Check-out đúng hạn' });
+
+    expect(api.getAllBookings()['VVIP-01'].some((b) => b.code === code)).toBe(false);
+    const mine = (await closedFor('token-a')).find((c) => c.code === code);
+    expect(mine.status).toBe('check-out');
+    expect(mine.checkOutNote).toBe('Check-out đúng hạn');
+    expect(mine.customerId).toBeUndefined();
+    expect((await closedFor('token-b')).some((c) => c.code === code)).toBe(false);
+    expect(await closedFor(undefined)).toEqual([]);
+    expect((await closedFor('token-admin')).some((c) => c.code === code)).toBe(true);
+  });
+
+  it('admin hủy đơn: chủ đơn nhận "cancelled" kèm lý do', async () => {
+    const code = await createOwn('DELUXE-02', { checkIn: addDays(160), checkOut: addDays(162) });
+    await call(api.handleRemoveBooking, { method: 'DELETE', token: 'token-admin', body: { roomId: 'DELUXE-02', code, reason: 'Phòng bảo trì' } });
+    const mine = (await closedFor('token-a')).find((c) => c.code === code);
+    expect(mine).toMatchObject({ status: 'cancelled', cancelReason: 'Phòng bảo trì', cancelledBy: 'admin' });
+  });
+});
+
+describe('Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch vụ)', () => {
+  const createOwn = async (roomId, overrides) => {
+    const res = await call(api.handleAddBooking, { method: 'POST', token: 'token-a', body: { roomId, booking: newBooking(overrides) } });
+    return res.payload.booking;
+  };
+  const edit = (roomId, code, updates, token = 'token-a') =>
+    call(api.handleUpdateBooking, { method: 'PUT', token, body: { roomId, code, updates: { customerEdit: true, ...updates } } });
+  const find = (code) => {
+    for (const [roomId, list] of Object.entries(api.getAllBookings())) {
+      const b = list.find((x) => x.code === code);
+      if (b) return { roomId, booking: b };
+    }
+    return null;
+  };
+
+  it('đổi phòng, số mèo, lịch và gói: áp dụng ngay, chuyển sang phòng mới, server tính lại cọc (giữ mã, chờ cọc bổ sung)', async () => {
+    const created = await createOwn('VIP-02', { checkIn: addDays(140), checkOut: addDays(142), totalPrice: 300000 });
+    expect(created.paymentStatus).toBe('pay_at_checkin');
+
+    const res = await edit('VIP-02', created.code, {
+      roomId: 'VVIP-03', cats: 3, checkIn: addDays(140), checkOut: addDays(146), totalPrice: 1800000,
+      packages: ['Gói Mèo Sang Chảnh'], paymentStatus: 'deposit_paid',
+    });
+    expect(res.statusCode).toBe(200);
+    const moved = find(created.code);
+    expect(moved.roomId).toBe('VVIP-03');
+    expect(moved.booking).toMatchObject({ cats: 3, checkOut: addDays(146), packages: ['Gói Mèo Sang Chảnh'], pending_changes: null });
+    // Khách không tự đặt "đã cọc" được: server tính theo đơn mới (6 ngày -> cọc 50%)
+    expect(moved.booking.paymentStatus).toBe('awaiting_deposit_topup');
+    expect(moved.booking.depositAmount).toBe(900000);
+  });
+
+  it('phòng mới đã full thì từ chối và giữ nguyên đơn', async () => {
+    await call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VVIP-02', booking: newBooking({ checkIn: addDays(150), checkOut: addDays(153), cats: 4 }) } });
+    const created = await createOwn('VIP-05', { checkIn: addDays(150), checkOut: addDays(151) });
+    const res = await edit('VIP-05', created.code, { roomId: 'VVIP-02', totalPrice: 200000 });
+    expect(res.statusCode).toBe(409);
+    expect(res.payload.message).toMatch(/full/);
+    expect(find(created.code).roomId).toBe('VIP-05');
+  });
+
+  it('không cho vượt sức chứa phòng hoặc ngày sai', async () => {
+    const created = await createOwn('VIP-04', { checkIn: addDays(170), checkOut: addDays(171) });
+    expect((await edit('VIP-04', created.code, { cats: 3, totalPrice: 100000 })).statusCode).toBe(400);
+    expect((await edit('VIP-04', created.code, { checkIn: addDays(175), checkOut: addDays(174), totalPrice: 100000 })).statusCode).toBe(400);
+    expect(find(created.code).booking.cats).toBe(1);
+  });
+
+  it('đã cọc rồi sửa đơn đắt hơn: chỉ chờ cọc thêm phần chênh lệch, chuyển đủ thì về "đã cọc"', async () => {
+    process.env.SEPAY_API_KEY = 'sepay-test-key';
+    // Mã dạng MVN-xxxxx để đọc được từ nội dung chuyển khoản
+    const created = await createOwn('DELUXE-01', { id: 'MVN-61234', code: 'MVN-61234', checkIn: addDays(180), checkOut: addDays(185), totalPrice: 600000 });
+    expect(created.paymentStatus).toBe('awaiting_deposit');
+    await call(api.handleUpdateBooking, {
+      method: 'PUT', token: 'token-admin', body: { roomId: 'DELUXE-01', code: created.code, updates: { paymentStatus: 'deposit_paid' } },
+    });
+
+    await edit('DELUXE-01', created.code, { checkOut: addDays(190), totalPrice: 1200000 });
+    const afterEdit = find(created.code).booking;
+    expect(afterEdit.paymentStatus).toBe('awaiting_deposit_topup');
+    expect(afterEdit.depositAmount).toBe(600000);
+    expect(afterEdit.depositReceivedAmount).toBe(300000);
+
+    const req = { method: 'POST', headers: { authorization: 'Apikey sepay-test-key' }, query: {}, body: { id: 'topup-1', transferType: 'in', transferAmount: 300000, content: `COC ${created.code}` } };
+    const res = { statusCode: 200, setHeader() {}, status(c) { this.statusCode = c; return this; }, json(o) { this.payload = o; return this; } };
+    await api.handleSepayWebhook(req, res);
+    expect(res.payload.paid).toBe(true);
+    expect(find(created.code).booking.paymentStatus).toBe('deposit_paid');
+  });
+
+  it('không cho sửa đơn của người khác hoặc đơn đã Check-in', async () => {
+    const created = await createOwn('VIP-06', { checkIn: addDays(0), checkOut: addDays(1) });
+    expect((await edit('VIP-06', created.code, { totalPrice: 1 }, 'token-b')).statusCode).toBe(403);
+    await call(api.handleUpdateBooking, { method: 'PUT', token: 'token-admin', body: { roomId: 'VIP-06', code: created.code, updates: { status: 'đang ở' } } });
+    expect((await edit('VIP-06', created.code, { totalPrice: 1 })).statusCode).toBe(409);
   });
 });
 

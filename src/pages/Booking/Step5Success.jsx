@@ -7,7 +7,7 @@ import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateCo
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { paymentAccount } from '../../config/payment';
 import { buildVietQrPayload, isPaymentAccountReady } from '../../utils/vietqr';
-import { PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
   const initialBookingId = data.bookingId || data.confirmedBooking?.code || data.confirmedBooking?.id || '';
@@ -150,6 +150,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   // Chỉ đơn cần cọc mới hiện QR chuyển khoản; đơn không cần cọc thanh toán khi hoàn thành dịch vụ
   const qrAmount = awaitingDeposit ? depositAmount : 0;
   const qrMemo = awaitingDeposit ? `COC ${bookingId}` : bookingId;
+  const depositDueText = formatVietnamDateTime(getDepositDueAt(liveBooking?.depositDueAt ? liveBooking : data.confirmedBooking));
 
   return (
     <div className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-500 py-8">
@@ -166,6 +167,13 @@ const Step5Success = ({ data, onBackToStep1 }) => {
             Mèo Vàng Nhà đang giữ phòng cho các bé <strong>{data.petProfiles?.map(p => p.name).join(', ')}</strong>.
             Vui lòng chuyển khoản cọc 50% bên dưới để nhận mã đặt phòng.
           </p>
+          <div className="max-w-md mx-auto bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-3 text-sm text-red-800 flex items-start gap-2 text-left">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+            <p>
+              Vui lòng chuyển tiền cọc trong vòng <strong>{DEPOSIT_DEADLINE_HOURS} giờ</strong>
+              {depositDueText ? <> (trước <strong>{depositDueText}</strong>)</> : null}. Quá hạn mà chưa nhận được cọc, đơn đặt phòng có thể bị hủy và phòng được nhường cho khách khác.
+            </p>
+          </div>
         </>
       ) : (
         <>

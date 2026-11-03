@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../src/supabaseClient';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
-import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
+import { isClosedStatus, STORED_STATUS, BOOKING_STATUS, normalizeStatusValue } from '../src/utils/bookingStatus';
+import { latestPendingChanges } from '../src/utils/liveBookings';
 import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
 import { stayEntriesForRoom } from '../src/utils/staySegments';
@@ -99,6 +100,23 @@ export const INITIAL_BOOKINGS = {
   'DELUXE-02': [],
 };
 
+// Ngày hôm nay theo đồng hồ máy, dạng YYYY-MM-DD
+const localTodayStr = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Ngày đón để hiện trên Tình trạng phòng: bé đang lưu trú mà quá ngày hẹn đón chưa check-out
+ * thì vẫn ở phòng tới hôm nay, để Admin thấy và check-out muộn được.
+ */
+export function displayCheckOut(b) {
+  if (!b?.checkOut) return b?.checkOut;
+  if (normalizeStatusValue(b.status) !== BOOKING_STATUS.IN_HOUSE) return b.checkOut;
+  const today = localTodayStr();
+  return today > b.checkOut ? today : b.checkOut;
+}
+
 // ─────────────────────────────────────────────
 // Helper: Tính trạng thái phòng
 // ─────────────────────────────────────────────
@@ -124,12 +142,13 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
       return false;
     }
     // Nếu ngày hết hạn đặt phòng đã qua so với ngày kiểm tra -> phòng đã hết hạn, không còn chiếm phòng
-    if (b.checkOut && targetDateStr > b.checkOut) {
+    const checkOut = displayCheckOut(b);
+    if (checkOut && targetDateStr > checkOut) {
       return false;
     }
     // Chỉ tính chiếm phòng nếu ngày kiểm tra nằm trong khoảng [checkIn, checkOut]
-    if (b.checkIn && b.checkOut) {
-      return targetDateStr >= b.checkIn && targetDateStr <= b.checkOut;
+    if (b.checkIn && checkOut) {
+      return targetDateStr >= b.checkIn && targetDateStr <= checkOut;
     }
     return true;
   });
@@ -353,8 +372,18 @@ export const RoomStateProvider = ({ children }) => {
         const code = hb.code || hb.id;
         const roomId = hb.roomId || hb.selectedRoom?.id;
         if (!code || !roomId || !next[roomId]) return;
-        const idx = next[roomId].findIndex((b) => b.code === code || b.id === code);
-        if (idx < 0) return;
+        const isSame = (b) => b.code === code || b.id === code;
+        let idx = next[roomId].findIndex(isSame);
+        if (idx < 0) {
+          // Khách vừa đổi phòng khi chỉnh sửa đơn: chuyển đơn sang phòng mới trong kho phòng
+          const fromRoom = Object.keys(next).find((rId) => rId !== roomId && (next[rId] || []).some(isSame));
+          if (!fromRoom || isClosedStatus(hb.status)) return;
+          const moving = next[fromRoom].find(isSame);
+          next[fromRoom] = next[fromRoom].filter((b) => !isSame(b));
+          next[roomId] = [...next[roomId], { ...moving, roomId }];
+          idx = next[roomId].length - 1;
+          changed = true;
+        }
         if (isClosedStatus(hb.status)) {
           next[roomId] = next[roomId].filter((_, i) => i !== idx);
           changed = true;
@@ -365,7 +394,9 @@ export const RoomStateProvider = ({ children }) => {
           status: hb.status || current.status,
           checkIn: hb.checkIn || current.checkIn,
           checkOut: hb.checkOut || current.checkOut,
-          pending_changes: hb.pending_changes || null,
+          cats: hb.cats || current.cats,
+          // Bản cũ trong "Lịch đặt" không được xóa mất đề xuất Admin vừa gửi từ máy khác
+          pending_changes: latestPendingChanges(hb, current),
           specialNote: hb.specialNote || current.specialNote,
           // Lịch lưu trú theo chặng (khách tự gia hạn / đổi phòng) để tính chỗ trống đúng theo ngày
           staySegments: hb.staySegments ?? current.staySegments ?? null,
@@ -453,9 +484,31 @@ export const RoomStateProvider = ({ children }) => {
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.bookings && isMounted) {
+            const closedCodes = new Set((json.closed || []).map((c) => c?.code).filter(Boolean));
+            // Phòng hiện tại của từng đơn theo server (khách đổi phòng thì đơn nằm ở phòng mới)
+            const serverRoomOf = new Map();
+            Object.entries(json.bookings).forEach(([roomId, list]) => {
+              (list || []).forEach((b) => { if (b?.code || b?.id) serverRoomOf.set(b.code || b.id, roomId); });
+            });
+
             setBookings((prev) => {
               let changed = false;
               const next = { ...prev };
+
+              // Bỏ đơn đã kết thúc (Check-out / hủy ở máy khác) và bản cũ còn nằm ở phòng trước khi đổi
+              Object.keys(next).forEach((roomId) => {
+                const list = next[roomId] || [];
+                const kept = list.filter((b) => {
+                  const code = b?.code || b?.id;
+                  if (closedCodes.has(code)) return false;
+                  const serverRoom = serverRoomOf.get(code);
+                  return !serverRoom || serverRoom === roomId;
+                });
+                if (kept.length !== list.length) {
+                  next[roomId] = kept;
+                  changed = true;
+                }
+              });
 
               Object.keys(json.bookings).forEach((roomId) => {
                 const serverList = json.bookings[roomId] || [];
@@ -498,6 +551,9 @@ export const RoomStateProvider = ({ children }) => {
               }
               return prev;
             });
+
+            // Đưa thay đổi Admin làm ở máy khác (đề xuất, Check-in / Check-out, hủy, cọc) vào "Lịch đặt"
+            historyRef.current?.applyServerSnapshot?.(Object.values(json.bookings).flat(), json.closed || []);
           }
         }
       } catch (err) {}
@@ -925,8 +981,11 @@ export const RoomStateProvider = ({ children }) => {
   /**
    * Check-out: cập nhật trạng thái đã check-out, giải phóng phòng để phòng TRỐNG ngay lập tức
    */
-  const checkOutBooking = useCallback((roomId, code) => {
-    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt: new Date().toISOString(), pending_changes: null });
+  const checkOutBooking = useCallback((roomId, code, extra = {}) => {
+    // extra: { checkedOutAt, checkOutNote } — ghi chú check-out đúng hạn / sớm / muộn (hóa đơn tự tính lại tiền)
+    const checkedOutAt = extra.checkedOutAt || new Date().toISOString();
+    const checkOutNote = extra.checkOutNote || null;
+    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt, checkOutNote, pending_changes: null });
     setBookings((prev) => {
       const currentList = prev[roomId] || [];
       // Giải phóng booking khỏi phòng đang ở để phòng trở lại TRỐNG
@@ -959,10 +1018,10 @@ export const RoomStateProvider = ({ children }) => {
     });
 
     // Đồng bộ trạng thái check-out lên Server API trung tâm
-    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out' } }).catch(() => {});
+    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out', checkedOutAt, checkOutNote } }).catch(() => {});
 
     // Cập nhật lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
-    updateBookingRows(supabase, code, { status: 'check-out' })
+    updateBookingRows(supabase, code, { status: 'check-out', checkedOutAt, checkOutNote })
       .catch((err) => console.warn('Lỗi cập nhật check-out lên Supabase:', err.message || err));
   }, [mirrorToHistory]);
 
@@ -970,7 +1029,8 @@ export const RoomStateProvider = ({ children }) => {
    * Hủy / xóa đơn đặt phòng khỏi hệ thống
    */
   const removeBooking = useCallback((roomId, code, reason = 'Admin hủy đơn') => {
-    mirrorToHistory(code, { status: STORED_STATUS.CANCELLED, cancelReason: reason, cancelledAt: new Date().toISOString(), cancelledBy: 'admin', pending_changes: null });
+    const cancelled = { status: STORED_STATUS.CANCELLED, cancelReason: reason, cancelledAt: new Date().toISOString(), cancelledBy: 'admin' };
+    mirrorToHistory(code, { ...cancelled, pending_changes: null });
     setBookings((prev) => {
       const updated = {
         ...prev,
@@ -982,11 +1042,11 @@ export const RoomStateProvider = ({ children }) => {
         console.error('Failed to remove booking', e);
       }
 
-      // Đồng bộ xóa/hủy đơn lên Server API trung tâm
-      callBookingsApi('DELETE', { roomId, code }).catch(() => {});
+      // Đồng bộ xóa/hủy đơn lên Server API trung tâm (kèm lý do để trang khách hiện "Đã hủy" + lý do)
+      callBookingsApi('DELETE', { roomId, code, reason }).catch(() => {});
 
       // Cập nhật trạng thái hủy lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
-      updateBookingRows(supabase, code, { status: 'cancelled' })
+      updateBookingRows(supabase, code, cancelled)
         .catch((err) => console.warn('Lỗi cập nhật hủy đơn lên Supabase:', err.message || err));
 
       if (syncChannel) {
@@ -1010,8 +1070,8 @@ export const RoomStateProvider = ({ children }) => {
    * @param {string|null} checkIn - ngày nhận (YYYY-MM-DD)
    * @param {string|null} checkOut - ngày trả (YYYY-MM-DD)
    */
+  // excludeCodes: mã đơn không tính vào chỗ đã có người (khách đang chỉnh sửa chính đơn đó)
   const getRoomAvailability = useCallback(
-    // excludeCodes: bỏ qua chính đơn đang gia hạn / đổi phòng khi đếm chỗ
     (catCount = 1, checkIn = null, checkOut = null, excludeCodes = []) => {
       const order = ['VIP', 'VVIP', 'DELUXE'];
       const grouped = {};
