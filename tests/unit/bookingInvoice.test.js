@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildInvoice, nightsBetween, parseAddonPrice } from '../../src/utils/bookingInvoice';
+import { buildInvoice, checkOutTimingLabel, nightsBetween, parseAddonPrice } from '../../src/utils/bookingInvoice';
 import { buildCustomers, computeRevenueByMonth, paymentStateOf, segmentOf } from '../../src/pages/AdminCustomers/customerUtils';
 
 const CATALOG = {
@@ -93,5 +93,43 @@ describe('Gia hạn từ trang Theo dõi lưu trú', () => {
     const inv = buildInvoice({ ...base, status: 'check-out', checkedOutAt: '2026-11-10T03:00:00Z', extensions: [ext] }, CATALOG);
     expect(inv.total).toBe(1400000 + 540000 - 180000);
     expect(inv.lines.some((l) => l.pending)).toBe(false);
+  });
+});
+
+describe('Check-out đúng hạn / sớm / muộn', () => {
+  it('đúng hạn: giữ nguyên tiền, ghi chú đúng hạn', () => {
+    const inv = buildInvoice({ ...base, status: 'check-out', checkedOutAt: '2026-11-08T03:00:00Z' }, CATALOG);
+    expect(inv.total).toBe(1400000);
+    expect(inv.checkOutTiming).toBe('on_time');
+    expect(checkOutTimingLabel(inv)).toBe('Check-out đúng hạn');
+    expect(inv.changes.some((c) => c.text.includes('đúng hạn'))).toBe(true);
+  });
+
+  it('sớm: bớt tiền, ghi chú sớm', () => {
+    const inv = buildInvoice({ ...base, status: 'check-out', checkedOutAt: '2026-11-05T03:00:00Z' }, CATALOG);
+    expect(inv.total).toBe(1100000);
+    expect(checkOutTimingLabel(inv)).toBe('Check-out sớm 3 đêm');
+  });
+
+  it('muộn: cộng thêm tiền những đêm quá hạn, dịch vụ thêm tính tới ngày đón thật', () => {
+    const b = { ...base, status: 'check-out', checkedOutAt: '2026-11-10T03:00:00Z',
+      addons: [{ id: 'a1', type: 'food', option: 'extra_meal', status: 'active', timestamp: '2026-11-07T03:00:00Z' }] };
+    const inv = buildInvoice(b, CATALOG);
+    expect(inv.lines.find((l) => l.kind === 'late').amount).toBe(200000);
+    expect(inv.total).toBe(1400000 + 200000 + 15000 * 3);
+    expect(inv.nights).toBe(16);
+    expect(checkOutTimingLabel(inv)).toBe('Check-out muộn 2 đêm');
+    expect(inv.changes.some((c) => c.text.includes('Check-out muộn ngày 2026-11-10'))).toBe(true);
+  });
+
+  it('đã gia hạn thì muộn tính từ ngày gia hạn', () => {
+    const ext = { id: 'e1', days: 2, newCheckOut: '2026-11-10', pricePerDay: 100000, amount: 200000, status: 'approved', timestamp: '2026-11-02T03:00:00Z' };
+    const inv = buildInvoice({ ...base, extensions: [ext], status: 'check-out', checkedOutAt: '2026-11-11T03:00:00Z' }, CATALOG);
+    expect(inv.total).toBe(1400000 + 200000 + 100000);
+    expect(checkOutTimingLabel(inv)).toBe('Check-out muộn 1 đêm');
+  });
+
+  it('chưa check-out thì không có ghi chú', () => {
+    expect(checkOutTimingLabel(buildInvoice(base, CATALOG))).toBe('');
   });
 });

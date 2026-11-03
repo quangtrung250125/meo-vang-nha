@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../src/supabaseClient';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
-import { isClosedStatus, STORED_STATUS } from '../src/utils/bookingStatus';
+import { isClosedStatus, STORED_STATUS, BOOKING_STATUS, normalizeStatusValue } from '../src/utils/bookingStatus';
 import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
 
@@ -98,6 +98,23 @@ export const INITIAL_BOOKINGS = {
   'DELUXE-02': [],
 };
 
+// Ngày hôm nay theo đồng hồ máy, dạng YYYY-MM-DD
+const localTodayStr = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Ngày đón để hiện trên Tình trạng phòng: bé đang lưu trú mà quá ngày hẹn đón chưa check-out
+ * thì vẫn ở phòng tới hôm nay, để Admin thấy và check-out muộn được.
+ */
+export function displayCheckOut(b) {
+  if (!b?.checkOut) return b?.checkOut;
+  if (normalizeStatusValue(b.status) !== BOOKING_STATUS.IN_HOUSE) return b.checkOut;
+  const today = localTodayStr();
+  return today > b.checkOut ? today : b.checkOut;
+}
+
 // ─────────────────────────────────────────────
 // Helper: Tính trạng thái phòng
 // ─────────────────────────────────────────────
@@ -121,12 +138,13 @@ export function getRoomStatus(roomId, bookings, isMaintenance, targetDate = new 
       return false;
     }
     // Nếu ngày hết hạn đặt phòng đã qua so với ngày kiểm tra -> phòng đã hết hạn, không còn chiếm phòng
-    if (b.checkOut && targetDateStr > b.checkOut) {
+    const checkOut = displayCheckOut(b);
+    if (checkOut && targetDateStr > checkOut) {
       return false;
     }
     // Chỉ tính chiếm phòng nếu ngày kiểm tra nằm trong khoảng [checkIn, checkOut]
-    if (b.checkIn && b.checkOut) {
-      return targetDateStr >= b.checkIn && targetDateStr <= b.checkOut;
+    if (b.checkIn && checkOut) {
+      return targetDateStr >= b.checkIn && targetDateStr <= checkOut;
     }
     return true;
   });
@@ -919,8 +937,11 @@ export const RoomStateProvider = ({ children }) => {
   /**
    * Check-out: cập nhật trạng thái đã check-out, giải phóng phòng để phòng TRỐNG ngay lập tức
    */
-  const checkOutBooking = useCallback((roomId, code) => {
-    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt: new Date().toISOString(), pending_changes: null });
+  const checkOutBooking = useCallback((roomId, code, extra = {}) => {
+    // extra: { checkedOutAt, checkOutNote } — ghi chú check-out đúng hạn / sớm / muộn (hóa đơn tự tính lại tiền)
+    const checkedOutAt = extra.checkedOutAt || new Date().toISOString();
+    const checkOutNote = extra.checkOutNote || null;
+    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt, checkOutNote, pending_changes: null });
     setBookings((prev) => {
       const currentList = prev[roomId] || [];
       // Giải phóng booking khỏi phòng đang ở để phòng trở lại TRỐNG
@@ -953,10 +974,10 @@ export const RoomStateProvider = ({ children }) => {
     });
 
     // Đồng bộ trạng thái check-out lên Server API trung tâm
-    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out' } }).catch(() => {});
+    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out', checkedOutAt, checkOutNote } }).catch(() => {});
 
     // Cập nhật lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
-    updateBookingRows(supabase, code, { status: 'check-out' })
+    updateBookingRows(supabase, code, { status: 'check-out', checkedOutAt, checkOutNote })
       .catch((err) => console.warn('Lỗi cập nhật check-out lên Supabase:', err.message || err));
   }, [mirrorToHistory]);
 

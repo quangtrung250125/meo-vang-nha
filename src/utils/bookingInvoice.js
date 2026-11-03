@@ -1,5 +1,5 @@
 // Hóa đơn của một đơn gửi mèo, tự tính lại mỗi khi khách cập nhật yêu cầu trên giao diện khách hàng
-// (thêm dịch vụ, đổi lịch) hoặc khi Admin check-out sớm. Không cần ai chỉnh tay số tiền.
+// (thêm dịch vụ, đổi lịch) hoặc khi Admin check-out sớm / muộn. Không cần ai chỉnh tay số tiền.
 // Doanh thu cuối cùng của đơn = invoice.total, chỉ ghi nhận khi đã thanh toán đủ và đã check-out.
 
 import { todayInVietnam } from './bookingDeposit.js';
@@ -66,7 +66,16 @@ export function buildInvoice(booking, addonCatalog = {}) {
   const earlyCheckOut = isCompleted && checkedOutDay && checkIn && toUtcDay(checkedOutDay) < toUtcDay(extendedCheckOut)
     ? checkedOutDay
     : null;
-  const endDay = earlyCheckOut || extendedCheckOut;
+  // Đón muộn hơn ngày hẹn (kể cả ngày gia hạn): tính thêm những đêm ở quá hạn
+  const lateCheckOut = isCompleted && checkedOutDay && toUtcDay(checkedOutDay) > toUtcDay(extendedCheckOut)
+    ? checkedOutDay
+    : null;
+  const endDay = earlyCheckOut || lateCheckOut || extendedCheckOut;
+  // Đã check-out thì ghi chú đúng hạn / sớm / muộn so với ngày hẹn đón
+  const earlyNights = earlyCheckOut ? nightsBetween(checkIn, extendedCheckOut) - nightsBetween(checkIn, earlyCheckOut) : 0;
+  const checkOutTiming = !isCompleted || !checkedOutDay
+    ? null
+    : earlyNights > 0 ? 'early' : lateCheckOut ? 'late' : 'on_time';
   const actualNights = nightsBetween(checkIn, endDay);
 
   const lines = [{
@@ -132,8 +141,24 @@ export function buildInvoice(booking, addonCatalog = {}) {
         // Những đêm bớt đi nằm trong phần gia hạn thì hoàn theo giá gia hạn, còn lại theo giá phòng
         amount: -refundForNights(fewer),
       });
-      changes.push({ at: booking.checkedOutAt, text: `Check-out sớm ngày ${earlyCheckOut}` });
+      changes.push({ at: booking.checkedOutAt, text: `Check-out sớm ngày ${earlyCheckOut} (hẹn đón ${extendedCheckOut}), bớt ${fewer} đêm` });
     }
+  }
+
+  let extraNights = 0;
+  if (lateCheckOut) {
+    extraNights = nightsBetween(extendedCheckOut, lateCheckOut);
+    lines.push({
+      key: 'late',
+      kind: 'late',
+      label: `Trả mèo muộn: thêm ${extraNights} đêm`,
+      detail: `Đón ngày ${lateCheckOut} thay vì ${extendedCheckOut} · ${nightly.toLocaleString('vi-VN')}đ × ${extraNights} đêm`,
+      amount: extraNights * nightly,
+    });
+    changes.push({ at: booking.checkedOutAt, text: `Check-out muộn ngày ${lateCheckOut} (hẹn đón ${extendedCheckOut}), thêm ${extraNights} đêm` });
+  }
+  if (checkOutTiming === 'on_time') {
+    changes.push({ at: booking.checkedOutAt, text: `Check-out đúng hạn ngày ${checkedOutDay}` });
   }
 
   (booking.addons || []).forEach((addon) => {
@@ -181,6 +206,9 @@ export function buildInvoice(booking, addonCatalog = {}) {
     code: booking.code || booking.id,
     checkIn,
     checkOut: endDay,
+    plannedCheckOut: extendedCheckOut,
+    checkOutTiming,
+    checkOutDiffNights: earlyNights > 0 ? earlyNights : extraNights,
     nights: actualNights,
     nightly,
     lines,
@@ -195,4 +223,12 @@ export function buildInvoice(booking, addonCatalog = {}) {
     isCompleted,
     isCancelled: CANCELLED.includes(statusOf(booking)),
   };
+}
+
+// Nhãn ghi chú check-out cho admin và khách: 'Check-out sớm 3 đêm', 'Check-out muộn 1 đêm', 'Check-out đúng hạn'
+export function checkOutTimingLabel(invoice) {
+  if (!invoice?.checkOutTiming) return '';
+  if (invoice.checkOutTiming === 'early') return `Check-out sớm ${invoice.checkOutDiffNights} đêm`;
+  if (invoice.checkOutTiming === 'late') return `Check-out muộn ${invoice.checkOutDiffNights} đêm`;
+  return 'Check-out đúng hạn';
 }
