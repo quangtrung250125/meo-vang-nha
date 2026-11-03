@@ -38,10 +38,15 @@ export async function getRequestUser(req) {
       emails: process.env.ADMIN_EMAILS || process.env.VITE_ADMIN_EMAILS,
       phones: process.env.ADMIN_PHONES || process.env.VITE_ADMIN_PHONES,
     });
+    const meta = user.user_metadata || {};
+    const phoneFromEmail = /^(\d{9,12})@meovangnha\.vn$/i.exec(user.email || '')?.[1] || '';
     return {
       id: user.id,
       email: user.email || '',
       isAdmin: isAdminUser(user, adminEmails),
+      fullName: String(meta.full_name || meta.fullName || meta.name || '').trim(),
+      phone: String(meta.phone || user.phone || phoneFromEmail || '').trim(),
+      createdAt: user.created_at || null,
     };
   } catch {
     return null;

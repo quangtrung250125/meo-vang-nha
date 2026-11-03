@@ -95,6 +95,26 @@ export async function clearDraft(userId) {
   await tryDb(() => supabaseAdmin.from('marketing_settings').delete().eq('id', `${DRAFT_PREFIX}${userId}`));
 }
 
+// Họ tên / SĐT khách ghi lại khi khách bật thông báo (dự phòng khi server không đọc được danh sách tài khoản)
+const CONTACT_PREFIX = 'contact:';
+export async function saveContact(user) {
+  if (!user?.id || user.isAdmin) return null;
+  const contact = { id: String(user.id), fullName: user.fullName || '', phone: user.phone || '', email: user.email || '', createdAt: user.createdAt || null };
+  const old = memory.kv[`${CONTACT_PREFIX}${user.id}`];
+  if (old && JSON.stringify(old) === JSON.stringify(contact)) return contact;
+  return setKv(`${CONTACT_PREFIX}${user.id}`, contact);
+}
+
+export async function listContacts() {
+  const out = new Map();
+  const res = await tryDb(() => supabaseAdmin.from('marketing_settings').select('id, data').like('id', `${CONTACT_PREFIX}%`));
+  if (res.ok) (res.data || []).forEach((row) => row.data?.id && out.set(row.data.id, row.data));
+  Object.entries(memory.kv).forEach(([id, data]) => {
+    if (id.startsWith(CONTACT_PREFIX) && data?.id && !out.has(data.id)) out.set(data.id, data);
+  });
+  return [...out.values()];
+}
+
 // { [userId hoặc SĐT]: { at, step } }
 export async function listDrafts() {
   const out = {};

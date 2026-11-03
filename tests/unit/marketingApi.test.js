@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { handleMarketing, safeUrl } from '../../api/_lib/marketingService.js';
-import { resetMarketingMemory, insertMessage, listMessages } from '../../api/_lib/marketingDb.js';
+import { resetMarketingMemory, insertMessage, listMessages, saveContact } from '../../api/_lib/marketingDb.js';
 import { setTokenVerifier } from '../../api/_lib/auth.js';
 import { ownPushIds } from '../../api/_lib/pushAccess.js';
 
@@ -81,6 +81,19 @@ describe('API Marketing tự động', () => {
     expect(safeUrl('https://evil.example')).toBe('/');
     expect(safeUrl('//evil.example')).toBe('/');
   });
+
+  it('trả họ tên, SĐT tài khoản khách cho trang Marketing', async () => {
+    await saveContact({ id: 'k1', fullName: 'Lan Anh', phone: '0901234567', email: '0901234567@meovangnha.vn' });
+    await saveContact({ id: 'a1', isAdmin: true, fullName: 'Admin' });
+    const res = mockRes();
+    await handleMarketing(req('GET', '/api/marketing/audience', { token: 'admin' }), res, 'audience');
+    expect(res.statusCode).toBe(200);
+    // Máy CI đọc được Supabase thật nên có thể có thêm tài khoản khác: chỉ kiểm tra khách k1 và không có Admin
+    const ids = (res.body.accounts || []).map((a) => a.id);
+    expect(ids).not.toContain('a1');
+    expect(res.body.accounts.find((a) => a.id === 'k1')).toMatchObject({ fullName: 'Lan Anh', phone: '0901234567' });
+    expect(res.body.subscriptionStore).toHaveProperty('ok');
+  }, 20000);
 
   it('khách chỉ dùng thông báo cho mã tài khoản / SĐT của mình', () => {
     expect(ownPushIds({ id: 'k1', email: '0901234567@meovangnha.vn' })).toEqual(['k1', '0901234567']);

@@ -128,6 +128,18 @@ const AdminMarketing = () => {
             <span><b>Chưa gửi được thông báo:</b> máy chủ chưa có khóa Web Push. Cần thêm biến VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VITE_VAPID_PUBLIC_KEY trên Vercel rồi deploy lại.</span>
           </div>
         )}
+        {status.subscriptionStore?.ok === false && (
+          <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-700">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span><b>Máy chủ chưa lưu được thiết bị khách bật thông báo:</b> {status.subscriptionStore.error} Vì vậy khách đã bật vẫn hiện "Chưa bật". Chạy file supabase/migrations/20260923_create_push_subscriptions.sql trong Supabase SQL Editor, sau đó khách mở lại web (đã đăng nhập) là thiết bị tự được lưu lại.</span>
+          </div>
+        )}
+        {status.serviceRole === false && (
+          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-700">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>Máy chủ chưa có SUPABASE_SERVICE_ROLE_KEY nên chưa đọc được họ tên, SĐT của mọi tài khoản khách. Khách sẽ hiện đúng tên sau khi bật thông báo, hoặc thêm biến này trên Vercel để hiện tất cả.</span>
+          </div>
+        )}
         {status.database === false && (
           <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-700">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
