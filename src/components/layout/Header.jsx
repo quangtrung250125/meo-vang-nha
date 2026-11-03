@@ -124,7 +124,8 @@ const Header = () => {
                     {/* User Avatar with Green Active Online Dot */}
                     <div className="relative shrink-0">
                       <img
-                        src={currentUser.avatar || DEFAULT_AVATAR}
+                        src={currentUser.avatar || currentUser.avatarUrl || DEFAULT_AVATAR}
+                        referrerPolicy="no-referrer"
                         alt={currentUser.fullName}
                         className="w-8 h-8 rounded-full object-cover ring-1 ring-emerald-300/60"
                       />
@@ -156,7 +157,8 @@ const Header = () => {
                       {/* Top Profile Summary: Avatar + Name + Email */}
                       <div className="flex items-center gap-3.5 mb-4">
                         <img
-                          src={currentUser.avatar || DEFAULT_AVATAR}
+                          src={currentUser.avatar || currentUser.avatarUrl || DEFAULT_AVATAR}
+                          referrerPolicy="no-referrer"
                           alt={currentUser.fullName}
                           className="w-14 h-14 rounded-full object-cover ring-2 ring-emerald-100 shadow-sm shrink-0"
                         />

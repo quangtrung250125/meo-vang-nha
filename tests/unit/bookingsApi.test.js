@@ -35,8 +35,9 @@ const call = async (handler, { method = 'GET', body, token } = {}) => {
   return res;
 };
 
+// Ngày theo giờ Việt Nam (server so ngày đặt với "hôm nay" giờ VN): tính theo UTC thì từ 0h–7h sáng VN test bị lệch 1 ngày
 const addDays = (n) => {
-  const d = new Date(Date.now() + n * 86400000);
+  const d = new Date(Date.now() + 7 * 3600000 + n * 86400000);
   return d.toISOString().slice(0, 10);
 };
 

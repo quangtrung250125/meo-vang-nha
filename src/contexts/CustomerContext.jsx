@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../supabaseClient';
 import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, setSyncIdentity } from '../services/crossDeviceSync';
 import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
 import { normalizeVnPhone } from '../utils/phone';
@@ -63,6 +63,28 @@ const rememberPhoneOnServer = async (user) => {
         await supabase.from('customer_profiles').upsert({ id: user.id, phone, email: user.email || '' });
     } catch (err) {
         console.warn('Không thể cập nhật SĐT lên customer_profiles:', err);
+    }
+};
+
+const isGoogleUser = (user) => {
+    const providers = user?.app_metadata?.providers || [user?.app_metadata?.provider];
+    return providers.includes('google');
+};
+
+// Lưu họ tên + email lấy từ Google vào customer_profiles (không ghi đè SĐT đã có)
+const rememberGoogleProfile = async (user) => {
+    const meta = user?.user_metadata || {};
+    if (!user?.id) return;
+    try {
+        const row = {
+            id: user.id,
+            email: user.email || '',
+            full_name: meta.full_name || meta.name || '',
+        };
+        if (meta.phone) row.phone = meta.phone;
+        await supabase.from('customer_profiles').upsert(row);
+    } catch (err) {
+        console.warn('Không thể lưu hồ sơ Google vào customer_profiles:', err);
     }
 };
 
@@ -159,7 +181,8 @@ export const CustomerProvider = ({ children }) => {
         if (!user) return null;
         setVerifiedAdmin(isAdminUser(user, ADMIN_EMAILS));
         const meta = user.user_metadata || {};
-        let fullName = meta.full_name || meta.fullName || user.email?.split('@')[0] || 'Khách hàng';
+        // Google trả họ tên trong full_name hoặc name
+        let fullName = meta.full_name || meta.fullName || meta.name || user.email?.split('@')[0] || 'Khách hàng';
         const phone = meta.phone || '';
 
         if (normalizePhone(phone) === '0962606249') {
@@ -192,6 +215,8 @@ export const CustomerProvider = ({ children }) => {
             phone,
             email: user.email || '',
             labels: meta.labels || ['Khách hàng thân thiết'],
+            avatarUrl: meta.avatar_url || meta.picture || '',
+            authProvider: user.app_metadata?.provider || 'email',
             pets,
             createdAt: user.created_at,
             updatedAt: user.updated_at,
@@ -257,6 +282,10 @@ export const CustomerProvider = ({ children }) => {
             if (!isMounted) return;
 
             if (session?.user) {
+                // Khách vừa đăng nhập bằng Google: ghi họ tên + email vào customer_profiles để admin thấy
+                if (event === 'SIGNED_IN' && isGoogleUser(session.user)) {
+                    rememberGoogleProfile(session.user);
+                }
                 const customer = await mapSupabaseUserToCustomer(session.user);
                 setAuthenticatedCustomer(customer);
                 setCustomerProfile(customer);
@@ -445,6 +474,75 @@ export const CustomerProvider = ({ children }) => {
         return customer;
     };
 
+    // Đăng nhập / đăng ký bằng Google. Trình duyệt sẽ chuyển sang trang Google rồi quay lại đúng trang hiện tại.
+    const signInWithGoogle = async () => {
+        // Hỏi Supabase trước xem Google đã được bật chưa, tránh chuyển khách sang trang lỗi
+        try {
+            const res = await fetch(`${supabaseUrl}/auth/v1/settings`, { headers: { apikey: supabaseAnonKey } });
+            const settings = await res.json();
+            if (settings?.external && settings.external.google === false) {
+                throw new Error('GOOGLE_DISABLED');
+            }
+        } catch (err) {
+            if (err?.message === 'GOOGLE_DISABLED') {
+                throw new Error('Đăng nhập Google chưa được bật trên hệ thống, vui lòng dùng email hoặc số điện thoại.');
+            }
+            // Không đọc được cài đặt thì vẫn thử chuyển sang Google như bình thường
+        }
+        const redirectTo = typeof window !== 'undefined'
+            ? `${window.location.origin}${window.location.pathname}`
+            : undefined;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo,
+                queryParams: { prompt: 'select_account' },
+            },
+        });
+        if (error) {
+            const msg = error.message || '';
+            if (msg.includes('provider is not enabled') || msg.includes('Unsupported provider')) {
+                throw new Error('Đăng nhập Google chưa được bật trên hệ thống, vui lòng dùng email/SĐT.');
+            }
+            throw new Error(getFriendlyErrorMessage(error));
+        }
+    };
+
+    // Khách đăng nhập Google chưa có SĐT: lưu SĐT vào tài khoản (Google không cung cấp SĐT)
+    const saveMissingPhone = async (rawPhone) => {
+        const phone = normalizePhone(rawPhone);
+        if (!/^0\d{9}$/.test(phone)) {
+            throw new Error('Số điện thoại không hợp lệ (cần 10 số, ví dụ 0987654321)!');
+        }
+        const check = await callPhoneAuthApi('check', { phone });
+        if (check?.taken) {
+            throw new Error('Số điện thoại này đã gắn với tài khoản khác. Vui lòng nhập số khác hoặc liên hệ Mèo Vắng Nhà.');
+        }
+
+        const { data, error } = await supabase.auth.updateUser({ data: { phone } });
+        if (error) throw new Error(getFriendlyErrorMessage(error));
+        const user = data.user;
+
+        try {
+            const meta = user.user_metadata || {};
+            await supabase.from('customer_profiles').upsert({
+                id: user.id,
+                phone,
+                email: user.email || '',
+                full_name: meta.full_name || meta.name || '',
+            });
+        } catch (err) {
+            console.warn('Không thể lưu SĐT vào customer_profiles:', err);
+        }
+
+        const customer = await mapSupabaseUserToCustomer(user);
+        setAuthenticatedCustomer(customer);
+        setCustomerProfile(customer);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(customer));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(customer));
+        return customer;
+    };
+
     // Cập nhật thông tin hồ sơ
     const saveCustomerProfile = async (profile) => {
         const normalized = {
@@ -504,6 +602,8 @@ export const CustomerProvider = ({ children }) => {
         findCustomerByPhone,
         authenticateCustomer,
         registerCustomer,
+        signInWithGoogle,
+        saveMissingPhone,
         logoutCustomer,
         hasCustomerProfile: Boolean(customerProfile),
         isAuthenticated: Boolean(authenticatedCustomer),

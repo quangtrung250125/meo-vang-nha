@@ -13,3 +13,4 @@ const supabaseAnonKey = (rawKey && rawKey !== 'REPLACE_ME')
   : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlamNhaW96dGdwcWt2bWJhdWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNzU3NTcsImV4cCI6MjEwNTY1MTc1N30.yZgRl-qV5mOn4JmSwt0sulfIMXIX3MDIEzS2DxSI3yc';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabaseUrl, supabaseAnonKey };

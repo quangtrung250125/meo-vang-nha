@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { handleMarketing, safeUrl } from '../../api/_lib/marketingService.js';
+import { handleMarketing, safeUrl, describePushError } from '../../api/_lib/marketingService.js';
 import { resetMarketingMemory, insertMessage, listMessages, saveContact } from '../../api/_lib/marketingDb.js';
 import { setTokenVerifier } from '../../api/_lib/auth.js';
 import { ownPushIds } from '../../api/_lib/pushAccess.js';
@@ -94,6 +94,26 @@ describe('API Marketing tự động', () => {
     expect(res.body.accounts.find((a) => a.id === 'k1')).toMatchObject({ fullName: 'Lan Anh', phone: '0901234567' });
     expect(res.body.subscriptionStore).toHaveProperty('ok');
   }, 20000);
+
+  it('khách xem lại tin Admin đã gửi cho mình trong mục thông báo', async () => {
+    await insertMessage({ customerId: 'k1', status: 'sent', title: 'Ưu đãi', body: 'Giảm 20%', url: '/promotions' });
+    await insertMessage({ customerId: 'phone:0901234567', status: 'failed', title: 'Nhắc lịch', body: 'Còn 2 ngày', url: '/my-booking?code=A' });
+    await insertMessage({ customerId: 'k2', status: 'sent', title: 'Tin của khách khác', body: 'x' });
+    let res = mockRes();
+    await handleMarketing(req('GET', '/api/marketing/inbox'), res, 'inbox');
+    expect(res.statusCode).toBe(401);
+    res = mockRes();
+    await handleMarketing(req('GET', '/api/marketing/inbox', { token: 'khach' }), res, 'inbox');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.messages.map((m) => m.title).sort()).toEqual(['Nhắc lịch', 'Ưu đãi']);
+    expect(res.body.messages.find((m) => m.title === 'Ưu đãi').url).toBe('/promotions');
+  });
+
+  it('giải thích lý do gửi lỗi cho Admin', () => {
+    expect(describePushError({ staleRemoved: true })).toMatch(/khóa Web Push cũ/);
+    expect(describePushError({ statusCode: 403, error: 'x' })).toMatch(/VAPID/);
+    expect(describePushError({ statusCode: 410 })).toMatch(/hết hạn/);
+  });
 
   it('khách chỉ dùng thông báo cho mã tài khoản / SĐT của mình', () => {
     expect(ownPushIds({ id: 'k1', email: '0901234567@meovangnha.vn' })).toEqual(['k1', '0901234567']);
