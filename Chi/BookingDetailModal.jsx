@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { PAYMENT_STATUS } from "../src/utils/bookingDeposit";
+import { PAYMENT_STATUS, isAwaitingDeposit, depositToTransferOf } from "../src/utils/bookingDeposit";
 import { buildInvoice, checkOutTimingLabel } from "../src/utils/bookingInvoice";
 import { ADDONS } from "../src/components/ServiceManagement";
 import {
@@ -463,7 +463,11 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   };
 
   const handleConfirmDeposit = () => {
-    onUpdate(roomId, code, { paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID, depositPaidAt: new Date().toISOString() });
+    onUpdate(roomId, code, {
+      paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID,
+      depositPaidAt: new Date().toISOString(),
+      depositReceivedAmount: Number(effectiveBooking.depositAmount) || 0,
+    });
     showToast(`💰 Đã xác nhận nhận cọc cho ${code}. Khách sẽ thấy mã đặt phòng.`);
   };
 
@@ -571,10 +575,17 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
           </div>
 
           {/* Đặt cọc */}
-          {effectiveBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
+          {isAwaitingDeposit(effectiveBooking) && (
             <div className="shrink-0 mx-4 mb-3 rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-sm">
-              <div className="font-bold text-amber-800">⏳ Chờ đặt cọc {Number(effectiveBooking.depositAmount || 0).toLocaleString("vi-VN")} đ</div>
-              <div className="text-xs text-amber-700 mt-0.5">Nội dung chuyển khoản: COC {code}. Kiểm tra tài khoản rồi bấm xác nhận để cấp mã cho khách.</div>
+              <div className="font-bold text-amber-800">
+                ⏳ {effectiveBooking.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP ? "Chờ cọc bổ sung" : "Chờ đặt cọc"} {depositToTransferOf(effectiveBooking).toLocaleString("vi-VN")} đ
+              </div>
+              <div className="text-xs text-amber-700 mt-0.5">
+                Nội dung chuyển khoản: COC {code}.{" "}
+                {effectiveBooking.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP
+                  ? `Khách đã sửa đơn, cần cọc đủ ${Number(effectiveBooking.depositAmount || 0).toLocaleString("vi-VN")} đ (đã cọc ${Number(effectiveBooking.depositReceivedAmount || 0).toLocaleString("vi-VN")} đ). Mã đặt phòng giữ nguyên.`
+                  : "Kiểm tra tài khoản rồi bấm xác nhận để cấp mã cho khách."}
+              </div>
               <button id={`btn-confirm-deposit-${code}`} onClick={handleConfirmDeposit}
                 className="mt-2 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
                 Xác nhận đã nhận cọc

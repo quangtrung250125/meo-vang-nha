@@ -1,11 +1,12 @@
-// Quy định đặt cọc: đặt trước hơn 5 ngày so với ngày gửi bé thì phải cọc 50% mới nhận mã đặt phòng.
-// Dùng chung cho giao diện đặt phòng và server (api/_lib/bookingsService.js).
+// Quy định đặt cọc: gửi bé từ 5 ngày trở lên (tính theo số ngày gửi) thì phải cọc 50% mới nhận mã đặt phòng.
+// Dùng chung cho giao diện đặt phòng, chỉnh sửa đơn và server (api/_lib/bookingsService.js).
 
 export const DEPOSIT_RATE = 0.5;
-export const DEPOSIT_FREE_MAX_DAYS = 5;
+export const DEPOSIT_MIN_STAY_DAYS = 5;
 
 export const PAYMENT_STATUS = {
   AWAITING_DEPOSIT: 'awaiting_deposit', // Chờ đặt cọc: giữ phòng, chưa cấp mã
+  AWAITING_TOP_UP: 'awaiting_deposit_topup', // Đã có mã, khách sửa đơn nên cần cọc bổ sung phần chênh lệch
   DEPOSIT_PAID: 'deposit_paid',         // Đã nhận cọc
   PAY_AT_CHECKIN: 'pay_at_checkin',     // Không cần cọc, thanh toán khi gửi/đón bé
 };
@@ -21,17 +22,18 @@ const toUtcDay = (dateStr) => {
   return Date.UTC(y, m - 1, d);
 };
 
-// Số ngày từ ngày đặt đến ngày gửi bé (nhận phòng)
-export const daysUntilCheckIn = (checkIn, todayStr = todayInVietnam()) => {
-  if (!checkIn || !todayStr) return 0;
-  return Math.round((toUtcDay(checkIn) - toUtcDay(todayStr)) / 86400000);
+// Số ngày gửi bé, ít nhất 1 ngày (giống cách tính tiền ở bookingPricing.countStayDays)
+export const stayDaysOf = (checkIn, checkOut) => {
+  if (!checkIn || !checkOut) return 0;
+  const diff = Math.round((toUtcDay(checkOut) - toUtcDay(checkIn)) / 86400000);
+  return Number.isFinite(diff) && diff > 0 ? diff : 1;
 };
 
-export function getDepositPolicy({ checkIn, total, todayStr = todayInVietnam() }) {
-  const leadDays = daysUntilCheckIn(checkIn, todayStr);
-  const required = leadDays > DEPOSIT_FREE_MAX_DAYS;
+export function getDepositPolicy({ checkIn, checkOut, total }) {
+  const stayDays = stayDaysOf(checkIn, checkOut);
+  const required = stayDays >= DEPOSIT_MIN_STAY_DAYS;
   return {
-    leadDays,
+    stayDays,
     required,
     amount: required ? Math.round((Number(total) || 0) * DEPOSIT_RATE) : 0,
     paymentStatus: required ? PAYMENT_STATUS.AWAITING_DEPOSIT : PAYMENT_STATUS.PAY_AT_CHECKIN,
@@ -40,6 +42,51 @@ export function getDepositPolicy({ checkIn, total, todayStr = todayInVietnam() }
 
 // Đơn đã được cấp mã đặt phòng chưa (đơn cũ không có paymentStatus coi như đã có mã)
 export const hasBookingCode = (booking) => booking?.paymentStatus !== PAYMENT_STATUS.AWAITING_DEPOSIT;
+
+const AWAITING_STATUSES = [PAYMENT_STATUS.AWAITING_DEPOSIT, PAYMENT_STATUS.AWAITING_TOP_UP];
+
+// Đơn đang chờ khách chuyển cọc (lần đầu hoặc cọc bổ sung)
+export const isAwaitingDeposit = (booking) => AWAITING_STATUSES.includes(booking?.paymentStatus);
+
+// Tiền cọc khách đã chuyển (đơn thanh toán đủ không tính ở đây)
+export function depositReceivedOf(booking) {
+  const received = Number(booking?.depositReceivedAmount) || 0;
+  if (booking?.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID) return Math.max(received, Number(booking.depositAmount) || 0);
+  return isAwaitingDeposit(booking) ? received : 0;
+}
+
+// Số tiền cọc khách còn phải chuyển
+export const depositToTransferOf = (booking) =>
+  isAwaitingDeposit(booking)
+    ? Math.max(0, (Number(booking.depositAmount) || 0) - (Number(booking.depositReceivedAmount) || 0))
+    : 0;
+
+/**
+ * Tiền cọc sau khi khách chỉnh sửa đơn (đổi lịch, phòng, số mèo, gói dịch vụ).
+ * - Gửi từ 5 ngày: cọc 50% tổng mới. Cọc đủ thì giữ "đã cọc". Chưa đủ thì đơn đã có mã vẫn giữ mã và
+ *   chờ cọc bổ sung phần chênh lệch, đơn chưa có mã tiếp tục chờ cọc (hạn 24 giờ như cũ).
+ * - Dưới 5 ngày: không bắt buộc cọc, tiền cọc đã chuyển (nếu có) vẫn được trừ khi thanh toán.
+ * Đơn đã thanh toán đủ thì giữ nguyên, hóa đơn tự hiện phần còn thiếu.
+ */
+export function getEditedDepositState({ booking, checkIn, checkOut, total }) {
+  if (booking?.paymentStatus === 'Đã thanh toán') return {};
+  const policy = getDepositPolicy({ checkIn, checkOut, total });
+  const received = depositReceivedOf(booking);
+  if (!policy.required) {
+    return received > 0
+      ? { depositRequired: false, depositAmount: received, depositReceivedAmount: received, paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID }
+      : { depositRequired: false, depositAmount: 0, paymentStatus: PAYMENT_STATUS.PAY_AT_CHECKIN };
+  }
+  if (received >= policy.amount) {
+    return { depositRequired: true, depositAmount: received, depositReceivedAmount: received, paymentStatus: PAYMENT_STATUS.DEPOSIT_PAID };
+  }
+  return {
+    depositRequired: true,
+    depositAmount: policy.amount,
+    depositReceivedAmount: received,
+    paymentStatus: hasBookingCode(booking) ? PAYMENT_STATUS.AWAITING_TOP_UP : PAYMENT_STATUS.AWAITING_DEPOSIT,
+  };
+}
 
 // Khách phải chuyển cọc trong 24 giờ kể từ lúc đặt phòng
 export const DEPOSIT_DEADLINE_HOURS = 24;

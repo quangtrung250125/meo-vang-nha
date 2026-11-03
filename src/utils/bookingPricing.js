@@ -12,6 +12,22 @@ export const countStayDays = (checkIn, checkOut) => {
   return diffDays > 0 ? diffDays : 1; // Mặc định ít nhất 1 ngày
 };
 
+/**
+ * Giá gói lưu trú theo hạng phòng (cộng phụ phí phòng VVIP / Deluxe do admin đặt).
+ * Dùng ở bước 2 đặt phòng và khi khách chỉnh sửa đơn.
+ */
+export function lodgingPricingForRoom(pkg, roomType, roomSurcharges) {
+  const surcharge = roomSurcharges?.[roomType] ?? 0;
+  const baseOrig = pkg.baseOriginalPrice ?? pkg.originalPrice;
+  const basePrc = pkg.basePrice ?? pkg.price;
+  const originalPrice = baseOrig + surcharge;
+  const pct = pkg.discountPercent ?? 10;
+  const price = basePrc + Math.round(surcharge * (1 - pct / 100));
+  const savings = originalPrice - price;
+  const fmt = (n) => n.toLocaleString('vi-VN') + 'đ';
+  return { price, originalPrice, priceString: fmt(price), originalPriceString: fmt(originalPrice), savingsString: fmt(savings), surcharge };
+}
+
 // Giá gốc trước ưu đãi: lấy originalPrice, nếu thiếu thì suy ra từ giá đã giảm 10%
 const originalOf = (pkg) => pkg?.originalPrice || Math.round((pkg?.price || 0) / 0.9);
 

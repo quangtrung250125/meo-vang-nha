@@ -396,6 +396,9 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                       {bk.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950">Chờ cọc</span>
                       )}
+                      {bk.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900">Chờ cọc thêm</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className={isNew ? 'text-yellow-800' : st.bkCat}>🐱 {bk.cats}</span>
