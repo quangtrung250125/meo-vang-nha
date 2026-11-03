@@ -388,6 +388,34 @@ export function getAllBookings() {
   return globalBookings;
 }
 
+const IN_HOUSE_STATUSES = ['đang ở', 'Đang lưu trú', 'IN_HOUSE'];
+
+/**
+ * Camera trực tiếp: tìm đơn ĐANG Ở mà người xem được phép xem (admin, hoặc chính khách của đơn).
+ * Trả về null nếu không có quyền hoặc đơn chưa check-in.
+ */
+export async function findViewableInHouseBooking(code, user, accessToken = null) {
+  if (!code || !user) return null;
+  await syncFromDb();
+  let booking = null;
+  Object.values(globalBookings).forEach((list) => {
+    (list || []).forEach((b) => {
+      if (b.code === code || b.id === code) booking = b;
+    });
+  });
+  let owned = Boolean(booking && (user.isAdmin || (booking.customerId && booking.customerId === user.id)));
+  if (!owned && accessToken) {
+    // Đơn đọc được bằng quyền của chính người xem (RLS Supabase) là đơn của họ
+    const stored = await findStoredBookingForUser(code, accessToken);
+    if (stored) {
+      booking = { ...(booking || {}), ...stored };
+      owned = true;
+    }
+  }
+  if (!owned || !IN_HOUSE_STATUSES.includes(booking.status)) return null;
+  return booking;
+}
+
 /**
  * Xử lý đặt phòng Atomic: Đảm bảo khi 2 tài khoản bấm cùng lúc chỉ có 1 tài khoản đặt thành công
  */

@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing')) {
+        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing') && !req.url.startsWith('/api/camera')) {
           return next();
         }
 
@@ -102,6 +102,10 @@ function apiDevPlugin() {
           if (urlPath === '/api/auth/phone') {
             req.body = await parseBody();
             const { default: handler } = await import('./api/auth/phone.js');
+            return handler(req, res);
+          }
+          if (urlPath === '/api/camera/live') {
+            const { default: handler } = await import('./api/camera/live.js');
             return handler(req, res);
           }
           if (urlPath === '/api/notifications/status') {

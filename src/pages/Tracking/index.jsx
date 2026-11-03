@@ -3,7 +3,7 @@ import {
   PawPrint, CalendarDays, Clock, CheckCircle2,
   AlertTriangle, ChevronRight, MessageCircle,
   Utensils, Droplets, Smile, HeartPulse, Sparkles,
-  ArrowRight, Home, Phone, Video,
+  ArrowRight, Home, Phone,
   Package, Plus, ChevronDown, X, RefreshCw,
   Zap, Gift, Send, Bell, BellRing, Smartphone, Volume2,
   CalendarCheck, StickyNote, PhoneCall, Loader2
@@ -27,7 +27,8 @@ import {
   requestNotificationPermission,
   testPhoneNotification
 } from '../../utils/notifications';
-import cameraFeed from '../../assets/images/camera_feed.png';
+import ImouLiveCamera from '../../components/ImouLiveCamera';
+import { getStayStep, formatCheckInTime } from '../../utils/stayJourney';
 import { BOOKING_STATUS, BOOKING_STATUS_CONFIG, getBookingStatus, normalizeStatusValue } from '../../utils/bookingStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ const EmptyState = ({ navigate, onEnableDemo }) => (
 
 // ─── Stepper ─────────────────────────────────────────────────────────────────
 
-const Stepper = ({ currentStep = 3 }) => (
+const Stepper = ({ currentStep = 3, checkInTime = '' }) => (
   <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
     <h3 className="font-bold text-text-dark mb-5 flex items-center gap-2">
       <Zap className="w-4 h-4 text-primary" />
@@ -189,6 +190,9 @@ const Stepper = ({ currentStep = 3 }) => (
               <p className={`text-xs font-semibold mt-2 text-center leading-tight max-w-[80px] ${
                 isActive ? 'text-primary' : isDone ? 'text-gray-500' : 'text-gray-400'
               }`}>{step.label}</p>
+              {step.id === 2 && checkInTime && (
+                <p className="text-[11px] text-gray-500 mt-1 text-center leading-tight" data-testid="checkin-time">{checkInTime}</p>
+              )}
             </div>
             {idx < STEPS.length - 1 && (
               <div className={`h-0.5 flex-1 mx-1 mb-6 rounded-full transition-all ${isDone ? 'bg-primary' : 'bg-gray-200'}`} />
@@ -209,9 +213,14 @@ const Stepper = ({ currentStep = 3 }) => (
             }`}>
               {isDone ? <CheckCircle2 className="w-4 h-4" /> : <span>{step.icon}</span>}
             </div>
-            <span className={`text-sm font-semibold ${isActive ? 'text-primary' : isDone ? 'text-gray-500' : 'text-gray-400'}`}>
-              {step.label}
-            </span>
+            <div className="flex flex-col">
+              <span className={`text-sm font-semibold ${isActive ? 'text-primary' : isDone ? 'text-gray-500' : 'text-gray-400'}`}>
+                {step.label}
+              </span>
+              {step.id === 2 && checkInTime && (
+                <span className="text-xs text-gray-500">Check-in lúc {checkInTime}</span>
+              )}
+            </div>
             {isActive && <span className="ml-auto text-xs font-bold text-primary bg-primary-light px-2 py-0.5 rounded-full">Hiện tại</span>}
           </div>
         );
@@ -437,17 +446,19 @@ const TrackingPage = () => {
     toast.success(`Chào mừng ${formData.fullName || 'bạn'}! 🐾`);
   };
 
-  const [useDemoStay, setUseDemoStay] = useState(true);
+  // Chỉ hiện nội dung theo dõi khi khách có đơn đặt phòng; đơn mẫu chỉ hiện khi khách tự bấm xem thử
+  const [useDemoStay, setUseDemoStay] = useState(false);
   const [selectedPetIdx, setSelectedPetIdx] = useState(0);
   // Mở từ Hồ sơ mèo (nút "Theo dõi"): /tracking?pet=<id> -> chọn sẵn bé đó
   const [requestedPetId] = useState(() => {
     try { return new URLSearchParams(window.location.search).get('pet'); } catch { return null; }
   });
 
-  // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin, hoặc nếu chưa đăng nhập thì xem các đơn đã đồng bộ)
+  // Lọc chỉ booking của khách hàng đang đăng nhập (hoặc tất cả nếu là admin).
+  // Chưa đăng nhập thì không có đơn nào (không hiện đơn của khách khác).
   const myBookings = activeCustomer
     ? globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin))
-    : globalBookingList;
+    : [];
 
   // So khớp id mèo không phân biệt số / chuỗi (giống trang Hồ sơ mèo)
   const sameId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -549,6 +560,12 @@ const TrackingPage = () => {
     && normalizeStatusValue(activeBooking.status) === BOOKING_STATUS.UPCOMING;
   // Đơn sắp tới: đếm ngày đến hôm gửi bé; đơn đang lưu trú: đếm ngày đến hôm đón bé
   const daysRemaining = activeBooking ? getDaysRemaining(isUpcoming ? activeBooking.checkIn : activeBooking.checkOut) : 0;
+  // Bước của hành trình lưu trú; chỉ khi đã check-in (bước 3) mới hiện nhật ký, camera, gói, dịch vụ thêm
+  const stayStep = activeBooking === demoBooking ? 3 : getStayStep(activeBooking);
+  const showStayDetails = stayStep >= 3;
+  const checkInTimeLabel = activeBooking && activeBooking !== demoBooking && stayStep >= 3
+    ? formatCheckInTime(activeBooking.checkedInAt)
+    : '';
   const firstPet = switcherPets[0];
   const currentPet = switcherPets[selectedPetIdx] || firstPet;
   // Khách đã tự đổi phòng / gói: hiện phòng & gói đang dùng hôm nay theo lịch lưu trú
@@ -801,7 +818,7 @@ const TrackingPage = () => {
                     <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="font-bold text-amber-600">
                       {isUpcoming
-                        ? `Còn ${daysRemaining} ngày đến ngày gửi bé`
+                        ? (daysRemaining === 0 ? 'Hôm nay là ngày gửi bé' : `Còn ${daysRemaining} ngày đến ngày gửi bé`)
                         : `Còn ${daysRemaining} ngày`}
                     </span>
                   </div>
@@ -846,10 +863,26 @@ const TrackingPage = () => {
               {/* ── LEFT: Main content ── */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Stepper */}
-                <Stepper currentStep={isUpcoming ? 1 : 3} />
+                <Stepper currentStep={stayStep} checkInTime={checkInTimeLabel} />
+
+                {!showStayDetails && (
+                  <div className="bg-white rounded-2xl border border-dashed border-primary/30 p-6 shadow-sm text-center" data-testid="stay-not-started">
+                    <div className="w-14 h-14 rounded-full bg-primary-light flex items-center justify-center mx-auto mb-3">
+                      <span className="text-2xl">{stayStep === 2 ? '🏠' : '🗓️'}</span>
+                    </div>
+                    <h3 className="font-bold text-text-dark mb-1">
+                      {stayStep === 2 ? 'Hôm nay là ngày gửi bé' : 'Bé chưa đến ngày lưu trú'}
+                    </h3>
+                    <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+                      {stayStep === 2
+                        ? 'Mèo Vắng Nhà đang chờ đón bé. Ngay khi nhân viên nhận bé (check-in), nhật ký chăm sóc, camera trực tiếp, gói đang sử dụng và dịch vụ thêm sẽ hiện tại đây.'
+                        : `Bé sẽ được nhận phòng ngày ${formatDate(activeBooking.checkIn)}. Nhật ký chăm sóc, camera trực tiếp, gói đang sử dụng và dịch vụ thêm sẽ hiện tại đây sau khi nhân viên nhận bé (check-in).`}
+                    </p>
+                  </div>
+                )}
 
                 {/* Tab chuyển đổi bé nếu có nhiều mèo đang lưu trú (cùng phòng hoặc khác đơn) */}
-                {switcherPets.length > 1 && (
+                {showStayDetails && switcherPets.length > 1 && (
                   <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2 overflow-x-auto">
                     <span className="text-xs font-bold text-gray-500 mr-1 whitespace-nowrap">Xem nhật ký của:</span>
                     {switcherPets.map((p, idx) => (
@@ -870,38 +903,18 @@ const TrackingPage = () => {
                 )}
 
                 {/* Care Log */}
-                <CareLogTimeline bookingId={activeBooking.id} petId={currentPet?.id} />
+                {showStayDetails && (
+                  <CareLogTimeline bookingId={activeBooking.id} petId={currentPet?.id} />
+                )}
               </div>
 
 
               {/* ── RIGHT: Sidebar ── */}
               <div className="space-y-6">
-                {/* Camera Block */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <h3 className="font-bold text-text-dark mb-4 flex items-center gap-2">
-                    <Video className="w-4 h-4 text-primary" />
-                    Camera trực tiếp
-                  </h3>
-
-                  {/* Status — always live */}
-                  <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium bg-primary-light text-primary">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    Camera đang hoạt động
-                  </div>
-
-                  {/* Feed — always visible */}
-                  <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-100 aspect-video flex items-center justify-center border border-gray-200">
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                      LIVE
-                    </div>
-                    <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />
-                  </div>
-
-                  <div className="text-center text-xs text-gray-500 font-medium">
-                    ✅ Camera đã bao gồm trong gói dịch vụ
-                  </div>
-                </div>
+                {/* Camera Block: camera Imou thật của phòng (đơn mẫu dùng ảnh minh hoạ) */}
+                {showStayDetails && (
+                  <ImouLiveCamera booking={activeBooking} isDemo={activeBooking === demoBooking} />
+                )}
 
                 {/* Lịch lưu trú theo chặng & hóa đơn tạm tính (tự cập nhật khi khách gia hạn / đổi phòng) */}
                 {stayInvoice && (
@@ -935,12 +948,15 @@ const TrackingPage = () => {
                   </div>
                 )}
 
+
                 {/* Package & Addon Management */}
-                <ServiceManagement 
-                  booking={activeBooking} 
-                  isAdmin={false} 
-                  onRequestAddon={handleAddonRequest} 
-                />
+                {showStayDetails && (
+                  <ServiceManagement
+                    booking={activeBooking}
+                    isAdmin={false}
+                    onRequestAddon={handleAddonRequest}
+                  />
+                )}
 
                 {/* Chat with staff */}
                 <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-center">
