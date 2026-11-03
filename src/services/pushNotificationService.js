@@ -1,6 +1,17 @@
 /**
  * Dịch vụ Quản lý Web Push Notification Client — Mèo Vắng Nhà
  */
+import { supabase } from '../supabaseClient';
+
+// Token đăng nhập Supabase: server chỉ cho đăng ký / gửi thông báo cho đúng tài khoản (Admin gửi được cho mọi khách)
+export async function pushAuthHeaders() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 // Hàm chuyển đổi chuỗi VAPID Public Key Base64 thành Uint8Array cho PushManager
 export function urlBase64ToUint8Array(base64String) {
@@ -44,9 +55,16 @@ export async function getVapidPublicKey() {
     console.warn('[Push] Không thể lấy VAPID key từ API:', err);
   }
 
-  // Khóa mặc định fallback
-  return 'BIFjndgx1UmNHma3w9XK_jqJiFqnn8ggjuVC2SGu_OSkq6LsMmbs2iIYDQdOfcT3sWinLcWmKHUrxxJAnRsSdsc';
+  throw new Error('Máy chủ chưa cấu hình khóa Web Push. Vui lòng báo Mèo Vắng Nhà.');
 }
+
+// Subscription cũ tạo bằng khóa khác (vd. sau khi đổi khóa VAPID) thì server không gửi tới được nữa
+const sameKey = (subscription, keyBytes) => {
+  const current = subscription?.options?.applicationServerKey;
+  if (!current) return true;
+  const a = new Uint8Array(current);
+  return a.length === keyBytes.length && a.every((v, i) => v === keyBytes[i]);
+};
 
 /**
  * Lấy trạng thái đăng ký Push hiện tại
@@ -116,6 +134,10 @@ export async function subscribeToPush(userId) {
 
   // 4. Lấy hoặc tạo mới PushSubscription
   let subscription = await reg.pushManager.getSubscription();
+  if (subscription && !sameKey(subscription, convertedVapidKey)) {
+    await subscription.unsubscribe().catch(() => {});
+    subscription = null;
+  }
   if (!subscription) {
     subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
@@ -126,7 +148,7 @@ export async function subscribeToPush(userId) {
   // 5. Gửi subscription lên backend lưu trữ
   const response = await fetch('/api/notifications/subscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await pushAuthHeaders()) },
     body: JSON.stringify({
       subscription: subscription.toJSON(),
       userId: String(userId || 'anonymous'),
@@ -185,7 +207,7 @@ export async function unsubscribeFromPush() {
 export async function sendServerPush({ userId, title, body, url, icon, badge, tag, data }) {
   const response = await fetch('/api/notifications/send', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await pushAuthHeaders()) },
     body: JSON.stringify({
       userId: String(userId),
       title,
@@ -221,4 +243,26 @@ export async function testServerPushNotification(userId = 'demo', petName = 'Mim
       petName,
     },
   });
+}
+
+/**
+ * Khách đã cho phép thông báo từ trước: lặng lẽ gắn thiết bị này với tài khoản đang đăng nhập
+ * (và tạo lại subscription nếu khóa máy chủ đã đổi). Không hỏi quyền.
+ */
+export async function ensurePushSubscription(userId) {
+  if (!userId || !isPushNotificationSupported() || Notification.permission !== 'granted') return false;
+  const key = `mvn-webpush-synced:${userId}`;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    const publicKey = await getVapidPublicKey();
+    const fresh = existing && sameKey(existing, urlBase64ToUint8Array(publicKey));
+    if (fresh && sessionStorage.getItem(key) === existing.endpoint) return true;
+    const { subscription } = await subscribeToPush(userId);
+    sessionStorage.setItem(key, subscription.endpoint);
+    return true;
+  } catch (err) {
+    console.warn('[Push] Không đồng bộ được thiết bị nhận thông báo:', err?.message || err);
+    return false;
+  }
 }

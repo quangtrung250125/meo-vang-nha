@@ -1,21 +1,34 @@
 import webpush from 'web-push';
-import { getSubscriptionsByUserId, deleteSubscriptionByEndpoint, getAllSubscriptions } from './db.js';
+import { getSubscriptionsByUserId, getSubscriptionsByUserIds, deleteSubscriptionByEndpoint, getAllSubscriptions } from './db.js';
 
-// Đọc VAPID keys từ biến môi trường
-const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BIFjndgx1UmNHma3w9XK_jqJiFqnn8ggjuVC2SGu_OSkq6LsMmbs2iIYDQdOfcT3sWinLcWmKHUrxxJAnRsSdsc';
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || 'ZtkZal8alBdQ-b3ZGBn9KVYbhM9Fm2FRXYKTZhRyaJ0';
-const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:contact@meovangnha.com';
+// Đọc VAPID keys từ biến môi trường (Vercel > Settings > Environment Variables).
+// Không ghi khóa bí mật vào code: tạo cặp khóa bằng `node scripts/generate-vapid.js`.
+const clean = (v) => (v && v !== 'REPLACE_ME' ? String(v).trim() : '');
+const vapidPublicKey = clean(process.env.VAPID_PUBLIC_KEY) || clean(process.env.VITE_VAPID_PUBLIC_KEY);
+const vapidPrivateKey = clean(process.env.VAPID_PRIVATE_KEY);
+const vapidSubject = clean(process.env.VAPID_SUBJECT) || 'mailto:contact@meovangnha.com';
 
-try {
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-} catch (e) {
-  console.error('[WebPush] Lỗi thiết lập VAPID details:', e.message);
+let vapidReady = false;
+if (vapidPublicKey && vapidPrivateKey) {
+  try {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    vapidReady = true;
+  } catch (e) {
+    console.error('[WebPush] Lỗi thiết lập VAPID details:', e.message);
+  }
+} else {
+  console.warn('[WebPush] Chưa đặt VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY: chưa gửi được thông báo đẩy.');
 }
+
+export const isPushConfigured = () => vapidReady;
+
+export const PUSH_NOT_CONFIGURED = 'Máy chủ chưa cấu hình khóa Web Push (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY).';
 
 /**
  * Gửi push notification đến 1 subscription cụ thể
  */
 export async function sendPushToSubscription(sub, payload) {
+  if (!vapidReady) return { success: false, endpoint: sub.endpoint, error: PUSH_NOT_CONFIGURED };
   const pushSubscription = {
     endpoint: sub.endpoint,
     keys: {
@@ -111,6 +124,18 @@ export async function broadcastPush(payload) {
     sentCount: successful,
     totalTargets: subscriptions.length,
   };
+}
+
+/**
+ * Gửi tới mọi thiết bị đăng ký dưới bất kỳ mã nào của khách (mã tài khoản, số điện thoại)
+ */
+export async function sendPushToUserIds(userIds = [], payload) {
+  const subscriptions = await getSubscriptionsByUserIds(userIds);
+  if (subscriptions.length === 0) return { success: false, sentCount: 0, totalTargets: 0 };
+  const results = await Promise.allSettled(subscriptions.map((sub) => sendPushToSubscription(sub, payload)));
+  const ok = results.filter((r) => r.status === 'fulfilled' && r.value.success);
+  const firstError = results.map((r) => (r.status === 'fulfilled' ? r.value.error : r.reason?.message)).find(Boolean);
+  return { success: ok.length > 0, sentCount: ok.length, totalTargets: subscriptions.length, error: ok.length ? null : firstError };
 }
 
 export { vapidPublicKey };

@@ -73,3 +73,19 @@
 
 Để trang **SEO Radar** hiển thị số liệu thật (tốc độ Lighthouse, từ khóa, thứ hạng Google, số lượt click), xem tài liệu hướng dẫn chi tiết từng bước tại:  
 👉 **[docs/GOOGLE_API_SETUP.md](docs/GOOGLE_API_SETUP.md)**
+
+## Marketing tự động & thông báo Web Push
+
+Trang Admin > **Marketing tự động** gửi thông báo Web Push thật tới điện thoại / máy tính của khách:
+
+- **Tự động theo kịch bản**: kịch bản đang bật và có chọn kênh **Web Push** sẽ tự gửi khi khách đến hạn (vd. 2 ngày trước check-in, 1 ngày sau check-out, bỏ dở đặt phòng 2 giờ…). Máy chủ chạy hằng ngày lúc 8 giờ sáng (Vercel Cron), và cứ vài phút một lần khi trang Admin đang mở. Mỗi khách chỉ nhận một lần cho mỗi lần kích hoạt, có áp giới hạn tần suất và giờ yên lặng.
+- **Gửi thủ công**: nút **Gửi tin thủ công** (chọn một hoặc nhiều khách, dùng mẫu có sẵn hoặc tự soạn, chọn trang mở khi bấm), nút **Gửi mẫu này cho khách** ở tab Mẫu tin nhắn, ô soạn tin ở Hộp thư tập trung.
+- Khách bấm vào thông báo sẽ mở đúng trang đã chọn (tin về một đơn mở đúng đơn đó trong Lịch đặt của tôi). Tab Kết quả đếm số tin đã gửi / đã hiện / đã bấm / thành đơn.
+- Khách bật nhận thông báo ở Hồ sơ của tôi > Thông báo, hoặc ở ô mời bật thông báo hiện sau khi đăng nhập. Zalo, Email, SMS chưa kết nối nên chưa gửi.
+
+Cần cấu hình một lần:
+
+1. Tạo cặp khóa: `node scripts/generate-vapid.js`, rồi thêm trên Vercel (Settings > Environment Variables) các biến `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VITE_VAPID_PUBLIC_KEY` (giống `VAPID_PUBLIC_KEY`), `VAPID_SUBJECT`. **Không** ghi khóa vào code.
+2. Thêm biến `CRON_SECRET` (chuỗi ngẫu nhiên dài) để lịch chạy hằng ngày được phép gửi tin, và `SUPABASE_SERVICE_ROLE_KEY` để máy chủ đọc được khách / đơn và ghi nhật ký tin.
+3. Chạy `supabase/migrations/20261103_create_marketing.sql` trong Supabase SQL Editor (lưu cài đặt và nhật ký tin; nếu chưa chạy, trang Marketing sẽ báo dữ liệu chỉ lưu tạm).
+4. Deploy lại.

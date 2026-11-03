@@ -30,6 +30,7 @@ import { RoomStateProvider } from './contexts/RoomStateContext';
 import { ServiceCatalogProvider } from './contexts/ServiceCatalogContext';
 import { Toaster } from 'react-hot-toast';
 import CustomerSyncBridge from './components/CustomerSyncBridge';
+import PushBridge from './components/PushBridge';
 
 // Chỉ tài khoản admin đã xác thực mới vào được trang quản trị
 function RequireAdmin({ children }) {
@@ -112,6 +113,7 @@ function App() {
                 <ServiceCatalogProvider>
                   <Toaster position="top-center" reverseOrder={false} />
                   <CustomerSyncBridge />
+                  <PushBridge />
                   <BrowserRouter>
                     <AppRoutes />
                   </BrowserRouter>

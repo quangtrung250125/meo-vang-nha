@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Step1Dates from './Step1Dates';
 import Step2Packages from './Step2Packages';
 import Step3PetProfile from './Step3PetProfile';
@@ -11,6 +11,7 @@ import { useUI } from '../../contexts/UIContext';
 import AuthModal from '../../components/AuthModal';
 import NotificationBar from '../../components/NotificationBar';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
+import { trackBookingDraft } from '../../services/marketingApi';
 
 const steps = [
   { id: 1, title: 'Ngày & Phòng', icon: Calendar },
@@ -51,6 +52,12 @@ const Booking = () => {
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(prev => prev + 1);
   };
+
+  // Báo server khách đang đặt phòng dở (kịch bản "Bỏ dở đặt phòng" của Marketing tự động), đặt xong thì xóa
+  useEffect(() => {
+    if (!isAuthenticated || currentStep < 2) return;
+    trackBookingDraft(currentStep === 5 ? 'booked' : 'draft', { step: currentStep, phone: authenticatedCustomer?.phone });
+  }, [currentStep, isAuthenticated, authenticatedCustomer?.phone]);
 
   const handlePrev = () => {
     if (currentStep > 1) setCurrentStep(prev => prev - 1);
