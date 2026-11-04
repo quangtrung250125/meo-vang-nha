@@ -12,11 +12,16 @@ describe('Hành trình lưu trú', () => {
     expect(getStayStep(booking, '2026-11-03')).toBe(2);
     expect(getStayStep({ ...booking, pending_changes: { type: 'UPDATE' } }, '2026-11-04')).toBe(2);
   });
-  it('admin chuyển "đang ở": bước Đang lưu trú & chăm sóc, kể cả ngày đón bé', () => {
+  it('admin chuyển "đang ở": bước Đang lưu trú & chăm sóc cho tới trước ngày đón bé', () => {
     const inHouse = { ...booking, status: 'đang ở' };
     expect(getStayStep(inHouse, '2026-11-03')).toBe(3);
-    expect(getStayStep(inHouse, '2026-11-06')).toBe(3);
-    expect(getStayStep(inHouse, '2026-11-08')).toBe(3);
+    expect(getStayStep(inHouse, '2026-11-05')).toBe(3);
+  });
+  it('tới ngày đón bé: Chuẩn bị check-out; gia hạn thì quay về Đang lưu trú', () => {
+    const inHouse = { ...booking, status: 'đang ở' };
+    expect(getStayStep(inHouse, '2026-11-06')).toBe(4);
+    expect(getStayStep(inHouse, '2026-11-08')).toBe(4);
+    expect(getStayStep({ ...inHouse, checkOut: '2026-11-09' }, '2026-11-06')).toBe(3);
   });
   it('định dạng thời gian check-in', () => {
     const d = new Date(2026, 10, 3, 9, 5);

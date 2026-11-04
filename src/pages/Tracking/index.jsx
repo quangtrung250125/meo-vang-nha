@@ -819,7 +819,7 @@ const TrackingPage = () => {
                     <span className="font-bold text-amber-600">
                       {isUpcoming
                         ? (daysRemaining === 0 ? 'Hôm nay là ngày gửi bé' : `Còn ${daysRemaining} ngày đến ngày gửi bé`)
-                        : `Còn ${daysRemaining} ngày`}
+                        : (stayStep >= 4 ? 'Hôm nay là ngày đón bé' : `Còn ${daysRemaining} ngày`)}
                     </span>
                   </div>
                 </div>
