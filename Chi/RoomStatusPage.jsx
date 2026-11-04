@@ -32,11 +32,8 @@ import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, isDepositOverdue, getDepositDue
  *           Trạng thái (Tất cả, Trống, Còn chỗ, Đầy, Bảo trì)
  * - 11 phòng: VIP-01~06 (sức chứa 2), VVIP-01~03 (sức chứa 4), DELUXE-01~02 (sức chứa 6)
  * - Toggle Bảo trì trên góc trên phải mỗi ô phòng
- * - Màu nền ô phòng theo trạng thái:
- *     Trống    → Xanh lá  (bg-green-500)
- *     Còn chỗ → Vàng     (bg-yellow-400)
- *     Đầy      → Đỏ       (bg-red-500)
- *     Bảo trì  → Xám      (bg-gray-200)
+ * - Thẻ phòng nền trắng, màu trạng thái ở vạch trái + nhãn + thanh sức chứa (xem STATUS_THEME):
+ *     Trống → xanh ngọc · Còn chỗ → hổ phách · Đầy → hồng đỏ · Bảo trì → xám
  */
 
 // ROOM_CONFIG và getRoomStatus được import từ RoomStateContext
@@ -202,15 +199,55 @@ const DatePickerPopup = ({ selectedDate, onSelect, onClose, anchorRef }) => {
 };
 
 // ─────────────────────────────────────────────
+// Bảng màu trạng thái (dùng chung cho thẻ phòng, thanh thống kê, chú thích)
+//   Trống → xanh ngọc · Còn chỗ → hổ phách · Đầy → hồng đỏ · Bảo trì → xám
+// Thiết kế mới: nền thẻ trắng, màu trạng thái chỉ ở viền trái, nhãn và thanh sức chứa
+// ─────────────────────────────────────────────
+const STATUS_THEME = {
+  empty: {
+    label: 'Trống',
+    accent: 'bg-emerald-500',
+    dot: 'bg-emerald-500',
+    pill: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    slot: 'bg-emerald-500',
+    chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  },
+  available: {
+    label: 'Còn chỗ',
+    accent: 'bg-amber-400',
+    dot: 'bg-amber-400',
+    pill: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
+    slot: 'bg-amber-400',
+    chip: 'bg-amber-50 text-amber-800 ring-amber-200',
+  },
+  full: {
+    label: 'Đầy',
+    accent: 'bg-rose-500',
+    dot: 'bg-rose-500',
+    pill: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+    slot: 'bg-rose-500',
+    chip: 'bg-rose-50 text-rose-700 ring-rose-200',
+  },
+  maintenance: {
+    label: 'Bảo trì',
+    accent: 'bg-slate-400',
+    dot: 'bg-slate-400',
+    pill: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+    slot: 'bg-slate-300',
+    chip: 'bg-slate-100 text-slate-600 ring-slate-200',
+  },
+};
+
+// ─────────────────────────────────────────────
 // Badge màu sắc trạng thái booking
 // ─────────────────────────────────────────────
 const bookingStatusBadge = (status) => {
   const map = {
-    'đang ở': 'bg-blue-100 text-blue-700',
-    'check-in': 'bg-green-100 text-green-700',
-    'check-out': 'bg-gray-100 text-gray-600',
+    'đang ở': 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+    'check-in': 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    'check-out': 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
   };
-  return map[status] || 'bg-gray-100 text-gray-600';
+  return map[status] || 'bg-gray-100 text-gray-600 ring-1 ring-gray-200';
 };
 
 // ─────────────────────────────────────────────
@@ -245,139 +282,76 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
 
   const totalCats = bks.reduce((s, b) => s + (Number(b.cats) || 1), 0);
   const remaining = Math.max(0, room.capacity - totalCats);
+  const used = Math.min(room.capacity, totalCats);
   const status = getRoomStatus(room.id, bookings, isMaintenance, selectedDate);
+  const theme = STATUS_THEME[status];
 
-  /**
-   * Màu nền ô phòng theo đúng spec:
-   *   Trống    → Xanh lá rõ  (bg-green-500)
-   *   Còn chỗ → Vàng rõ     (bg-yellow-400)
-   *   Đầy      → Đỏ rõ       (bg-red-500)
-   *   Bảo trì  → Xám nhạt    (bg-gray-200)
-   */
-  const statusStyles = {
-    maintenance: {
-      bg: 'bg-gray-200 border-gray-400',
-      text: 'text-gray-600',
-      subText: 'text-gray-500',
-      bkRow: 'bg-white/50 border-gray-300',
-      bkCode: 'text-gray-700',
-      bkCat: 'text-gray-500',
-    },
-    empty: {
-      bg: 'bg-green-500 border-green-600',
-      text: 'text-white',
-      subText: 'text-white/80',
-      bkRow: 'bg-white/20 border-white/30',
-      bkCode: 'text-white font-bold',
-      bkCat: 'text-white/80',
-    },
-    available: {
-      bg: 'bg-yellow-400 border-yellow-500',
-      text: 'text-yellow-900',
-      subText: 'text-yellow-800',
-      bkRow: 'bg-white/60 border-yellow-300',
-      bkCode: 'text-yellow-900 font-bold',
-      bkCat: 'text-yellow-800',
-    },
-    full: {
-      bg: 'bg-red-500 border-red-600',
-      text: 'text-white',
-      subText: 'text-white/80',
-      bkRow: 'bg-white/20 border-white/30',
-      bkCode: 'text-white font-bold',
-      bkCat: 'text-white/80',
-    },
-  };
-
-  // Badge hạng phòng – màu tương phản trên từng nền
-  const typeBadgeColor = {
-    maintenance: 'bg-gray-400 text-white',
-    empty: 'bg-white/25 text-white border border-white/40',
-    available: 'bg-yellow-600 text-white',
-    full: 'bg-white/25 text-white border border-white/40',
-  };
-
-  // Nút bảo trì – màu tương phản
-  const maintenanceBtnClass = isMaintenance
-    ? 'bg-gray-700 text-white hover:bg-gray-600 border-transparent'
-    : status === 'empty' || status === 'full'
-    ? 'bg-white/20 text-white border border-white/50 hover:bg-white/35'
-    : 'bg-white/60 text-yellow-900 border border-yellow-500/50 hover:bg-white/80';
-
-  const st = statusStyles[status];
+  // Nhãn trạng thái ở góc phải thẻ
+  const statusText =
+    status === 'empty' ? 'Trống'
+    : status === 'available' ? `Còn ${remaining}/${room.capacity}`
+    : status === 'full' ? 'Đầy'
+    : 'Bảo trì';
 
   return (
     <div
       className={`
-        relative rounded-2xl border-2 p-4 flex flex-col gap-2 transition-all duration-300 min-h-[140px] shadow-md
-        ${st.bg}
+        relative overflow-hidden rounded-2xl border border-gray-200 bg-white pl-5 pr-4 py-4 flex flex-col gap-3
+        min-h-[150px] shadow-sm hover:shadow-md transition-all duration-300
+        ${status === 'maintenance' ? 'bg-slate-50' : ''}
       `}
     >
-      {/* ── Header card: tên phòng + badge hạng + nút bảo trì (góc trên phải) ── */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <BedDouble className={`h-4 w-4 shrink-0 ${st.text}`} />
-          <span className={`font-extrabold text-sm truncate ${st.text}`}>{room.id}</span>
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${typeBadgeColor[status]}`}>
-            {room.type}
+      {/* Vạch màu trạng thái bên trái */}
+      <span className={`absolute left-0 top-0 h-full w-1.5 ${theme.accent}`} aria-hidden="true" />
+
+      {/* ── Header: tên phòng + hạng + nhãn trạng thái ── */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <BedDouble className="h-4 w-4 shrink-0 text-gray-400" />
+            <span className="font-extrabold text-[15px] text-gray-800 truncate">{room.id}</span>
+          </div>
+          <span className="mt-0.5 inline-block text-[10px] font-bold tracking-wide text-gray-400 uppercase">
+            Hạng {room.type}
           </span>
         </div>
-
-        {/* Nút [Bảo trì] / [Hết bảo trì] ở góc trên bên phải */}
-        <button
-          onClick={() => onToggleMaintenance(room.id)}
-          className={`
-            flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all shrink-0
-            ${maintenanceBtnClass}
-          `}
-          title={isMaintenance ? 'Bấm để hết bảo trì' : 'Bấm để bật bảo trì'}
-        >
-          {isMaintenance ? (
-            <>
-              <CheckCircle2 className="h-3 w-3" />
-              Hết bảo trì
-            </>
-          ) : (
-            <>
-              <Wrench className="h-3 w-3" />
-              Bảo trì
-            </>
-          )}
-        </button>
+        <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${theme.pill}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
+          {statusText}
+        </span>
       </div>
 
       {/* ── Nội dung chính ── */}
       {status === 'maintenance' ? (
         /* Bảo trì: ẩn chi tiết, hiển thị chữ BẢO TRÌ ở giữa */
-        <div className="flex-1 flex items-center justify-center py-6">
-          <div className="text-center">
-            <Wrench className="h-9 w-9 text-gray-500 mx-auto mb-2" />
-            <span className="text-base font-black tracking-widest text-gray-600 uppercase">
-              BẢO TRÌ
-            </span>
+        <div className="flex-1 flex items-center justify-center py-3">
+          <div className="text-center text-slate-400">
+            <Wrench className="h-7 w-7 mx-auto mb-1" />
+            <span className="text-xs font-bold tracking-widest uppercase">Tạm khóa bảo trì</span>
           </div>
         </div>
       ) : (
         <>
-          {/* Tình trạng tổng quan */}
-          <div className={`text-sm font-bold ${st.text}`}>
-            {/* Trống: "Trống (Còn: X/Y)" */}
-            {status === 'empty' && (
-              <span>Trống &nbsp;(Còn: <strong>{remaining}/{room.capacity}</strong>)</span>
-            )}
-            {/* Còn chỗ: "Còn X/Y" */}
-            {status === 'available' && (
-              <span>Còn <strong>{remaining}/{room.capacity}</strong></span>
-            )}
-            {/* Đầy: "Đầy" */}
-            {status === 'full' && (
-              <span>Đầy</span>
-            )}
+          {/* Thanh sức chứa: mỗi ô là một chỗ cho mèo */}
+          <div>
+            <div className="flex gap-1">
+              {Array.from({ length: room.capacity }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full ${i < used ? theme.slot : 'bg-gray-100'}`}
+                />
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-gray-500">
+              {status === 'empty'
+                ? <>Còn <strong className="text-gray-700">{remaining}/{room.capacity}</strong> chỗ</>
+                : <><strong className="text-gray-700">{used}/{room.capacity}</strong> mèo đang ở</>}
+            </p>
           </div>
 
           {/* Danh sách booking kèm trạng thái (đang ở)/(check-in)/(check-out) + số mèo */}
           {bks.length > 0 && (
-            <div className="flex flex-col gap-1 mt-0.5">
+            <div className="flex flex-col gap-1.5">
               {bks.map((bk) => {
                 const isNew = newBookingIds.has(bk.code);
                 const isClickable = status === 'available' || status === 'full';
@@ -386,35 +360,35 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                   <div key={bk.code} className="flex flex-col gap-1">
                   <div
                     onClick={() => isClickable && onBookingClick && onBookingClick(bk._booking || bk, bk._homeRoomId || room.id)}
-                    className={`flex items-center justify-between text-xs rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
+                    className={`flex items-center justify-between gap-2 text-xs rounded-xl px-2.5 py-2 border transition-all duration-300 ${
                       isNew
-                        ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300 ring-offset-1 animate-pulse'
-                        : st.bkRow
-                    } ${isClickable ? 'cursor-pointer hover:ring-2 hover:ring-white/60 hover:shadow-md active:scale-[0.97]' : ''}`}
+                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-200 animate-pulse'
+                        : 'bg-gray-50 border-gray-100'
+                    } ${isClickable ? 'cursor-pointer hover:border-orange-300 hover:bg-orange-50/60 active:scale-[0.98]' : ''}`}
                     title={isClickable ? `Xem chi tiết ${bk.code}` : ''}
                   >
-                    <div className="flex items-center gap-1">
-                      {isNew && <Zap className="h-3 w-3 text-yellow-500 shrink-0" />}
-                      <span className={isNew ? 'text-yellow-900 font-bold' : st.bkCode}>{bk.code}</span>
+                    <div className="flex items-center gap-1 min-w-0 flex-wrap">
+                      {isNew && <Zap className="h-3 w-3 text-amber-500 shrink-0" />}
+                      <span className="font-bold text-gray-800">{bk.code}</span>
                       {bk.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950">Chờ cọc</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">Chờ cọc</span>
                       )}
                       {bk.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900">Chờ cọc thêm</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">Chờ cọc thêm</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={isNew ? 'text-yellow-800' : st.bkCat}>🐱 {bk.cats}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-gray-500">🐱 {bk.cats}</span>
                       <span
                         className={`px-1.5 py-0.5 rounded-full font-semibold text-[10px] ${bookingStatusBadge(bk.status)}`}
                       >
-                        ({bk.status})
+                        {bk.status}
                       </span>
                     </div>
                   </div>
                   {/* Quá 24 giờ chưa nhận cọc: nhân viên gọi nhắc khách hoặc hủy đơn luôn */}
                   {overdue && (
-                    <div className="rounded-xl border-2 border-red-300 bg-white px-2 py-1.5 text-[11px] text-red-700 shadow-sm">
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] text-rose-700">
                       <p className="font-bold flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3 shrink-0" />
                         Quá {DEPOSIT_DEADLINE_HOURS}h chưa cọc
@@ -422,7 +396,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                       {bk.depositWarnedAt && (
                         <p className="text-[10px] text-gray-500">Đã gọi nhắc lúc {formatVietnamDateTime(bk.depositWarnedAt)}</p>
                       )}
-                      <div className="mt-1 flex gap-1.5">
+                      <div className="mt-1.5 flex gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onDepositWarn && onDepositWarn(bk, room.id); }}
@@ -433,7 +407,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onDepositCancel && onDepositCancel(bk, room.id); }}
-                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1"
+                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold px-2 py-1"
                         >
                           <XCircle className="h-3 w-3" /> Hủy
                         </button>
@@ -445,15 +419,34 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
               })}
             </div>
           )}
-
-          {/* Sức chứa */}
-          <div className="mt-auto pt-1">
-            <div className={`text-[11px] font-semibold text-center ${st.subText}`}>
-              Sức chứa: {room.capacity} mèo/phòng
-            </div>
-          </div>
         </>
       )}
+
+      {/* ── Chân thẻ: sức chứa + nút Bảo trì / Hết bảo trì ── */}
+      <div className="mt-auto pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-gray-400">Sức chứa: {room.capacity} mèo/phòng</span>
+        <button
+          onClick={() => onToggleMaintenance(room.id)}
+          className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all shrink-0 ${
+            isMaintenance
+              ? 'bg-slate-700 text-white hover:bg-slate-600'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+          }`}
+          title={isMaintenance ? 'Bấm để hết bảo trì' : 'Bấm để bật bảo trì'}
+        >
+          {isMaintenance ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Hết bảo trì
+            </>
+          ) : (
+            <>
+              <Wrench className="h-3.5 w-3.5" />
+              Bảo trì
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };
@@ -635,20 +628,17 @@ const RoomStatusPage = () => {
     VIP: {
       label: 'Phòng VIP',
       sub: 'Tối đa 2 mèo/phòng · 6 phòng (VIP-01 → VIP-06)',
-      color: 'text-orange-700',
-      bg: 'bg-orange-50 border-orange-200',
+      bar: 'bg-orange-400',
     },
     VVIP: {
       label: 'Phòng VVIP',
       sub: 'Tối đa 4 mèo/phòng · 3 phòng (VVIP-01 → VVIP-03)',
-      color: 'text-purple-700',
-      bg: 'bg-purple-50 border-purple-200',
+      bar: 'bg-purple-400',
     },
     DELUXE: {
       label: 'Phòng DELUXE',
       sub: 'Tối đa 6 mèo/phòng · 2 phòng (DELUXE-01 → DELUXE-02)',
-      color: 'text-sky-700',
-      bg: 'bg-sky-50 border-sky-200',
+      bar: 'bg-sky-400',
     },
   };
 
@@ -695,24 +685,36 @@ const RoomStatusPage = () => {
           </div>
         </div>
 
-        {/* ── Thanh thống kê nhanh ── */}
-        <div className="mt-4 flex flex-wrap gap-2">
+        {/* ── Thanh thống kê nhanh (bấm để lọc nhanh theo trạng thái) ── */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
           {[
-            { label: 'Trống',   count: stats.empty || 0,       color: 'bg-green-100 text-green-800 border-green-300' },
-            { label: 'Còn chỗ', count: stats.available || 0,   color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-            { label: 'Đầy',     count: stats.full || 0,         color: 'bg-red-100 text-red-700 border-red-200' },
-            { label: 'Bảo trì', count: stats.maintenance || 0,  color: 'bg-gray-200 text-gray-600 border-gray-300' },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${s.color}`}
-            >
-              <span>{s.label}</span>
-              <span className="font-extrabold">{s.count}</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-200 text-xs font-bold text-gray-600 bg-white">
-            Tổng: <span className="ml-1 font-extrabold">{ROOM_CONFIG.length}</span> phòng
+            { key: 'empty',       label: 'Trống',   count: stats.empty || 0 },
+            { key: 'available',   label: 'Còn chỗ', count: stats.available || 0 },
+            { key: 'full',        label: 'Đầy',     count: stats.full || 0 },
+            { key: 'maintenance', label: 'Bảo trì', count: stats.maintenance || 0 },
+          ].map((s) => {
+            const active = filterStatus === s.label;
+            return (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => setFilterStatus(active ? 'Tất cả' : s.label)}
+                className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-all ${
+                  active ? 'border-orange-300 bg-orange-50 ring-2 ring-orange-100' : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+                title={active ? 'Bỏ lọc' : `Chỉ xem phòng ${s.label.toLowerCase()}`}
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                  <span className={`h-2.5 w-2.5 rounded-full ${STATUS_THEME[s.key].dot}`} />
+                  {s.label}
+                </span>
+                <span className="text-lg font-extrabold text-gray-800">{s.count}</span>
+              </button>
+            );
+          })}
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+            <span className="text-xs font-semibold text-gray-500">Tổng</span>
+            <span className="text-lg font-extrabold text-gray-800">{ROOM_CONFIG.length} <span className="text-xs font-semibold text-gray-400">phòng</span></span>
           </div>
         </div>
       </div>
@@ -738,7 +740,7 @@ const RoomStatusPage = () => {
               id="btn-date-picker-toggle"
               onClick={() => setIsDatePickerOpen((o) => !o)}
               className={`
-                flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-sm transition-all
+                flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all
                 ${isDatePickerOpen
                   ? 'bg-orange-500 text-white shadow-md'
                   : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'}
@@ -800,19 +802,16 @@ const RoomStatusPage = () => {
             <span className="text-xs font-semibold text-gray-500 mr-1 whitespace-nowrap">Trạng thái:</span>
             {['Tất cả', 'Trống', 'Còn chỗ', 'Đầy', 'Bảo trì'].map((s) => {
               const isActive = filterStatus === s;
-              const colorMap = {
-                'Tất cả':  isActive ? 'bg-orange-500 text-white'  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                'Trống':   isActive ? 'bg-green-600 text-white'   : 'bg-green-50 text-green-700 hover:bg-green-100',
-                'Còn chỗ': isActive ? 'bg-yellow-500 text-white'  : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100',
-                'Đầy':     isActive ? 'bg-red-600 text-white'     : 'bg-red-50 text-red-700 hover:bg-red-100',
-                'Bảo trì': isActive ? 'bg-gray-600 text-white'    : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-              };
+              const dotKey = { 'Trống': 'empty', 'Còn chỗ': 'available', 'Đầy': 'full', 'Bảo trì': 'maintenance' }[s];
               return (
                 <button
                   key={s}
                   onClick={() => setFilterStatus(s)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${colorMap[s]}`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    isActive ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
                 >
+                  {dotKey && <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-white' : STATUS_THEME[dotKey].dot}`} />}
                   {s}
                 </button>
               );
@@ -835,10 +834,13 @@ const RoomStatusPage = () => {
             return (
               <section key={type}>
                 {/* Tiêu đề nhóm */}
-                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl border mb-4 ${meta.bg}`}>
-                  <span className={`font-extrabold text-sm ${meta.color}`}>{meta.label}</span>
-                  <span className={`text-xs font-semibold ${meta.color} opacity-70`}>— {meta.sub}</span>
-                  <span className={`ml-1 text-xs font-extrabold ${meta.color}`}>({rooms.length} phòng)</span>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+                  <h2 className="flex items-center gap-2 font-extrabold text-base text-gray-800">
+                    <span className={`h-4 w-1 rounded-full ${meta.bar}`} />
+                    {meta.label}
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-500">{rooms.length} phòng</span>
+                  </h2>
+                  <span className="text-xs text-gray-400">{meta.sub}</span>
                 </div>
 
                 {/* Grid phòng */}
@@ -868,15 +870,15 @@ const RoomStatusPage = () => {
       {/* ── Legend ── */}
       <div className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-wrap gap-4 items-center shadow-sm">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Chú thích màu sắc:</span>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Chú thích:</span>
           {[
-            { color: 'bg-green-500',  label: 'Trống — 0 mèo' },
-            { color: 'bg-yellow-400', label: 'Còn chỗ — Có khách, chưa đầy (nhấp mã đơn để xem)' },
-            { color: 'bg-red-500',    label: 'Đầy — Hết chỗ (nhấp mã đơn để xem)' },
-            { color: 'bg-gray-300',   label: 'Bảo trì — Tạm khóa' },
+            { color: STATUS_THEME.empty.dot,       label: 'Trống — 0 mèo' },
+            { color: STATUS_THEME.available.dot,   label: 'Còn chỗ — Có khách, chưa đầy (nhấp mã đơn để xem)' },
+            { color: STATUS_THEME.full.dot,        label: 'Đầy — Hết chỗ (nhấp mã đơn để xem)' },
+            { color: STATUS_THEME.maintenance.dot, label: 'Bảo trì — Tạm khóa' },
           ].map((l) => (
             <div key={l.label} className="flex items-center gap-1.5">
-              <div className={`h-4 w-4 rounded-md ${l.color} shadow-sm`} />
+              <div className={`h-2.5 w-2.5 rounded-full ${l.color}`} />
               <span className="text-xs text-gray-600 font-medium">{l.label}</span>
             </div>
           ))}
