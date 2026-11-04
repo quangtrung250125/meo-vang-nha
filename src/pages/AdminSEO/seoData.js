@@ -43,8 +43,8 @@ export const SEO_PAGES = [
     name: 'Trang chủ',
     url: '/',
     score: 91,
-    title: { status: 'ok', value: 'Mèo Vắng Nhà – Khách sạn mèo cao cấp tại TP.HCM' },
-    meta: { status: 'ok', value: 'Dịch vụ giữ mèo chuyên nghiệp, an toàn và yêu thương tại TP. Hồ Chí Minh.' },
+    title: { status: 'ok', value: 'Mèo Vắng Nhà – Khách sạn mèo cao cấp tại Hà Nội' },
+    meta: { status: 'ok', value: 'Dịch vụ giữ mèo chuyên nghiệp, an toàn và yêu thương tại Hà Nội.' },
     h1: { status: 'ok', value: 'Mèo Vắng Nhà' },
     speed: 94,
     mobile: 96,
@@ -217,13 +217,13 @@ export const SEO_ISSUES = [
 
 
 export const KEYWORDS = [
-  { id: 1, keyword: 'khách sạn mèo HCM', rank: 3, volume: 1200, trend: 'up', change: 2 },
-  { id: 2, keyword: 'giữ mèo TP HCM', rank: 5, volume: 890, trend: 'up', change: 3 },
-  { id: 3, keyword: 'dịch vụ trông mèo Hồ Chí Minh', rank: 8, volume: 650, trend: 'stable', change: 0 },
-  { id: 4, keyword: 'khách sạn thú cưng TPHCM', rank: 12, volume: 1800, trend: 'down', change: -2 },
+  { id: 1, keyword: 'khách sạn mèo Hà Nội', rank: 3, volume: 1200, trend: 'up', change: 2 },
+  { id: 2, keyword: 'giữ mèo Hà Nội', rank: 5, volume: 890, trend: 'up', change: 3 },
+  { id: 3, keyword: 'dịch vụ trông mèo Hà Nội', rank: 8, volume: 650, trend: 'stable', change: 0 },
+  { id: 4, keyword: 'khách sạn thú cưng Hà Nội', rank: 12, volume: 1800, trend: 'down', change: -2 },
   { id: 5, keyword: 'chăm sóc mèo tại nhà', rank: 15, volume: 2100, trend: 'up', change: 5 },
   { id: 6, keyword: 'mèo vắng nhà', rank: 1, volume: 320, trend: 'stable', change: 0 },
-  { id: 7, keyword: 'pet hotel cat HCM', rank: 7, volume: 440, trend: 'up', change: 1 },
+  { id: 7, keyword: 'pet hotel cat Hanoi', rank: 7, volume: 440, trend: 'up', change: 1 },
   { id: 8, keyword: 'giá trông mèo theo ngày', rank: 18, volume: 560, trend: 'down', change: -4 },
 ];
 

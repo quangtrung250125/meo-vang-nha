@@ -53,16 +53,16 @@ function isTableMissingError(error) {
 const INITIAL_SEED_ARTICLES = [
   {
     id: 'seed-1',
-    title: 'Top 7 Tiêu chí vàng chọn Khách sạn mèo cao cấp tại TP.HCM năm 2026',
-    slug: 'top-7-tieu-chi-vang-chon-khach-san-meo-cao-cap-tphcm-2026',
-    excerpt: 'Hướng dẫn lựa chọn khách sạn mèo an toàn, phòng riêng biệt, camera 24/7 và đội ngũ bác sĩ thú y tận tâm tại TP.HCM.',
+    title: 'Top 7 Tiêu chí vàng chọn Khách sạn mèo cao cấp tại Hà Nội năm 2026',
+    slug: 'top-7-tieu-chi-vang-chon-khach-san-meo-cao-cap-ha-noi-2026',
+    excerpt: 'Hướng dẫn lựa chọn khách sạn mèo an toàn, phòng riêng biệt, camera 24/7 và đội ngũ bác sĩ thú y tận tâm tại Hà Nội.',
     cover_image: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=1000&q=80',
     category: 'boarding',
     category_name: 'Kinh nghiệm lưu trú',
-    tags: ['Khách sạn mèo', 'Giữ mèo HCM', 'Mèo Vắng Nhà'],
+    tags: ['Khách sạn mèo', 'Giữ mèo Hà Nội', 'Mèo Vắng Nhà'],
     target_keyword: 'khách sạn mèo',
-    meta_title: 'Top 7 Tiêu chí vàng chọn Khách sạn mèo cao cấp tại TP.HCM',
-    meta_description: 'Hướng dẫn chọn khách sạn mèo uy tín tại TP.HCM với phòng riêng, camera 24/7 và bác sĩ chăm sóc.',
+    meta_title: 'Top 7 Tiêu chí vàng chọn Khách sạn mèo cao cấp tại Hà Nội',
+    meta_description: 'Hướng dẫn chọn khách sạn mèo uy tín tại Hà Nội với phòng riêng, camera 24/7 và bác sĩ chăm sóc.',
     seo_score: 92,
     author: 'SEO Radar AI (Mèo Vắng Nhà)',
     read_time: '5 phút đọc',
@@ -422,7 +422,7 @@ export async function getArticleCounts() {
  */
 const TOPIC_TEMPLATES = {
   'khách sạn mèo': {
-    title: 'Top {n} Tiêu chí vàng chọn Khách sạn mèo cao cấp tại TP.HCM năm {year}',
+    title: 'Top {n} Tiêu chí vàng chọn Khách sạn mèo cao cấp tại Hà Nội năm {year}',
     category: 'boarding',
     categoryName: 'Kinh nghiệm lưu trú',
     sections: [
@@ -439,7 +439,7 @@ const TOPIC_TEMPLATES = {
         content: `Một khách sạn mèo uy tín sẽ có quy trình bài bản:\n- **Check-in**: Kiểm tra sức khỏe tổng quát, xác nhận lịch tiêm phòng còn hiệu lực.\n- **Ghi nhận thói quen ăn uống, vệ sinh** của từng bé để chăm sóc cá nhân hóa.\n- **Check-out**: Tóm tắt báo cáo sức khỏe và hành vi trong suốt thời gian lưu trú.\n- **Vệ sinh khử khuẩn toàn bộ phòng** sau mỗi lượt khách.`
       }
     ],
-    tags: ['Khách sạn mèo', 'Giữ mèo HCM', 'Lưu trú thú cưng', 'Mèo Vắng Nhà'],
+    tags: ['Khách sạn mèo', 'Giữ mèo Hà Nội', 'Lưu trú thú cưng', 'Mèo Vắng Nhà'],
     doctorNote: 'Lời khuyên: Trước khi gửi mèo, hãy chắc chắn bé đã tiêm vắc-xin 4 bệnh và dại đầy đủ. Mang theo chăn/áo có mùi quen thuộc để giảm stress cho bé trong những ngày đầu.',
     coverImage: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=1000&q=80',
   },
@@ -578,7 +578,7 @@ function findBestTemplate(keyword) {
   
   // Default template
   return {
-    title: `Hướng dẫn chi tiết về "${keyword}" cho người nuôi mèo tại TP.HCM`,
+    title: `Hướng dẫn chi tiết về "${keyword}" cho người nuôi mèo tại Hà Nội`,
     category: 'health',
     categoryName: 'Sức khỏe & Tiêm phòng',
     sections: [
@@ -588,14 +588,14 @@ function findBestTemplate(keyword) {
       },
       {
         heading: `2. Những điều cần biết khi tìm hiểu về ${keyword}`,
-        content: `Để hiểu rõ hơn về chủ đề này, Sen cần nắm vững:\n- Các yếu tố ảnh hưởng đến sức khỏe và hành vi của mèo liên quan.\n- Cách nhận biết dấu hiệu bất thường sớm nhất.\n- Phương pháp xử lý phù hợp tại nhà và khi nào cần đưa bé đi khám.\n- Các sản phẩm và dịch vụ hỗ trợ uy tín tại TP.HCM.`
+        content: `Để hiểu rõ hơn về chủ đề này, Sen cần nắm vững:\n- Các yếu tố ảnh hưởng đến sức khỏe và hành vi của mèo liên quan.\n- Cách nhận biết dấu hiệu bất thường sớm nhất.\n- Phương pháp xử lý phù hợp tại nhà và khi nào cần đưa bé đi khám.\n- Các sản phẩm và dịch vụ hỗ trợ uy tín tại Hà Nội.`
       },
       {
         heading: `3. Lời khuyên từ chuyên gia Mèo Vắng Nhà`,
         content: `Đội ngũ bác sĩ và chuyên viên tại Mèo Vắng Nhà luôn sẵn sàng tư vấn:\n- Hotline tư vấn 24/7 cho mọi thắc mắc về sức khỏe mèo.\n- Dịch vụ khám sức khỏe tổng quát định kỳ.\n- Chương trình chăm sóc cá nhân hóa theo nhu cầu của từng bé.\n- Đội ngũ bảo mẫu được đào tạo chuyên nghiệp về hành vi học mèo.`
       }
     ],
-    tags: [keyword, 'Mèo Vắng Nhà', 'Chăm sóc mèo', 'TP.HCM'],
+    tags: [keyword, 'Mèo Vắng Nhà', 'Chăm sóc mèo', 'Hà Nội'],
     doctorNote: `Nếu bạn có bất kỳ câu hỏi nào về "${keyword}", đừng ngại liên hệ đội ngũ chuyên gia tại Mèo Vắng Nhà để được tư vấn miễn phí.`,
     coverImage: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=1000&q=80',
   };
