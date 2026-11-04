@@ -1,12 +1,42 @@
 import webpush from 'web-push';
 import { getSubscriptionsByUserId, getSubscriptionsByUserIds, deleteSubscriptionByEndpoint, getAllSubscriptions } from './db.js';
 
+import { createECDH } from 'crypto';
+
 // Đọc VAPID keys từ biến môi trường (Vercel > Settings > Environment Variables).
 // Không ghi khóa bí mật vào code: tạo cặp khóa bằng `node scripts/generate-vapid.js`.
-const clean = (v) => (v && v !== 'REPLACE_ME' ? String(v).trim() : '');
-const vapidPublicKey = clean(process.env.VAPID_PUBLIC_KEY) || clean(process.env.VITE_VAPID_PUBLIC_KEY);
+const clean = (v) => (v && v !== 'REPLACE_ME' ? String(v).trim().replace(/^["']|["']$/g, '').trim() : '');
+const toB64Url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64Url = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+/**
+ * Khóa công khai đúng của một khóa bí mật VAPID (P-256). Dùng để phát hiện cặp khóa trên Vercel bị nhập lệch:
+ * khi đó dịch vụ push (FCM, Apple, Mozilla) từ chối mọi tin với mã 403.
+ */
+export function publicKeyFromPrivate(privateKey) {
+  try {
+    const raw = fromB64Url(privateKey);
+    if (raw.length !== 32) return '';
+    const ecdh = createECDH('prime256v1');
+    ecdh.setPrivateKey(raw);
+    return toB64Url(ecdh.getPublicKey());
+  } catch {
+    return '';
+  }
+}
+
+const envPublicKey = clean(process.env.VAPID_PUBLIC_KEY) || clean(process.env.VITE_VAPID_PUBLIC_KEY);
 const vapidPrivateKey = clean(process.env.VAPID_PRIVATE_KEY);
 const vapidSubject = clean(process.env.VAPID_SUBJECT) || 'mailto:contact@meovangnha.com';
+const derivedPublicKey = vapidPrivateKey ? publicKeyFromPrivate(vapidPrivateKey) : '';
+
+// Khóa công khai trên Vercel không khớp khóa bí mật: tự dùng khóa công khai suy ra từ khóa bí mật,
+// để chữ ký gửi đi và khóa trình duyệt dùng khi đăng ký luôn là một cặp.
+const keyMismatch = Boolean(derivedPublicKey && envPublicKey && derivedPublicKey !== envPublicKey);
+const vapidPublicKey = derivedPublicKey || envPublicKey;
+if (keyMismatch) {
+  console.warn('[WebPush] VAPID_PUBLIC_KEY không khớp VAPID_PRIVATE_KEY, dùng khóa công khai suy ra từ khóa bí mật:', derivedPublicKey);
+}
 
 let vapidReady = false;
 if (vapidPublicKey && vapidPrivateKey) {
@@ -21,6 +51,14 @@ if (vapidPublicKey && vapidPrivateKey) {
 }
 
 export const isPushConfigured = () => vapidReady;
+
+// Cho trang Admin: cặp khóa trên Vercel có khớp không, và khóa công khai đúng cần đặt
+export const getVapidStatus = () => ({
+  configured: vapidReady,
+  keyMismatch,
+  publicKey: vapidPublicKey || '',
+  envPublicKey: envPublicKey || '',
+});
 
 export const PUSH_NOT_CONFIGURED = 'Máy chủ chưa cấu hình khóa Web Push (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY).';
 
@@ -63,8 +101,10 @@ export async function sendPushToSubscription(sub, payload) {
 
     // Xóa subscription nếu đã hết hạn / không còn tồn tại, hoặc được tạo bằng khóa VAPID khác
     // (FCM: "...does not correspond to the sender ID...", Apple: VapidPkHashMismatch). Khách mở lại web sẽ tự đăng ký lại.
+    // Cặp khóa của máy chủ luôn khớp (xem trên), nên 403 nghĩa là thiết bị đăng ký bằng khóa công khai khác
+    // (vd. khóa cũ / khóa nhập lệch trên Vercel): xóa để trình duyệt của khách tự đăng ký lại bằng khóa đúng.
     const body = String(error.body || '');
-    const staleKey = (statusCode === 400 || statusCode === 401 || statusCode === 403) && /correspond|VapidPkHashMismatch|mismatch/i.test(body);
+    const staleKey = statusCode === 403 || ((statusCode === 400 || statusCode === 401) && /correspond|VapidPkHashMismatch|mismatch/i.test(body));
     if (statusCode === 404 || statusCode === 410 || staleKey) {
       console.log(`[WebPush] Xóa subscription không dùng được (${statusCode}):`, sub.endpoint);
       await deleteSubscriptionByEndpoint(sub.endpoint);

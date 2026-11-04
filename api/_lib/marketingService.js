@@ -5,7 +5,7 @@ import { normalizeVnPhone } from '../../src/utils/phone.js';
 import { ownPushIds } from './pushAccess.js';
 import { listStoredBookings } from './bookingsDb.js';
 import { getSyncData } from './syncService.js';
-import { isPushConfigured, sendPushToUserIds, PUSH_NOT_CONFIGURED } from './pushService.js';
+import { isPushConfigured, sendPushToUserIds, PUSH_NOT_CONFIGURED, getVapidStatus } from './pushService.js';
 import {
   getMarketingConfig,
   saveMarketingConfig,
@@ -352,6 +352,7 @@ export async function handleAudience(req, res) {
     drafts,
     accounts,
     pushConfigured: isPushConfigured(),
+    vapid: (({ keyMismatch, publicKey }) => ({ keyMismatch, publicKey }))(getVapidStatus()),
     serviceRole: hasServiceRole,
     // Không đọc / ghi được bảng push_subscriptions: thiết bị khách bật thông báo không được lưu lại
     subscriptionStore: dbError ? { ok: false, error: describeDbError(dbError) } : { ok: true },

@@ -128,6 +128,15 @@ const AdminMarketing = () => {
             <span><b>Chưa gửi được thông báo:</b> máy chủ chưa có khóa Web Push. Cần thêm biến VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VITE_VAPID_PUBLIC_KEY trên Vercel rồi deploy lại.</span>
           </div>
         )}
+        {status.vapid?.keyMismatch && (
+          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-700" data-testid="vapid-mismatch-banner">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span className="min-w-0">
+              <b>Khóa Web Push trên Vercel bị lệch:</b> VAPID_PUBLIC_KEY không khớp với VAPID_PRIVATE_KEY nên trước đây dịch vụ thông báo từ chối (mã 403). Máy chủ đã tự dùng khóa đúng; khách chỉ cần mở lại web (đã đăng nhập) là nhận được thông báo. Để gọn, nên sửa VAPID_PUBLIC_KEY và VITE_VAPID_PUBLIC_KEY trên Vercel thành:
+              <code className="block mt-1 px-2 py-1 bg-white/70 rounded break-all select-all font-mono text-[11px]">{status.vapid.publicKey}</code>
+            </span>
+          </div>
+        )}
         {status.subscriptionStore?.ok === false && (
           <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-700">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
