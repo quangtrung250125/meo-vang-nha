@@ -65,6 +65,7 @@ export default function useMarketingData() {
         ...s,
         pushConfigured: audRes.value.pushConfigured,
         serviceRole: audRes.value.serviceRole,
+        vapid: audRes.value.vapid || null,
         subscriptionStore: audRes.value.subscriptionStore || null,
       }));
     }

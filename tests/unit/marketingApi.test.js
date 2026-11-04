@@ -3,6 +3,8 @@ import { handleMarketing, safeUrl, describePushError } from '../../api/_lib/mark
 import { resetMarketingMemory, insertMessage, listMessages, saveContact } from '../../api/_lib/marketingDb.js';
 import { setTokenVerifier } from '../../api/_lib/auth.js';
 import { ownPushIds } from '../../api/_lib/pushAccess.js';
+import { publicKeyFromPrivate } from '../../api/_lib/pushService.js';
+import webpush from 'web-push';
 
 const mockRes = () => {
   const res = { statusCode: 200, body: null, headers: {} };
@@ -107,6 +109,14 @@ describe('API Marketing tự động', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.messages.map((m) => m.title).sort()).toEqual(['Nhắc lịch', 'Ưu đãi']);
     expect(res.body.messages.find((m) => m.title === 'Ưu đãi').url).toBe('/promotions');
+  });
+
+  it('tìm được khóa công khai đúng từ khóa bí mật VAPID (phát hiện cặp khóa nhập lệch)', () => {
+    const a = webpush.generateVAPIDKeys();
+    const b = webpush.generateVAPIDKeys();
+    expect(publicKeyFromPrivate(a.privateKey)).toBe(a.publicKey);
+    expect(publicKeyFromPrivate(a.privateKey)).not.toBe(b.publicKey);
+    expect(publicKeyFromPrivate('khong-hop-le')).toBe('');
   });
 
   it('giải thích lý do gửi lỗi cho Admin', () => {
