@@ -206,35 +206,35 @@ const DatePickerPopup = ({ selectedDate, onSelect, onClose, anchorRef }) => {
 const STATUS_THEME = {
   empty: {
     label: 'Trống',
-    accent: 'bg-emerald-500',
-    dot: 'bg-emerald-500',
-    pill: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-    slot: 'bg-emerald-500',
-    chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    accent: 'bg-emerald-600',
+    dot: 'bg-emerald-600',
+    pill: 'bg-emerald-600 text-white',
+    slot: 'bg-emerald-600',
+    tint: 'bg-emerald-50/70 border-emerald-200',
   },
   available: {
     label: 'Còn chỗ',
-    accent: 'bg-amber-400',
-    dot: 'bg-amber-400',
-    pill: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200',
-    slot: 'bg-amber-400',
-    chip: 'bg-amber-50 text-amber-800 ring-amber-200',
+    accent: 'bg-amber-500',
+    dot: 'bg-amber-500',
+    pill: 'bg-amber-400 text-amber-950',
+    slot: 'bg-amber-500',
+    tint: 'bg-amber-50/70 border-amber-200',
   },
   full: {
     label: 'Đầy',
-    accent: 'bg-rose-500',
-    dot: 'bg-rose-500',
-    pill: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
-    slot: 'bg-rose-500',
-    chip: 'bg-rose-50 text-rose-700 ring-rose-200',
+    accent: 'bg-rose-600',
+    dot: 'bg-rose-600',
+    pill: 'bg-rose-600 text-white',
+    slot: 'bg-rose-600',
+    tint: 'bg-rose-50/70 border-rose-200',
   },
   maintenance: {
     label: 'Bảo trì',
-    accent: 'bg-slate-400',
-    dot: 'bg-slate-400',
-    pill: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
-    slot: 'bg-slate-300',
-    chip: 'bg-slate-100 text-slate-600 ring-slate-200',
+    accent: 'bg-slate-500',
+    dot: 'bg-slate-500',
+    pill: 'bg-slate-600 text-white',
+    slot: 'bg-slate-400',
+    tint: 'bg-slate-100 border-slate-300',
   },
 };
 
@@ -243,8 +243,8 @@ const STATUS_THEME = {
 // ─────────────────────────────────────────────
 const bookingStatusBadge = (status) => {
   const map = {
-    'đang ở': 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
-    'check-in': 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+    'đang ở': 'bg-sky-600 text-white',
+    'check-in': 'bg-emerald-600 text-white',
     'check-out': 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
   };
   return map[status] || 'bg-gray-100 text-gray-600 ring-1 ring-gray-200';
@@ -296,27 +296,27 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
   return (
     <div
       className={`
-        relative overflow-hidden rounded-2xl border border-gray-200 bg-white pl-5 pr-4 py-4 flex flex-col gap-3
+        relative overflow-hidden rounded-2xl border pl-5 pr-4 py-4 flex flex-col gap-3
         min-h-[150px] shadow-sm hover:shadow-md transition-all duration-300
-        ${status === 'maintenance' ? 'bg-slate-50' : ''}
+        ${theme.tint}
       `}
     >
       {/* Vạch màu trạng thái bên trái */}
-      <span className={`absolute left-0 top-0 h-full w-1.5 ${theme.accent}`} aria-hidden="true" />
+      <span className={`absolute left-0 top-0 h-full w-2 ${theme.accent}`} aria-hidden="true" />
 
       {/* ── Header: tên phòng + hạng + nhãn trạng thái ── */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <BedDouble className="h-4 w-4 shrink-0 text-gray-400" />
-            <span className="font-extrabold text-[15px] text-gray-800 truncate">{room.id}</span>
+            <BedDouble className="h-4 w-4 shrink-0 text-gray-600" />
+            <span className="font-extrabold text-[15px] text-gray-900 truncate">{room.id}</span>
           </div>
-          <span className="mt-0.5 inline-block text-[10px] font-bold tracking-wide text-gray-400 uppercase">
+          <span className="mt-0.5 inline-block text-[10px] font-bold tracking-wide text-gray-500 uppercase">
             Hạng {room.type}
           </span>
         </div>
         <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${theme.pill}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
           {statusText}
         </span>
       </div>
@@ -325,7 +325,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
       {status === 'maintenance' ? (
         /* Bảo trì: ẩn chi tiết, hiển thị chữ BẢO TRÌ ở giữa */
         <div className="flex-1 flex items-center justify-center py-3">
-          <div className="text-center text-slate-400">
+          <div className="text-center text-slate-600">
             <Wrench className="h-7 w-7 mx-auto mb-1" />
             <span className="text-xs font-bold tracking-widest uppercase">Tạm khóa bảo trì</span>
           </div>
@@ -338,14 +338,14 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
               {Array.from({ length: room.capacity }).map((_, i) => (
                 <span
                   key={i}
-                  className={`h-1.5 flex-1 rounded-full ${i < used ? theme.slot : 'bg-gray-100'}`}
+                  className={`h-2 flex-1 rounded-full ${i < used ? theme.slot : 'bg-white ring-1 ring-inset ring-gray-300'}`}
                 />
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-gray-500">
+            <p className="mt-1 text-[11px] text-gray-600">
               {status === 'empty'
-                ? <>Còn <strong className="text-gray-700">{remaining}/{room.capacity}</strong> chỗ</>
-                : <><strong className="text-gray-700">{used}/{room.capacity}</strong> mèo đang ở</>}
+                ? <>Còn <strong className="text-gray-900">{remaining}/{room.capacity}</strong> chỗ</>
+                : <><strong className="text-gray-900">{used}/{room.capacity}</strong> mèo đang ở</>}
             </p>
           </div>
 
@@ -363,7 +363,7 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                     className={`flex items-center justify-between gap-2 text-xs rounded-xl px-2.5 py-2 border transition-all duration-300 ${
                       isNew
                         ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-200 animate-pulse'
-                        : 'bg-gray-50 border-gray-100'
+                        : 'bg-white border-gray-200 shadow-sm'
                     } ${isClickable ? 'cursor-pointer hover:border-orange-300 hover:bg-orange-50/60 active:scale-[0.98]' : ''}`}
                     title={isClickable ? `Xem chi tiết ${bk.code}` : ''}
                   >
@@ -371,14 +371,14 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                       {isNew && <Zap className="h-3 w-3 text-amber-500 shrink-0" />}
                       <span className="font-bold text-gray-800">{bk.code}</span>
                       {bk.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">Chờ cọc</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950">Chờ cọc</span>
                       )}
                       {bk.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">Chờ cọc thêm</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-gray-500">🐱 {bk.cats}</span>
+                      <span className="text-gray-700 font-semibold">🐱 {bk.cats}</span>
                       <span
                         className={`px-1.5 py-0.5 rounded-full font-semibold text-[10px] ${bookingStatusBadge(bk.status)}`}
                       >
@@ -423,14 +423,14 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
       )}
 
       {/* ── Chân thẻ: sức chứa + nút Bảo trì / Hết bảo trì ── */}
-      <div className="mt-auto pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-        <span className="text-[11px] text-gray-400">Sức chứa: {room.capacity} mèo/phòng</span>
+      <div className="mt-auto pt-2 border-t border-black/10 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-gray-600">Sức chứa: {room.capacity} mèo/phòng</span>
         <button
           onClick={() => onToggleMaintenance(room.id)}
           className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all shrink-0 ${
             isMaintenance
               ? 'bg-slate-700 text-white hover:bg-slate-600'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              : 'text-gray-700 bg-white/70 ring-1 ring-gray-300 hover:bg-white'
           }`}
           title={isMaintenance ? 'Bấm để hết bảo trì' : 'Bấm để bật bảo trì'}
         >
