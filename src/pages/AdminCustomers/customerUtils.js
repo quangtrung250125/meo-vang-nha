@@ -39,14 +39,14 @@ export const bookingStage = (booking) => {
 export const PAID_STATUS = 'Đã thanh toán';
 export const isFullyPaid = (booking) => String(booking?.paymentStatus || '').trim() === PAID_STATUS;
 
-// Hóa đơn của đơn: tự cập nhật theo yêu cầu khách (thêm dịch vụ, đổi lịch) và check-out sớm
+// Hóa đơn của đơn: tự cập nhật theo yêu cầu khách (thêm dịch vụ, đổi lịch) và check-out muộn
 export const invoiceOf = (booking) => buildInvoice(booking, ADDONS);
 
 // Số tiền cuối cùng của đơn theo hóa đơn
 export const invoiceTotalOf = (booking) => invoiceOf(booking)?.total || 0;
 
 // Đơn được ghi nhận doanh thu: khách đã thanh toán đủ hóa đơn VÀ đã check-out (Admin trả mèo).
-// Trong lúc gửi mèo hóa đơn còn có thể tăng (mua thêm dịch vụ) hoặc giảm (check-out sớm),
+// Trong lúc gửi mèo hóa đơn còn có thể tăng (mua thêm dịch vụ, check-out muộn; check-out sớm không được hoàn tiền),
 // nên chỉ tới khi check-out mới cộng tổng hóa đơn cuối cùng vào doanh thu.
 export const isRevenueBooking = (booking) =>
   isFullyPaid(booking) && bookingStage(booking) === 'completed' && Boolean(invoiceOf(booking)?.isPaidInFull);

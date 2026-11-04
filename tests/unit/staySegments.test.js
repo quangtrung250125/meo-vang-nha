@@ -139,10 +139,10 @@ describe('Hóa đơn theo từng chặng', () => {
     expect(inv.changes.some((c) => c.text.includes('gia hạn 2 đêm'))).toBe(true);
   });
 
-  it('check-out sớm trong phần gia hạn thì hoàn đúng giá đêm gia hạn', () => {
+  it('check-out sớm trong phần gia hạn thì không hoàn tiền đêm gia hạn chưa ở', () => {
     const ext = extend(lan, '2026-11-07', 'VVIP-01', {}, 150000);
     const b = { ...lan, staySegments: ext.segments, checkOut: ext.checkOut, baseCheckOut: '2026-11-05', status: 'check-out', checkedOutAt: '2026-11-06T03:00:00Z' };
-    expect(buildInvoice(b).total).toBe(540000 + 150000);
+    expect(buildInvoice(b).total).toBe(540000 + 150000 * 2);
   });
 });
 

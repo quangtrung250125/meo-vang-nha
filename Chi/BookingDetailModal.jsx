@@ -39,7 +39,7 @@ const DetailRow = ({ icon, label, children }) => (
 );
 
 // Hóa đơn thanh toán khi check-out: dùng đúng hóa đơn ghi doanh thu (bookingInvoice),
-// tính theo ngày check-out thực tế: đúng hạn giữ nguyên, sớm thì bớt, muộn thì cộng thêm số đêm tương ứng
+// tính theo ngày check-out thực tế: đúng hạn và sớm giữ nguyên (sớm không hoàn tiền), muộn thì cộng thêm số đêm ở quá hạn
 const CheckoutInvoiceModal = ({ booking, historyBooking, roomId, onPay, onClose }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -82,7 +82,7 @@ const CheckoutInvoiceModal = ({ booking, historyBooking, roomId, onPay, onClose 
               📝 {timingLabel}
               <div className="text-xs font-medium mt-0.5">
                 Hẹn đón {fmtDay(invoice.plannedCheckOut)}, đón thực tế {fmtDay(invoice.checkOut)}
-                {invoice.checkOutTiming === "early" && " · số tiền giảm theo số đêm không ở"}
+                {invoice.checkOutTiming === "early" && " · không hoàn tiền số đêm không ở"}
                 {invoice.checkOutTiming === "late" && " · số tiền tăng theo số đêm ở thêm"}
               </div>
             </div>

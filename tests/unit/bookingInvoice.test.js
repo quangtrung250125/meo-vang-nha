@@ -43,11 +43,14 @@ describe('Hóa đơn tự cập nhật theo yêu cầu của khách', () => {
     expect(buildInvoice(b, CATALOG).total).toBe(1400000);
   });
 
-  it('check-out sớm thì bớt tiền những đêm không ở', () => {
+  it('check-out sớm không hoàn tiền những đêm không ở', () => {
     const b = { ...base, status: 'check-out', checkedOutAt: '2026-11-05T03:00:00Z' };
     const inv = buildInvoice(b, CATALOG);
-    expect(inv.total).toBe(1100000);
+    expect(inv.total).toBe(1400000);
     expect(inv.nights).toBe(11);
+    const early = inv.lines.find((l) => l.kind === 'early');
+    expect(early.amount).toBe(0);
+    expect(early.detail).toContain('không hoàn tiền');
   });
 
   it('khách đổi lịch thêm đêm thì cộng thêm tiền phòng', () => {
@@ -88,10 +91,10 @@ describe('Gia hạn từ trang Theo dõi lưu trú', () => {
     expect(buildInvoice({ ...base, extensions: [{ ...ext, status: 'rejected' }] }, CATALOG).total).toBe(1400000);
   });
 
-  it('gia hạn rồi lại đón sớm hơn ngày gia hạn: hoàn theo giá gia hạn', () => {
+  it('gia hạn rồi lại đón sớm hơn ngày gia hạn: vẫn tính đủ tiền gia hạn, không hoàn', () => {
     const ext = { id: 'e1', days: 3, newCheckOut: '2026-11-11', pricePerDay: 180000, amount: 540000, status: 'pending', timestamp: '2026-11-02T03:00:00Z' };
     const inv = buildInvoice({ ...base, status: 'check-out', checkedOutAt: '2026-11-10T03:00:00Z', extensions: [ext] }, CATALOG);
-    expect(inv.total).toBe(1400000 + 540000 - 180000);
+    expect(inv.total).toBe(1400000 + 540000);
     expect(inv.lines.some((l) => l.pending)).toBe(false);
   });
 });
@@ -105,9 +108,10 @@ describe('Check-out đúng hạn / sớm / muộn', () => {
     expect(inv.changes.some((c) => c.text.includes('đúng hạn'))).toBe(true);
   });
 
-  it('sớm: bớt tiền, ghi chú sớm', () => {
+  it('sớm: giữ nguyên tiền (không hoàn), ghi chú sớm', () => {
     const inv = buildInvoice({ ...base, status: 'check-out', checkedOutAt: '2026-11-05T03:00:00Z' }, CATALOG);
-    expect(inv.total).toBe(1100000);
+    expect(inv.total).toBe(1400000);
+    expect(inv.changes.some((c) => c.text.includes('không hoàn tiền'))).toBe(true);
     expect(checkOutTimingLabel(inv)).toBe('Check-out sớm 3 đêm');
   });
 
