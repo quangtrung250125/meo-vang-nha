@@ -1,9 +1,9 @@
 // Hóa đơn của một đơn gửi mèo, tự tính lại mỗi khi khách cập nhật yêu cầu trên giao diện khách hàng
-// (thêm dịch vụ, đổi lịch) hoặc khi Admin check-out sớm / muộn. Không cần ai chỉnh tay số tiền.
+// (thêm dịch vụ, đổi lịch) hoặc khi Admin check-out muộn (check-out sớm không hoàn tiền). Không cần ai chỉnh tay số tiền.
 // Doanh thu cuối cùng của đơn = invoice.total, chỉ ghi nhận khi đã thanh toán đủ và đã check-out.
 
 import { todayInVietnam, depositReceivedOf } from './bookingDeposit.js';
-import { addDays, baseSegmentOf, describeSegment, getStaySegments, nightsOf, sameStay, shortDate } from './staySegments.js';
+import { baseSegmentOf, describeSegment, getStaySegments, nightsOf, sameStay, shortDate } from './staySegments.js';
 
 const PAID_LABEL = 'Đã thanh toán';
 const COMPLETED = ['check-out', 'đã hoàn tất', 'hoàn tất', 'completed', 'đã hoàn thành'];
@@ -91,7 +91,6 @@ export function buildInvoice(booking, addonCatalog = {}) {
   }];
   const changes = [];
 
-  const plannedNights = nightsBetween(checkIn, plannedCheckOut);
   const basePlanNights = nightsBetween(checkIn, basePlanEnd);
   if (basePlanNights !== bookedNights) {
     const diff = basePlanNights - bookedNights;
@@ -108,12 +107,6 @@ export function buildInvoice(booking, addonCatalog = {}) {
   // thì đã có trong "Đơn đặt ban đầu"; đêm đổi phòng / gói thì tính chênh lệch; đêm gia hạn thì tính đủ giá chặng đó.
   const baseSeg = { ...baseSegmentOf(booking, basePlanEnd), pricePerNight: nightly };
   const segments = getStaySegments(booking);
-  const chargeOfNight = (day) => {
-    const seg = segments.find((x) => x.from <= day && day < x.to);
-    if (!seg) return null;
-    if (day < basePlanEnd && sameStay(seg, baseSeg)) return nightly;
-    return Number(seg.pricePerNight) || nightly;
-  };
   if (hasSegments) {
     segments.forEach((seg, i) => {
       const price = Number(seg.pricePerNight) || nightly;
@@ -174,34 +167,18 @@ export function buildInvoice(booking, addonCatalog = {}) {
     });
   });
 
-  const extendedNights = Math.max(0, nightsBetween(checkIn, extendedCheckOut) - plannedNights);
-  const lastExt = extensions[extensions.length - 1];
-  const extPerDay = Number(lastExt?.pricePerDay) || nightly;
-  const refundForNights = (n) => {
-    if (hasSegments) {
-      // Hoàn đúng giá từng đêm không ở (theo chặng phòng / gói của đêm đó)
-      let sum = 0;
-      for (let d = addDays(extendedCheckOut, -n); d < extendedCheckOut; d = addDays(d, 1)) {
-        sum += chargeOfNight(d) ?? extPerDay;
-      }
-      return sum;
-    }
-    const fromExtension = Math.min(n, extendedNights);
-    return fromExtension * extPerDay + (n - fromExtension) * nightly;
-  };
-
   if (earlyCheckOut) {
     const fewer = nightsBetween(checkIn, extendedCheckOut) - actualNights;
     if (fewer > 0) {
       lines.push({
         key: 'early',
         kind: 'early',
-        label: `Trả mèo sớm: bớt ${fewer} đêm`,
-        detail: `Đón ngày ${earlyCheckOut} thay vì ${extendedCheckOut}`,
-        // Những đêm bớt đi nằm trong phần gia hạn thì hoàn theo giá gia hạn, còn lại theo giá phòng
-        amount: -refundForNights(fewer),
+        label: `Trả mèo sớm: ${fewer} đêm không ở`,
+        detail: `Đón ngày ${earlyCheckOut} thay vì ${extendedCheckOut} · không hoàn tiền số đêm không ở`,
+        // Quy định: check-out sớm không hoàn tiền những đêm đã đặt mà không ở
+        amount: 0,
       });
-      changes.push({ at: booking.checkedOutAt, text: `Check-out sớm ngày ${earlyCheckOut} (hẹn đón ${extendedCheckOut}), bớt ${fewer} đêm` });
+      changes.push({ at: booking.checkedOutAt, text: `Check-out sớm ngày ${earlyCheckOut} (hẹn đón ${extendedCheckOut}), ${fewer} đêm không ở, không hoàn tiền` });
     }
   }
 

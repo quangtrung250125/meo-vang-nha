@@ -59,7 +59,7 @@ const StatsTab = ({ customers, onOpenProfile, onOpenList }) => {
         <SectionTitle
           icon={CalendarRange}
           title="Doanh thu theo tháng gửi mèo"
-          subtitle="Chỉ cộng khi khách đã check-out và thanh toán hóa đơn (số tiền chốt sau khi mua thêm dịch vụ hoặc trả mèo sớm). Doanh thu tính cho tháng của ngày gửi mèo đầu tiên (VD: gửi 25/10 → đón 08/11 tính vào tháng 10)."
+          subtitle="Chỉ cộng khi khách đã check-out và thanh toán hóa đơn (số tiền chốt sau khi mua thêm dịch vụ, gia hạn hoặc trả mèo muộn; trả mèo sớm không hoàn tiền). Doanh thu tính cho tháng của ngày gửi mèo đầu tiên (VD: gửi 25/10 → đón 08/11 tính vào tháng 10)."
         />
         {stats.revenueByMonth.length === 0 ? (
           <p className="text-sm text-gray-500">Chưa có đơn nào đã check-out và thanh toán.</p>
