@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { getStayStep, formatCheckInTime } from '../../src/utils/stayJourney';
+import { getStayStep, formatCheckInTime, isMissedBooking } from '../../src/utils/stayJourney';
 import { makeImouSign, getImouConfig, getImouLiveStream, setImouFetch, parseRoomCameras } from '../../api/_lib/imouService.js';
 
 describe('Hành trình lưu trú', () => {
@@ -22,6 +22,13 @@ describe('Hành trình lưu trú', () => {
     expect(getStayStep(inHouse, '2026-11-06')).toBe(4);
     expect(getStayStep(inHouse, '2026-11-08')).toBe(4);
     expect(getStayStep({ ...inHouse, checkOut: '2026-11-09' }, '2026-11-06')).toBe(3);
+  });
+  it('đơn đã qua ngày đón mà chưa check-in thì không còn là đơn sắp tới', () => {
+    const old = { checkIn: '2026-10-07', checkOut: '2026-10-08', status: 'check-in' };
+    expect(isMissedBooking(old, '2026-11-04')).toBe(true);
+    expect(isMissedBooking(old, '2026-10-08')).toBe(true);
+    expect(isMissedBooking(old, '2026-10-07')).toBe(false);
+    expect(isMissedBooking({ ...old, status: 'đang ở' }, '2026-11-04')).toBe(false);
   });
   it('định dạng thời gian check-in', () => {
     const d = new Date(2026, 10, 3, 9, 5);

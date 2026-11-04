@@ -1,8 +1,17 @@
 import { BOOKING_STATUS, normalizeStatusValue } from './bookingStatus.js';
+import { todayInVietnam } from './bookingDeposit.js';
 
-// Ngày hôm nay theo giờ máy (YYYY-MM-DD), so sánh trực tiếp với checkIn / checkOut của đơn
-export const getTodayStr = (now = new Date()) =>
-  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+// Ngày hôm nay theo giờ Việt Nam (YYYY-MM-DD), so sánh trực tiếp với checkIn / checkOut của đơn
+export const getTodayStr = (now = new Date()) => todayInVietnam(now);
+
+/**
+ * Đơn bị lỡ: chưa từng được Admin check-in mà đã tới / qua ngày đón bé.
+ * Đơn này không còn là đơn "sắp tới" nên trang Theo dõi lưu trú không hiện nữa.
+ */
+export const isMissedBooking = (booking, todayStr = getTodayStr()) =>
+  Boolean(booking)
+  && normalizeStatusValue(booking.status) === BOOKING_STATUS.UPCOMING
+  && Boolean(booking.checkOut) && todayStr >= booking.checkOut;
 
 /**
  * Bước hiện tại của "Hành trình lưu trú" (trang Theo dõi lưu trú):

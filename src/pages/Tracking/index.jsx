@@ -28,7 +28,7 @@ import {
   testPhoneNotification
 } from '../../utils/notifications';
 import ImouLiveCamera from '../../components/ImouLiveCamera';
-import { getStayStep, formatCheckInTime } from '../../utils/stayJourney';
+import { getStayStep, formatCheckInTime, isMissedBooking, getTodayStr } from '../../utils/stayJourney';
 import { BOOKING_STATUS, BOOKING_STATUS_CONFIG, getBookingStatus, normalizeStatusValue } from '../../utils/bookingStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -506,6 +506,8 @@ const TrackingPage = () => {
     || inHouseBookings[0]
     || myBookings
       .filter(b => [BOOKING_STATUS.UPCOMING, BOOKING_STATUS.PENDING_CUSTOMER_APPROVAL].includes(getBookingStatus(b)))
+      // Bỏ đơn đã qua ngày đón bé mà chưa từng check-in (không còn là đơn sắp tới)
+      .filter(b => !isMissedBooking(b))
       .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''))[0];
 
   // Booking mẫu đồng bộ 100% với 3 bé mèo đang lưu trú trên Admin Dashboard
@@ -563,6 +565,8 @@ const TrackingPage = () => {
   // Bước của hành trình lưu trú; chỉ khi đã check-in (bước 3) mới hiện nhật ký, camera, gói, dịch vụ thêm
   const stayStep = activeBooking === demoBooking ? 3 : getStayStep(activeBooking);
   const showStayDetails = stayStep >= 3;
+  // Đã qua ngày gửi bé nhưng nhân viên chưa nhận bé (check-in)
+  const isLateCheckIn = stayStep === 2 && Boolean(activeBooking?.checkIn) && getTodayStr() > activeBooking.checkIn;
   const checkInTimeLabel = activeBooking && activeBooking !== demoBooking && stayStep >= 3
     ? formatCheckInTime(activeBooking.checkedInAt)
     : '';
@@ -818,7 +822,9 @@ const TrackingPage = () => {
                     <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="font-bold text-amber-600">
                       {isUpcoming
-                        ? (daysRemaining === 0 ? 'Hôm nay là ngày gửi bé' : `Còn ${daysRemaining} ngày đến ngày gửi bé`)
+                        ? (isLateCheckIn
+                          ? `Đã qua ngày gửi bé (${formatDate(activeBooking.checkIn)})`
+                          : daysRemaining === 0 ? 'Hôm nay là ngày gửi bé' : `Còn ${daysRemaining} ngày đến ngày gửi bé`)
                         : (stayStep >= 4 ? 'Hôm nay là ngày đón bé' : `Còn ${daysRemaining} ngày`)}
                     </span>
                   </div>
@@ -871,7 +877,9 @@ const TrackingPage = () => {
                       <span className="text-2xl">{stayStep === 2 ? '🏠' : '🗓️'}</span>
                     </div>
                     <h3 className="font-bold text-text-dark mb-1">
-                      {stayStep === 2 ? 'Hôm nay là ngày gửi bé' : 'Bé chưa đến ngày lưu trú'}
+                      {stayStep === 2
+                        ? (isLateCheckIn ? 'Đang chờ nhân viên nhận bé' : 'Hôm nay là ngày gửi bé')
+                        : 'Bé chưa đến ngày lưu trú'}
                     </h3>
                     <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
                       {stayStep === 2
