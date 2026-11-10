@@ -87,6 +87,9 @@ async function callImou(config, method, params = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(12_000), // Imou chậm quá thì báo lỗi, không để khách chờ mãi
+  }).catch((e) => {
+    throw new ImouError(e?.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK', 'Không kết nối được Imou: ' + (e?.message || e));
   });
   const json = await res.json().catch(() => null);
   const result = json?.result;
@@ -180,6 +183,7 @@ export async function getImouLiveStream({ roomId } = {}, config = getImouConfig(
 export function describeImouError(code) {
   if (code === 'NOT_CONFIGURED') return 'Camera đang được kết nối, vui lòng quay lại sau.';
   if (code === 'DV1007' || code === 'DV1020') return 'Camera đang tạm mất kết nối mạng.';
+  if (code === 'TIMEOUT' || code === 'NETWORK') return 'Chưa kết nối được máy chủ camera, vui lòng thử lại sau.';
   if (code === 'NO_DEVICE' || code === 'DV1028') return 'Phòng này chưa được gắn camera.';
   return 'Không mở được camera lúc này, vui lòng thử lại sau.';
 }

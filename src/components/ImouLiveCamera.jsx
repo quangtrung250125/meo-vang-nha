@@ -25,7 +25,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       if (json.success && json.hls) {
         setState({ status: 'ready', hls: json.hls, cover: json.cover || null, message: '' });
       } else {
-        setState({ status: 'error', hls: null, cover: null, message: json.message || 'Không mở được camera lúc này.' });
+        setState({ status: 'error', hls: null, cover: null, message: json.message || 'Không mở được camera lúc này.', errorCode: json.code ? `${json.code}${json.detail ? ` – ${json.detail}` : ''}` : '' });
       }
     } catch {
       setState({ status: 'error', hls: null, cover: null, message: 'Không mở được camera lúc này.' });
@@ -108,6 +108,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
           <div className="flex flex-col items-center gap-2 text-center px-4">
             <VideoOff className="w-8 h-8 text-white/60" />
             <p className="text-white/80 text-xs leading-relaxed">{state.message}</p>
+            {state.errorCode && <p className="text-white/40 text-[10px] break-all" data-testid="camera-error-code">Mã lỗi: {state.errorCode}</p>}
             <button
               onClick={load}
               className="mt-1 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg cursor-pointer"

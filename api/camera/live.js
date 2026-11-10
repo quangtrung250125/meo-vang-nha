@@ -29,6 +29,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, hls: stream.hls, cover: stream.cover, test: Boolean(stream.test) });
   } catch (e) {
     console.warn('[Imou] Lỗi lấy link camera:', e.code, e.message);
-    return res.status(200).json({ success: false, code: e.code || 'ERROR', message: describeImouError(e.code) });
+    return res.status(200).json({ success: false, code: e.code || 'ERROR', detail: String(e.message || '').slice(0, 200), message: describeImouError(e.code) });
   }
 }
