@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { getRequestUser } from './auth.js';
+import { getBearerToken, getRequestUser } from './auth.js';
+import { listAllStoredBookings } from './bookingsDb.js';
 import { isDemoBooking, withoutDemoBookings } from '../../src/utils/demoBookings.js';
 
 const DATA_DIR = process.env.MVN_DATA_DIR || path.resolve(process.cwd(), 'api/_lib');
@@ -140,6 +141,29 @@ function stampOwnership(body, user) {
   };
 }
 
+/**
+ * Admin: gộp thêm mọi đơn trong database (Supabase) vào dữ liệu đồng bộ.
+ * Kho sync_store.json chỉ nằm trong bộ nhớ / ổ đĩa tạm của từng bản server Vercel nên thường trống,
+ * trong khi trang Tình trạng phòng đọc đơn từ database. Thiếu bước này, trang Khách hàng và Tổng quan
+ * không thấy đơn nào (Đơn đặt phòng 0, Doanh thu 0đ) dù admin đã check-out cho khách.
+ */
+export async function withStoredBookings(data, accessToken = null) {
+  const stored = await listAllStoredBookings(accessToken);
+  if (!stored || stored.length === 0) return data;
+  const byKey = new Map();
+  const keyOf = (b) => b?.code || b?.id;
+  (data.bookings || []).forEach((b) => {
+    if (keyOf(b)) byKey.set(keyOf(b), b);
+  });
+  // Database là nguồn chính (check-in / check-out / thanh toán đều ghi vào đây)
+  stored.forEach((b) => {
+    const key = keyOf(b);
+    if (!key) return;
+    byKey.set(key, { ...byKey.get(key), ...b });
+  });
+  return { ...data, bookings: [...byKey.values()] };
+}
+
 export async function handleSync(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -147,9 +171,10 @@ export async function handleSync(req, res) {
   const user = await getRequestUser(req);
 
   if (req.method === 'GET') {
+    const data = user?.isAdmin ? await withStoredBookings(getSyncData(), getBearerToken(req)) : getSyncData();
     return res.status(200).json({
       success: true,
-      data: scopeSyncData(getSyncData(), user),
+      data: scopeSyncData(data, user),
     });
   }
 

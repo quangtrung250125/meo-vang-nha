@@ -133,10 +133,10 @@ export const segmentOf = (customer) => {
 };
 
 /**
- * @param {{ profiles?: object[], bookings?: object[], pets?: object[], excludeIds?: string[] }} sources
+ * @param {{ profiles?: object[], bookings?: object[], pets?: object[], excludeIds?: string[], excludePhones?: string[] }} sources
  * @returns {object[]} danh sách khách hàng, mới hoạt động gần nhất đứng đầu
  */
-export function buildCustomers({ profiles = [], bookings = [], pets = [], excludeIds = [] } = {}) {
+export function buildCustomers({ profiles = [], bookings = [], pets = [], excludeIds = [], excludePhones = [] } = {}) {
   const excluded = new Set(excludeIds.filter(Boolean));
   const customers = new Map();
   const phoneIndex = new Map();
@@ -175,10 +175,19 @@ export function buildCustomers({ profiles = [], bookings = [], pets = [], exclud
   });
 
   // 2. Đơn đặt phòng: theo mã khách, nếu không có thì theo số điện thoại
+  // SĐT của tài khoản bị loại (admin đang đăng nhập) để không tính đơn admin tự đặt cho mình
+  const excludedPhones = new Set(
+    [...excludePhones, ...profiles.filter((p) => p && excluded.has(p.id)).map((p) => p.phone)]
+      .map(normalizePhone)
+      .filter(Boolean)
+  );
+
   dedupe(bookings, bookingKey).forEach((b) => {
-    const ownerId = b.customerId || b.customer_id;
-    if (ownerId && excluded.has(ownerId)) return;
+    const rawOwnerId = b.customerId || b.customer_id;
     const phone = normalizePhone(b.customerPhone || b.ownerPhone || b.phone);
+    // Admin đặt phòng hộ khách (đơn mang mã tài khoản admin): vẫn tính cho khách theo SĐT trên đơn
+    const ownerId = rawOwnerId && excluded.has(rawOwnerId) ? null : rawOwnerId;
+    if (rawOwnerId && !ownerId && (!phone || excludedPhones.has(phone))) return;
     const id = ownerId || (phone && phoneIndex.get(phone)) || (phone ? `phone:${phone}` : null);
     if (!id) return;
     const customer = ensure(id, {

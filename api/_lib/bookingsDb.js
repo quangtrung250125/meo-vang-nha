@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { supabaseAdmin, createUserClient } from './db.js';
+import { supabaseAdmin, createUserClient, hasServiceRole } from './db.js';
 import { updateBookingRows } from '../../src/utils/bookingRows.js';
 
 // Lưu đơn đặt phòng vào bảng `bookings` trên Supabase (cột: id, customer_id, code, data, created_at).
@@ -34,6 +34,15 @@ const supabaseStore = {
   async list() {
     const { data, error } = await withTimeout(
       supabaseAdmin.from('bookings').select(BOOKING_COLUMNS)
+    );
+    if (error) throw error;
+    return (data || []).map(fromRow);
+  },
+
+  // Toàn bộ đơn đọc bằng quyền của người gửi request (admin: RLS cho xem hết nếu có policy admin)
+  async listForUser(accessToken) {
+    const { data, error } = await withTimeout(
+      createUserClient(accessToken).from('bookings').select(BOOKING_COLUMNS)
     );
     if (error) throw error;
     return (data || []).map(fromRow);
@@ -99,6 +108,21 @@ export async function listStoredBookings() {
   } catch (e) {
     console.warn('[BookingsDb] Không đọc được đơn từ Supabase:', e.message);
     return null;
+  }
+}
+
+/**
+ * Mọi đơn trong database, kể cả đơn đã check-out / đã hủy (trang Khách hàng, Tổng quan của admin cần
+ * đơn đã check-out để tính doanh thu). Không có service role key thì đọc bằng token của admin.
+ */
+export async function listAllStoredBookings(accessToken = null) {
+  if (!store) return [];
+  try {
+    if (!hasServiceRole && accessToken && store.listForUser) return await store.listForUser(accessToken);
+    return await store.list();
+  } catch (e) {
+    console.warn('[BookingsDb] Không đọc được danh sách đơn từ Supabase:', e.message);
+    return [];
   }
 }
 
