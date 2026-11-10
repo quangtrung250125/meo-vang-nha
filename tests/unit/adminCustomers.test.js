@@ -120,3 +120,17 @@ describe('Admin > Khách hàng: chỉ ghi nhận doanh thu khi khách đã check
     expect(merged.find((c) => c.id === 'u1').totalSpent).toBe(1400000);
   });
 });
+
+describe('Admin đặt phòng hộ khách', () => {
+  const adminProfile = { id: 'admin-1', fullName: 'Quản trị viên', phone: '0962606249' };
+  it('đơn mang mã tài khoản admin vẫn tính cho khách theo SĐT trên đơn, đơn admin tự đặt cho mình thì bỏ qua', () => {
+    const list = [
+      { code: 'A-1', customerId: 'admin-1', customerPhone: '0911 222 333', customerName: 'Chị Lan', status: 'check-out', checkIn: '2026-11-01', totalPrice: 500000, paymentStatus: 'Đã thanh toán' },
+      { code: 'A-2', customerId: 'admin-1', customerPhone: '0962606249', status: 'check-out', checkIn: '2026-11-01', totalPrice: 700000, paymentStatus: 'Đã thanh toán' },
+    ];
+    const customers = buildCustomers({ profiles: [adminProfile], bookings: list, excludeIds: ['admin-1'], excludePhones: ['0962606249'] });
+    expect(customers.map((c) => c.id)).toEqual(['phone:0911222333']);
+    expect(customers[0].totalSpent).toBe(500000);
+    expect(computeStats(customers).revenue).toBe(500000);
+  });
+});

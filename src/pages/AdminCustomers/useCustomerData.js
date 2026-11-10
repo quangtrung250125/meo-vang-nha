@@ -120,8 +120,9 @@ export default function useCustomerData({ extraProfiles = NO_PROFILES } = {}) {
       bookings: [...db.bookings, ...globalBookingList, ...server.bookings],
       pets: [...db.pets, ...petList, ...server.pets],
       excludeIds: [authenticatedCustomer?.id],
+      excludePhones: [authenticatedCustomer?.phone],
     }),
-    [db, server, extraProfiles, globalBookingList, petList, authenticatedCustomer?.id]
+    [db, server, extraProfiles, globalBookingList, petList, authenticatedCustomer?.id, authenticatedCustomer?.phone]
   );
 
   return { customers, loading, lastSyncedAt, refresh };

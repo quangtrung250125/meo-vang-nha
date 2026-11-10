@@ -15,6 +15,14 @@ const callBookingsApi = async (method = 'GET', body) =>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
+// Báo cho trang Khách hàng / Tổng quan (useCustomerData) tải lại số liệu ngay khi đơn đổi trạng thái
+// (check-in, check-out, hủy...), không phải chờ lượt làm mới 15 giây
+const notifyBookingsChanged = () => {
+  try {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('mvn_booking_sync'));
+  } catch (e) {}
+};
+
 // ─────────────────────────────────────────────
 // Helper: generate a unique booking detail key for localStorage
 // ─────────────────────────────────────────────
@@ -664,6 +672,7 @@ export const RoomStateProvider = ({ children }) => {
         'broadcast',
         { event: 'BOOKING_UPDATED' },
         ({ payload }) => {
+          notifyBookingsChanged();
           if (payload?.allBookings) {
             setBookings(payload.allBookings);
             try {
@@ -676,6 +685,7 @@ export const RoomStateProvider = ({ children }) => {
         'broadcast',
         { event: 'BOOKING_REMOVED' },
         ({ payload }) => {
+          notifyBookingsChanged();
           if (payload?.roomId && payload?.code) {
             setBookings((prev) => {
               const current = prev[payload.roomId] || [];
@@ -695,6 +705,8 @@ export const RoomStateProvider = ({ children }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         (payload) => {
+          // Máy khác vừa check-in / check-out / thanh toán: trang Khách hàng, Tổng quan cập nhật theo
+          notifyBookingsChanged();
           if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
             const row = payload.new;
             const bData = row.data || {};
@@ -915,7 +927,7 @@ export const RoomStateProvider = ({ children }) => {
       }
 
       // Đồng bộ Server API
-      callBookingsApi('PUT', { roomId, code, updates }).catch(() => {});
+      callBookingsApi('PUT', { roomId, code, updates }).then(notifyBookingsChanged).catch(() => {});
 
       if (syncChannel) {
         syncChannel.postMessage({ type: 'BOOKING_UPDATED', roomId, code, updates, allBookings: updated });
@@ -971,7 +983,9 @@ export const RoomStateProvider = ({ children }) => {
     });
 
     // Đồng bộ trạng thái check-out lên Server API trung tâm
-    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out', checkedOutAt, checkOutNote } }).catch(() => {});
+    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out', checkedOutAt, checkOutNote } })
+      .then(notifyBookingsChanged)
+      .catch(() => {});
 
     // Cập nhật lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
     updateBookingRows(supabase, code, { status: 'check-out', checkedOutAt, checkOutNote })
@@ -996,7 +1010,7 @@ export const RoomStateProvider = ({ children }) => {
       }
 
       // Đồng bộ xóa/hủy đơn lên Server API trung tâm (kèm lý do để trang khách hiện "Đã hủy" + lý do)
-      callBookingsApi('DELETE', { roomId, code, reason }).catch(() => {});
+      callBookingsApi('DELETE', { roomId, code, reason }).then(notifyBookingsChanged).catch(() => {});
 
       // Cập nhật trạng thái hủy lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
       updateBookingRows(supabase, code, cancelled)

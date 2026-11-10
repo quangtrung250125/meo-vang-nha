@@ -648,4 +648,27 @@ describe('Đơn đặt phòng lưu trên database', () => {
     const mine = await call(fresh.handleGetBookings, { token: 'token-a' });
     expect(mine.payload.bookings['VVIP-02'].find((b) => b.code === 'MVN-66666').paymentStatus).toBe('deposit_paid');
   });
+
+  it('trang Khách hàng / Tổng quan (GET /api/sync của admin) thấy cả đơn đã check-out trong database', async () => {
+    const paidOut = { id: 'MVN-83436', code: 'MVN-83436', roomId: 'VIP-01', checkIn: addDays(-3), checkOut: addDays(0), cats: 1, status: 'check-out', paymentStatus: 'Đã thanh toán', totalPrice: 900000, customerId: 'user-a', ownerPhone: '0900000001' };
+    const staying = { id: 'MVN-83437', code: 'MVN-83437', roomId: 'VIP-02', checkIn: addDays(-1), checkOut: addDays(2), cats: 1, status: 'đang ở', customerId: 'user-b' };
+    const store = { rows: [paidOut, staying], async list() { return this.rows; }, async save() { return null; }, async update() { return false; } };
+    vi.resetModules();
+    const db = await import('../../api/_lib/bookingsDb.js');
+    db.setBookingsStore(store);
+    const freshAuth = await import('../../api/_lib/auth.js');
+    freshAuth.setTokenVerifier(async (token) => USERS[token] || null);
+    const freshSync = await import('../../api/_lib/syncService.js');
+
+    const admin = await call(freshSync.handleSync, { token: 'token-admin' });
+    const codes = admin.payload.data.bookings.map((b) => b.code);
+    expect(codes).toEqual(expect.arrayContaining(['MVN-83436', 'MVN-83437']));
+    const out = admin.payload.data.bookings.find((b) => b.code === 'MVN-83436');
+    expect(out.status).toBe('check-out');
+    expect(out.paymentStatus).toBe('Đã thanh toán');
+
+    // Khách chỉ thấy đơn của mình như trước
+    const customer = await call(freshSync.handleSync, { token: 'token-b' });
+    expect(customer.payload.data.bookings.map((b) => b.code)).not.toContain('MVN-83436');
+  });
 });
