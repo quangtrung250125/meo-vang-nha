@@ -21,6 +21,8 @@ export function getImouConfig(env = process.env) {
     streamId,
     defaultCamera: parseCameraRef(env.IMOU_DEVICE_ID, env.IMOU_CHANNEL_ID),
     roomCameras: parseRoomCameras(env.IMOU_ROOM_CAMERAS),
+    // Chế độ thử: link HLS mẫu để kiểm tra luồng xem khi chưa có khoá/camera thật (để trống khi chạy thật)
+    testHls: /^https:\/\//.test((env.IMOU_TEST_HLS || '').trim()) ? env.IMOU_TEST_HLS.trim() : '',
     configured: Boolean(appId && appSecret),
   };
 }
@@ -85,6 +87,9 @@ async function callImou(config, method, params = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(12_000), // Imou chậm quá thì báo lỗi, không để khách chờ mãi
+  }).catch((e) => {
+    throw new ImouError(e?.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK', 'Không kết nối được Imou: ' + (e?.message || e));
   });
   const json = await res.json().catch(() => null);
   const result = json?.result;
@@ -153,6 +158,7 @@ const pickHls = (streams = [], streamId) => {
  * Lấy link HLS xem trực tiếp: tạo live (bindDeviceLive); nếu live đã có sẵn (LV1001) thì đọc lại link (getLiveStreamInfo)
  */
 export async function getImouLiveStream({ roomId } = {}, config = getImouConfig()) {
+  if (!config.configured && config.testHls) return { hls: config.testHls, cover: null, deviceId: 'TEST', channelId: '0', test: true };
   if (!config.configured) throw new ImouError('NOT_CONFIGURED', 'Chưa cấu hình IMOU_APP_ID / IMOU_APP_SECRET');
   const cam = await resolveCamera(roomId, config);
   const params = { deviceId: cam.deviceId, channelId: cam.channelId };
@@ -177,6 +183,7 @@ export async function getImouLiveStream({ roomId } = {}, config = getImouConfig(
 export function describeImouError(code) {
   if (code === 'NOT_CONFIGURED') return 'Camera đang được kết nối, vui lòng quay lại sau.';
   if (code === 'DV1007' || code === 'DV1020') return 'Camera đang tạm mất kết nối mạng.';
+  if (code === 'TIMEOUT' || code === 'NETWORK') return 'Chưa kết nối được máy chủ camera, vui lòng thử lại sau.';
   if (code === 'NO_DEVICE' || code === 'DV1028') return 'Phòng này chưa được gắn camera.';
   return 'Không mở được camera lúc này, vui lòng thử lại sau.';
 }
