@@ -10,7 +10,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
   const config = getImouConfig();
-  if (!config.configured && !config.testHls) {
+  // Chế độ DEMO (tắt mặc định): chỉ bật IMOU_DEMO_CAMERA=1 ở môi trường Preview hoặc khi trình diễn
+  const demo = process.env.IMOU_DEMO_CAMERA === '1';
+  if (!config.configured && !config.testHls && !demo) {
     return res.status(200).json({ success: false, code: 'NOT_CONFIGURED', message: describeImouError('NOT_CONFIGURED') });
   }
 
@@ -22,6 +24,10 @@ export default async function handler(req, res) {
   const booking = await findViewableInHouseBooking(code, user, getBearerToken(req));
   if (!booking) {
     return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Camera chỉ mở khi bé đang lưu trú tại Mèo Vắng Nhà.' });
+  }
+
+  if (demo) {
+    return res.status(200).json({ success: true, demo: true, room: booking.roomId || booking.selectedRoom?.id || booking.selectedRoom?.name || null });
   }
 
   try {

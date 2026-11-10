@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Video, Loader2, RefreshCw, VideoOff } from 'lucide-react';
 import { getAuthHeaders } from '../services/crossDeviceSync';
-import cameraFeed from '../assets/images/camera_feed.png';
+import DemoRoomFeed, { roomKeyFromRoom } from './DemoRoomFeed';
 
 // Link HLS của Imou hết hạn sau một thời gian -> xin link mới định kỳ khi đang xem
 const REFRESH_MS = 8 * 60 * 1000;
@@ -13,7 +13,7 @@ const REFRESH_MS = 8 * 60 * 1000;
 const ImouLiveCamera = ({ booking, isDemo = false }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
-  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '' });
+  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', room: null });
   const code = booking?.code || booking?.id;
 
   const load = useCallback(async () => {
@@ -22,7 +22,9 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
     try {
       const res = await fetch(`/api/camera/live?code=${encodeURIComponent(code)}`, { headers: await getAuthHeaders() });
       const json = await res.json().catch(() => ({}));
-      if (json.success && json.hls) {
+      if (json.success && json.demo) {
+        setState({ status: 'demo', hls: null, cover: null, message: '', room: json.room || null });
+      } else if (json.success && json.hls) {
         setState({ status: 'ready', hls: json.hls, cover: json.cover || null, message: '' });
       } else {
         setState({ status: 'error', hls: null, cover: null, message: json.message || 'Không mở được camera lúc này.', errorCode: json.code ? `${json.code}${json.detail ? ` – ${json.detail}` : ''}` : '' });
@@ -68,7 +70,9 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
     };
   }, [state.status, state.hls]);
 
-  const isLive = state.status === 'ready' || state.status === 'demo';
+  const isLive = state.status === 'ready';
+  const isDemoFeed = state.status === 'demo';
+  const demoRoom = roomKeyFromRoom(state.room, booking?.roomId, booking?.selectedRoom?.id, booking?.selectedRoom?.name);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm" data-testid="live-camera">
@@ -78,10 +82,10 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       </h3>
 
       <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium ${
-        isLive ? 'bg-primary-light text-primary' : 'bg-gray-100 text-gray-500'
+        isLive ? 'bg-primary-light text-primary' : isDemoFeed ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
       }`}>
-        <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-primary animate-pulse' : 'bg-gray-400'}`} />
-        {state.status === 'loading' ? 'Đang kết nối camera...' : isLive ? 'Camera đang hoạt động' : 'Camera chưa sẵn sàng'}
+        <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-primary animate-pulse' : isDemoFeed ? 'bg-amber-500' : 'bg-gray-400'}`} />
+        {state.status === 'loading' ? 'Đang kết nối camera...' : isLive ? 'Camera đang hoạt động' : isDemoFeed ? 'Hình minh hoạ (chế độ demo)' : 'Camera chưa sẵn sàng'}
       </div>
 
       <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-900 aspect-video flex items-center justify-center border border-gray-200">
@@ -91,7 +95,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
             LIVE
           </div>
         )}
-        {state.status === 'demo' && <img src={cameraFeed} alt="Camera live" className="w-full h-full object-cover" />}
+        {isDemoFeed && <DemoRoomFeed room={demoRoom} />}
         {state.status === 'ready' && (
           <video
             ref={videoRef}
