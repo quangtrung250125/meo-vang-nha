@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
   const config = getImouConfig();
-  // Chế độ DEMO (tắt mặc định): chỉ bật IMOU_DEMO_CAMERA=1 ở môi trường Preview hoặc khi trình diễn
-  const demo = process.env.IMOU_DEMO_CAMERA === '1';
+  // Chế độ DEMO (bật mặc định vì chưa có camera thật): đặt IMOU_DEMO_CAMERA=0 để chuyển sang camera Imou thật
+  const demo = process.env.IMOU_DEMO_CAMERA !== '0';
   if (!config.configured && !config.testHls && !demo) {
     return res.status(200).json({ success: false, code: 'NOT_CONFIGURED', message: describeImouError('NOT_CONFIGURED') });
   }
@@ -27,8 +27,8 @@ export default async function handler(req, res) {
   }
 
   if (demo) {
-    // IMOU_DEMO_HIDE_LABEL=1: ẩn nhãn "Hình minh hoạ" khi trình diễn nội bộ (phải đặt riêng, tắt mặc định)
-    return res.status(200).json({ success: true, demo: true, hideLabel: process.env.IMOU_DEMO_HIDE_LABEL === '1' });
+    // Mặc định ẩn nhãn "Hình minh hoạ"; đặt IMOU_DEMO_HIDE_LABEL=0 để hiện lại nhãn
+    return res.status(200).json({ success: true, demo: true, hideLabel: process.env.IMOU_DEMO_HIDE_LABEL !== '0' });
   }
 
   try {
