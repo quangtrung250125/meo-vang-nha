@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   }
 
   if (demo) {
-    return res.status(200).json({ success: true, demo: true, room: booking.roomId || booking.selectedRoom?.id || booking.selectedRoom?.name || null });
+    return res.status(200).json({ success: true, demo: true });
   }
 
   try {

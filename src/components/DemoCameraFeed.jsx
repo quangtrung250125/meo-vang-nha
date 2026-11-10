@@ -1,31 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import vvip from '../assets/images/room-cam/vvip.jpg';
-import vip from '../assets/images/room-cam/vip.jpg';
-import deluxe1 from '../assets/images/room-cam/deluxe1.jpg';
-import deluxe2 from '../assets/images/room-cam/deluxe2.jpg';
-
-const ROOM_IMAGES = { vvip, vip, deluxe1, deluxe2 };
-
-// "VVIP-02" / "P101 (VIP)" / "DELUXE-3" -> khoá ảnh phòng
-export function roomKeyFromRoom(...parts) {
-  const s = parts.filter(Boolean).join(' ').toUpperCase();
-  if (s.includes('VVIP')) return 'vvip';
-  if (s.includes('DELUXE')) {
-    const n = Number((s.match(/(\d+)\s*$/) || [])[1] || 1);
-    return n % 2 === 0 ? 'deluxe2' : 'deluxe1';
-  }
-  if (s.includes('VIP')) return 'vip';
-  return 'vvip';
-}
+import cameraPhong from '../assets/images/room-cam/camera-phong.jpg';
 
 const pad = (n) => String(n).padStart(2, '0');
 const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 /**
- * Chế độ DEMO: giả lập góc nhìn camera từ ảnh phòng thật của quán (lia chậm, nhiễu hạt, đồng hồ chạy).
+ * Chế độ DEMO: giả lập góc nhìn camera từ một khung hình thật của camera quán, đã cắt bỏ phần có mèo
+ * (lia chậm, nhiễu hạt, đồng hồ chạy). Phòng trống, không có mèo.
  * Chỉ dùng để trình diễn, luôn gắn nhãn "Hình minh hoạ" và không có nhãn LIVE.
  */
-const DemoRoomFeed = ({ room = 'vvip' }) => {
+const DemoCameraFeed = () => {
   const canvasRef = useRef(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -57,14 +41,14 @@ const DemoRoomFeed = ({ room = 'vvip' }) => {
       last = ts;
       const t = (ts - start) / 1000;
       const iw = img.naturalWidth, ih = img.naturalHeight;
-      const zoom = 1.12 + 0.05 * Math.sin(t / 9);
+      const zoom = 1.02 + 0.03 * Math.sin(t / 9);
       let vw = iw / zoom;
       let vh = (vw * 9) / 16;
       if (vh > ih / zoom) { vh = ih / zoom; vw = (vh * 16) / 9; }
       const maxX = iw - vw, maxY = ih - vh;
       // lia chậm qua lại, thêm rung nhẹ như gió
       const px = 0.5 + 0.5 * Math.sin(t / 17 + 1);
-      const py = 0.5 + 0.5 * Math.sin(t / 23);
+      const py = 0.3 + 0.3 * Math.sin(t / 23); // chỉ lia nửa trên: tường, cột cào, mặt kệ
       const sx = maxX * px + Math.sin(t * 1.7) * 0.6;
       const sy = maxY * py + Math.cos(t * 1.3) * 0.6;
       ctx.filter = `brightness(${0.97 + 0.03 * Math.sin(t * 2.1)}) contrast(1.04) saturate(0.92)`;
@@ -87,13 +71,13 @@ const DemoRoomFeed = ({ room = 'vvip' }) => {
     };
 
     img.onload = () => { ready = true; };
-    img.src = ROOM_IMAGES[room] || ROOM_IMAGES.vvip;
+    img.src = cameraPhong;
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [room]);
+  }, []);
 
   return (
-    <div className="relative w-full h-full" data-testid="demo-room-feed">
+    <div className="relative w-full h-full" data-testid="demo-camera-feed">
       <canvas ref={canvasRef} className="w-full h-full object-cover" />
       <div className="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
         HÌNH MINH HOẠ · DEMO
@@ -105,4 +89,4 @@ const DemoRoomFeed = ({ room = 'vvip' }) => {
   );
 };
 
-export default DemoRoomFeed;
+export default DemoCameraFeed;

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Video, Loader2, RefreshCw, VideoOff } from 'lucide-react';
 import { getAuthHeaders } from '../services/crossDeviceSync';
-import DemoRoomFeed, { roomKeyFromRoom } from './DemoRoomFeed';
+import DemoCameraFeed from './DemoCameraFeed';
 
 // Link HLS của Imou hết hạn sau một thời gian -> xin link mới định kỳ khi đang xem
 const REFRESH_MS = 8 * 60 * 1000;
@@ -13,7 +13,7 @@ const REFRESH_MS = 8 * 60 * 1000;
 const ImouLiveCamera = ({ booking, isDemo = false }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
-  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', room: null });
+  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '' });
   const code = booking?.code || booking?.id;
 
   const load = useCallback(async () => {
@@ -23,7 +23,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       const res = await fetch(`/api/camera/live?code=${encodeURIComponent(code)}`, { headers: await getAuthHeaders() });
       const json = await res.json().catch(() => ({}));
       if (json.success && json.demo) {
-        setState({ status: 'demo', hls: null, cover: null, message: '', room: json.room || null });
+        setState({ status: 'demo', hls: null, cover: null, message: '' });
       } else if (json.success && json.hls) {
         setState({ status: 'ready', hls: json.hls, cover: json.cover || null, message: '' });
       } else {
@@ -72,7 +72,6 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
 
   const isLive = state.status === 'ready';
   const isDemoFeed = state.status === 'demo';
-  const demoRoom = roomKeyFromRoom(state.room, booking?.roomId, booking?.selectedRoom?.id, booking?.selectedRoom?.name);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm" data-testid="live-camera">
@@ -95,7 +94,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
             LIVE
           </div>
         )}
-        {isDemoFeed && <DemoRoomFeed room={demoRoom} />}
+        {isDemoFeed && <DemoCameraFeed />}
         {state.status === 'ready' && (
           <video
             ref={videoRef}
