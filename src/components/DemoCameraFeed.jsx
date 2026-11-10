@@ -5,8 +5,8 @@ const pad = (n) => String(n).padStart(2, '0');
 const stamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
 /**
- * Chế độ DEMO: giả lập góc nhìn camera từ một khung hình thật của camera quán, đã cắt bỏ phần có mèo
- * (lia chậm, nhiễu hạt, đồng hồ chạy). Phòng trống, không có mèo.
+ * Chế độ DEMO (chỉ để trình diễn nội bộ): giả lập góc nhìn camera từ một khung hình tĩnh
+ * (lia nhẹ, nhiễu hạt, đồng hồ chạy theo giờ thật). Luôn có nhãn nhỏ "Hình minh hoạ".
  * Chỉ dùng để trình diễn, luôn gắn nhãn "Hình minh hoạ" và không có nhãn LIVE.
  */
 const DemoCameraFeed = () => {
@@ -48,7 +48,7 @@ const DemoCameraFeed = () => {
       const maxX = iw - vw, maxY = ih - vh;
       // lia chậm qua lại, thêm rung nhẹ như gió
       const px = 0.5 + 0.5 * Math.sin(t / 17 + 1);
-      const py = 0.3 + 0.3 * Math.sin(t / 23); // chỉ lia nửa trên: tường, cột cào, mặt kệ
+      const py = 0.5 + 0.5 * Math.sin(t / 23);
       const sx = maxX * px + Math.sin(t * 1.7) * 0.6;
       const sy = maxY * py + Math.cos(t * 1.3) * 0.6;
       ctx.filter = `brightness(${0.97 + 0.03 * Math.sin(t * 2.1)}) contrast(1.04) saturate(0.92)`;
@@ -79,8 +79,8 @@ const DemoCameraFeed = () => {
   return (
     <div className="relative w-full h-full" data-testid="demo-camera-feed">
       <canvas ref={canvasRef} className="w-full h-full object-cover" />
-      <div className="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
-        HÌNH MINH HOẠ · DEMO
+      <div className="absolute bottom-2 left-2 bg-black/45 text-white/90 text-[10px] font-medium px-2 py-0.5 rounded-full z-10">
+        Hình minh hoạ
       </div>
       <div className="absolute top-2 right-2 text-white/90 text-[11px] font-mono drop-shadow" style={{ textShadow: '0 1px 2px rgba(0,0,0,.8)' }}>
         {stamp(now)}
