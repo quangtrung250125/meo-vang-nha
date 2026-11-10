@@ -13,7 +13,7 @@ const REFRESH_MS = 8 * 60 * 1000;
 const ImouLiveCamera = ({ booking, isDemo = false }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
-  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', hideLabel: false });
+  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', hideLabel: true });
   const code = booking?.code || booking?.id;
 
   const load = useCallback(async () => {
@@ -23,7 +23,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       const res = await fetch(`/api/camera/live?code=${encodeURIComponent(code)}`, { headers: await getAuthHeaders() });
       const json = await res.json().catch(() => ({}));
       if (json.success && json.demo) {
-        setState({ status: 'demo', hls: null, cover: null, message: '', hideLabel: Boolean(json.hideLabel) });
+        setState({ status: 'demo', hls: null, cover: null, message: '', hideLabel: json.hideLabel !== false });
       } else if (json.success && json.hls) {
         setState({ status: 'ready', hls: json.hls, cover: json.cover || null, message: '' });
       } else {
