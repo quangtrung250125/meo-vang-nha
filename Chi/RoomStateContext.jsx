@@ -23,6 +23,15 @@ const notifyBookingsChanged = () => {
   } catch (e) {}
 };
 
+// Báo ngay (trước khi máy chủ trả lời) cho trang số liệu biết đơn vừa đổi gì, để số liệu cập nhật tức thì
+const notifyBookingPatched = (code, updates) => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mvn_booking_patched', { detail: { code, updates } }));
+    }
+  } catch (e) {}
+};
+
 // ─────────────────────────────────────────────
 // Helper: generate a unique booking detail key for localStorage
 // ─────────────────────────────────────────────
@@ -913,6 +922,7 @@ export const RoomStateProvider = ({ children }) => {
    * @param {object} updates  - Các trường cần cập nhật
    */
   const updateBooking = useCallback((roomId, code, updates) => {
+    notifyBookingPatched(code, updates);
     mirrorToHistory(code, updates);
     setBookings((prev) => {
       const current = prev[roomId] || [];
@@ -950,7 +960,13 @@ export const RoomStateProvider = ({ children }) => {
     // extra: { checkedOutAt, checkOutNote } — ghi chú check-out đúng hạn / sớm / muộn (hóa đơn tự tính lại tiền)
     const checkedOutAt = extra.checkedOutAt || new Date().toISOString();
     const checkOutNote = extra.checkOutNote || null;
-    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt, checkOutNote, pending_changes: null });
+    // Admin thu đủ tiền lúc check-out: ghi đơn đã thanh toán đủ hóa đơn cuối cùng để tính doanh thu
+    const payment = Number.isFinite(Number(extra.paidAmount)) && extra.paidAmount !== undefined && extra.paidAmount !== null
+      ? { paymentStatus: 'Đã thanh toán', paidAt: checkedOutAt, paidAmount: Number(extra.paidAmount) }
+      : {};
+    const serverUpdates = { status: 'check-out', checkedOutAt, checkOutNote, ...payment };
+    notifyBookingPatched(code, serverUpdates);
+    mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt, checkOutNote, ...payment, pending_changes: null });
     setBookings((prev) => {
       const currentList = prev[roomId] || [];
       // Giải phóng booking khỏi phòng đang ở để phòng trở lại TRỐNG
@@ -983,12 +999,12 @@ export const RoomStateProvider = ({ children }) => {
     });
 
     // Đồng bộ trạng thái check-out lên Server API trung tâm
-    callBookingsApi('PUT', { roomId, code, updates: { status: 'check-out', checkedOutAt, checkOutNote } })
+    callBookingsApi('PUT', { roomId, code, updates: serverUpdates })
       .then(notifyBookingsChanged)
       .catch(() => {});
 
     // Cập nhật lên Supabase Database realtime (lọc theo mã đơn, cột id là uuid)
-    updateBookingRows(supabase, code, { status: 'check-out', checkedOutAt, checkOutNote })
+    updateBookingRows(supabase, code, serverUpdates)
       .catch((err) => console.warn('Lỗi cập nhật check-out lên Supabase:', err.message || err));
   }, [mirrorToHistory]);
 
@@ -997,6 +1013,7 @@ export const RoomStateProvider = ({ children }) => {
    */
   const removeBooking = useCallback((roomId, code, reason = 'Admin hủy đơn') => {
     const cancelled = { status: STORED_STATUS.CANCELLED, cancelReason: reason, cancelledAt: new Date().toISOString(), cancelledBy: 'admin' };
+    notifyBookingPatched(code, cancelled);
     mirrorToHistory(code, { ...cancelled, pending_changes: null });
     setBookings((prev) => {
       const updated = {
