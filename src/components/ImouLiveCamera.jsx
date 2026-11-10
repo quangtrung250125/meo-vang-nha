@@ -13,7 +13,7 @@ const REFRESH_MS = 8 * 60 * 1000;
 const ImouLiveCamera = ({ booking, isDemo = false }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
-  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '' });
+  const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', hideLabel: false });
   const code = booking?.code || booking?.id;
 
   const load = useCallback(async () => {
@@ -23,7 +23,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       const res = await fetch(`/api/camera/live?code=${encodeURIComponent(code)}`, { headers: await getAuthHeaders() });
       const json = await res.json().catch(() => ({}));
       if (json.success && json.demo) {
-        setState({ status: 'demo', hls: null, cover: null, message: '' });
+        setState({ status: 'demo', hls: null, cover: null, message: '', hideLabel: Boolean(json.hideLabel) });
       } else if (json.success && json.hls) {
         setState({ status: 'ready', hls: json.hls, cover: json.cover || null, message: '' });
       } else {
@@ -72,6 +72,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
 
   const isLive = state.status === 'ready';
   const isDemoFeed = state.status === 'demo';
+  const showDemoLabel = isDemoFeed && !state.hideLabel;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm" data-testid="live-camera">
@@ -81,10 +82,10 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       </h3>
 
       <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-xl text-sm font-medium ${
-        isLive ? 'bg-primary-light text-primary' : isDemoFeed ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
+        isLive || (isDemoFeed && state.hideLabel) ? 'bg-primary-light text-primary' : isDemoFeed ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
       }`}>
-        <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-primary animate-pulse' : isDemoFeed ? 'bg-amber-500' : 'bg-gray-400'}`} />
-        {state.status === 'loading' ? 'Đang kết nối camera...' : isLive ? 'Camera đang hoạt động' : isDemoFeed ? 'Hình minh hoạ (chế độ demo)' : 'Camera chưa sẵn sàng'}
+        <div className={`w-2 h-2 rounded-full ${isLive || (isDemoFeed && state.hideLabel) ? 'bg-primary animate-pulse' : isDemoFeed ? 'bg-amber-500' : 'bg-gray-400'}`} />
+        {state.status === 'loading' ? 'Đang kết nối camera...' : isLive || (isDemoFeed && state.hideLabel) ? 'Camera đang hoạt động' : isDemoFeed ? 'Hình minh hoạ (chế độ demo)' : 'Camera chưa sẵn sàng'}
       </div>
 
       <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-900 aspect-video flex items-center justify-center border border-gray-200">
@@ -94,7 +95,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
             LIVE
           </div>
         )}
-        {isDemoFeed && <DemoCameraFeed />}
+        {isDemoFeed && <DemoCameraFeed showLabel={showDemoLabel} />}
         {state.status === 'ready' && (
           <video
             ref={videoRef}

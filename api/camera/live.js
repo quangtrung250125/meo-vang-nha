@@ -27,7 +27,8 @@ export default async function handler(req, res) {
   }
 
   if (demo) {
-    return res.status(200).json({ success: true, demo: true });
+    // IMOU_DEMO_HIDE_LABEL=1: ẩn nhãn "Hình minh hoạ" khi trình diễn nội bộ (phải đặt riêng, tắt mặc định)
+    return res.status(200).json({ success: true, demo: true, hideLabel: process.env.IMOU_DEMO_HIDE_LABEL === '1' });
   }
 
   try {

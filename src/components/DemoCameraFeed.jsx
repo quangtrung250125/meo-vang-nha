@@ -7,9 +7,9 @@ const stamp = (d) => `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYe
 
 /**
  * Chế độ DEMO (chỉ để trình diễn nội bộ): giữ nguyên khung hình camera sân, chỉ có đồng hồ chạy theo giờ thật.
- * Luôn có nhãn nhỏ "Hình minh hoạ".
+ * Mặc định có nhãn nhỏ "Hình minh hoạ"; chỉ ẩn khi máy chủ đặt IMOU_DEMO_HIDE_LABEL=1.
  */
-const DemoCameraFeed = () => {
+const DemoCameraFeed = ({ showLabel = true }) => {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -25,9 +25,11 @@ const DemoCameraFeed = () => {
       >
         {stamp(now)}
       </div>
-      <div className="absolute bottom-2 left-2 bg-black/45 text-white/90 text-[10px] font-medium px-2 py-0.5 rounded-full">
-        Hình minh hoạ
-      </div>
+      {showLabel && (
+        <div className="absolute bottom-2 left-2 bg-black/45 text-white/90 text-[10px] font-medium px-2 py-0.5 rounded-full">
+          Hình minh hoạ
+        </div>
+      )}
     </div>
   );
 };
