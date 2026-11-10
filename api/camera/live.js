@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
   const config = getImouConfig();
-  if (!config.configured) {
+  if (!config.configured && !config.testHls) {
     return res.status(200).json({ success: false, code: 'NOT_CONFIGURED', message: describeImouError('NOT_CONFIGURED') });
   }
 
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
 
   try {
     const stream = await getImouLiveStream({ roomId: booking.roomId || booking.selectedRoom?.id });
-    return res.status(200).json({ success: true, hls: stream.hls, cover: stream.cover });
+    return res.status(200).json({ success: true, hls: stream.hls, cover: stream.cover, test: Boolean(stream.test) });
   } catch (e) {
     console.warn('[Imou] Lỗi lấy link camera:', e.code, e.message);
     return res.status(200).json({ success: false, code: e.code || 'ERROR', message: describeImouError(e.code) });

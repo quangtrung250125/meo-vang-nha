@@ -77,4 +77,13 @@ describe('Camera Imou', () => {
     expect(calls.map((c) => c.method)).toEqual(['accessToken', 'v2/device.detail.page', 'bindDeviceLive', 'getLiveStreamInfo']);
     expect(calls[2].params).toMatchObject({ token: 'tok', deviceId: 'CAM1', channelId: '0', streamId: 1 });
   });
+
+  it('chế độ thử trả link HLS mẫu khi chưa có khoá, có khoá thật thì bỏ qua', async () => {
+    setImouFetch(async () => { throw new Error('không được gọi Imou'); });
+    const test = await getImouLiveStream({}, getImouConfig({ IMOU_TEST_HLS: 'https://demo/test.m3u8' }));
+    expect(test).toMatchObject({ hls: 'https://demo/test.m3u8', test: true });
+    expect(getImouConfig({ IMOU_TEST_HLS: 'http://khong-an-toan.m3u8' }).testHls).toBe('');
+    await expect(getImouLiveStream({}, getImouConfig({ IMOU_APP_ID: 'a', IMOU_APP_SECRET: 'b', IMOU_TEST_HLS: 'https://demo/test.m3u8' })))
+      .rejects.toThrow('không được gọi Imou');
+  });
 });

@@ -21,6 +21,8 @@ export function getImouConfig(env = process.env) {
     streamId,
     defaultCamera: parseCameraRef(env.IMOU_DEVICE_ID, env.IMOU_CHANNEL_ID),
     roomCameras: parseRoomCameras(env.IMOU_ROOM_CAMERAS),
+    // Chế độ thử: link HLS mẫu để kiểm tra luồng xem khi chưa có khoá/camera thật (để trống khi chạy thật)
+    testHls: /^https:\/\//.test((env.IMOU_TEST_HLS || '').trim()) ? env.IMOU_TEST_HLS.trim() : '',
     configured: Boolean(appId && appSecret),
   };
 }
@@ -153,6 +155,7 @@ const pickHls = (streams = [], streamId) => {
  * Lấy link HLS xem trực tiếp: tạo live (bindDeviceLive); nếu live đã có sẵn (LV1001) thì đọc lại link (getLiveStreamInfo)
  */
 export async function getImouLiveStream({ roomId } = {}, config = getImouConfig()) {
+  if (!config.configured && config.testHls) return { hls: config.testHls, cover: null, deviceId: 'TEST', channelId: '0', test: true };
   if (!config.configured) throw new ImouError('NOT_CONFIGURED', 'Chưa cấu hình IMOU_APP_ID / IMOU_APP_SECRET');
   const cam = await resolveCamera(roomId, config);
   const params = { deviceId: cam.deviceId, channelId: cam.channelId };
