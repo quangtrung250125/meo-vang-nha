@@ -133,7 +133,7 @@ const CheckoutInvoiceModal = ({ booking, historyBooking, roomId, onPay, onClose 
         </div>
         <div className="px-5 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors">Hủy</button>
-          <button onClick={() => onPay(pts, { checkedOutAt, timingLabel })} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-sm shadow-lg shadow-orange-200 hover:scale-[1.02] active:scale-[0.98] transition-all">💳 Thanh toán {fmtVND(Math.max(0, total - received))}</button>
+          <button onClick={() => onPay(pts, { checkedOutAt, timingLabel, total })} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-sm shadow-lg shadow-orange-200 hover:scale-[1.02] active:scale-[0.98] transition-all">💳 Thanh toán {fmtVND(Math.max(0, total - received))}</button>
         </div>
       </div>
     </div>
@@ -446,8 +446,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
     setTimeout(() => onClose(), 1500);
   };
 
-  const handlePay = (pts, { checkedOutAt, timingLabel } = {}) => {
-    onCheckOut(roomId, code, { checkedOutAt, checkOutNote: timingLabel || null });
+  const handlePay = (pts, { checkedOutAt, timingLabel, total } = {}) => {
+    // Bấm "Thanh toán" lúc check-out = admin đã thu đủ hóa đơn cuối cùng -> đơn được ghi doanh thu ngay
+    onCheckOut(roomId, code, { checkedOutAt, checkOutNote: timingLabel || null, paidAmount: total });
     showToast(`💳 Thanh toán thành công! ${timingLabel ? `${timingLabel}. ` : ""}+${pts} điểm tích lũy.`);
     setShowInvoice(false);
     setTimeout(() => onClose(), 1500);
