@@ -13,7 +13,23 @@ $node = Join-Path $bin 'node.exe'
 
 function Download-File($url, $out) {
   Write-Host "  Dang tai $url"
-  Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out
+  $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+  for ($try = 1; $try -le 4; $try++) {
+    try {
+      if (Test-Path $curl) {
+        # curl co san trong Windows 10/11: tu thu lai va tai tiep neu bi dut mang
+        & $curl -L --fail --retry 5 --retry-delay 3 -C - -o $out $url
+        if ($LASTEXITCODE -ne 0) { throw "curl loi $LASTEXITCODE" }
+      } else {
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out
+      }
+      return
+    } catch {
+      Write-Host "  Tai loi (lan $try/4), thu lai..."
+      Start-Sleep -Seconds 3
+    }
+  }
+  throw "Khong tai duoc $url. Kiem tra mang roi chay lai, hoac xem huong dan tai thu cong trong README."
 }
 
 Write-Host '== Buoc 1: tai cong cu (chi lan dau, khoang 2 phut) =='

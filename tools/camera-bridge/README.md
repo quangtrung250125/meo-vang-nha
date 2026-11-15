@@ -9,6 +9,12 @@ Công cụ này chạy trên **một máy tính Windows ở nhà, cùng Wi-Fi v�
 4. Khi hiện khung **CAMERA DANG CHAY** kèm một địa chỉ dạng `https://….trycloudflare.com/api/stream.m3u8?src=camera` (đã sao chép sẵn), vào web → **Admin → Cài đặt → Camera**, dán địa chỉ rồi bấm **Lưu**.
 5. Giữ cửa sổ mở khi cần xem camera. Bấm **Enter** trong cửa sổ để tắt.
 
+## Nếu bước tải công cụ bị lỗi mạng
+Tải thủ công bằng trình duyệt rồi bỏ vào thư mục `bin` (tạo nếu chưa có), chạy lại `bat-camera.bat` là nó bỏ qua phần đã có:
+- Node.js: https://nodejs.org/dist/v22.12.0/node-v22.12.0-win-x64.zip → giải nén, lấy file `node.exe` bỏ vào `bin`
+- go2rtc: https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_win64.zip → giải nén, lấy `go2rtc.exe` bỏ vào `bin`
+- cloudflared: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe → đổi tên thành `cloudflared.exe` bỏ vào `bin`
+
 ## Những lần sau
 Bấm đôi `bat-camera.bat`, **dán địa chỉ mới** vào trang Admin (địa chỉ Cloudflare bản miễn phí đổi mỗi lần bật). Không phải nhập lại IP và mã.
 
