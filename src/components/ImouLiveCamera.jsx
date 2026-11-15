@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Video, Loader2, RefreshCw, VideoOff } from 'lucide-react';
+import { Video, Loader2, RefreshCw, VideoOff, Maximize2, Minimize2 } from 'lucide-react';
 import { getAuthHeaders } from '../services/crossDeviceSync';
 import DemoCameraFeed from './DemoCameraFeed';
 
@@ -13,6 +13,8 @@ const REFRESH_MS = 8 * 60 * 1000;
 const ImouLiveCamera = ({ booking, isDemo = false }) => {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
+  const boxRef = useRef(null);
+  const [isFull, setIsFull] = useState(false);
   const [state, setState] = useState({ status: isDemo ? 'demo' : 'loading', hls: null, cover: null, message: '', hideLabel: true });
   const code = booking?.code || booking?.id;
 
@@ -86,6 +88,24 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
     };
   }, [state.status, state.hls]);
 
+  useEffect(() => {
+    const onChange = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFull = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else if (box.requestFullscreen) {
+      box.requestFullscreen().catch(() => {});
+    } else if (videoRef.current?.webkitEnterFullscreen) {
+      videoRef.current.webkitEnterFullscreen(); // iPhone
+    }
+  };
+
   const isLive = state.status === 'ready';
   const isDemoFeed = state.status === 'demo';
   const showDemoLabel = isDemoFeed && !state.hideLabel;
@@ -104,7 +124,18 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
         {state.status === 'loading' ? 'Đang kết nối camera...' : isLive || (isDemoFeed && state.hideLabel) ? 'Camera đang hoạt động' : isDemoFeed ? 'Hình minh hoạ (chế độ demo)' : 'Camera chưa sẵn sàng'}
       </div>
 
-      <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-900 aspect-video flex items-center justify-center border border-gray-200">
+      <div ref={boxRef} className={`relative overflow-hidden bg-gray-900 flex items-center justify-center ${isFull ? 'w-full h-full' : 'rounded-xl mb-4 aspect-video border border-gray-200'}`}>
+        {(isLive || isDemoFeed) && (
+          <button
+            type="button"
+            onClick={toggleFull}
+            aria-label={isFull ? 'Thu nhỏ camera' : 'Phóng to camera'}
+            data-testid="camera-fullscreen"
+            className="absolute bottom-2 right-2 z-10 w-8 h-8 rounded-lg bg-black/50 hover:bg-black/70 text-white flex items-center justify-center"
+          >
+            {isFull ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+        )}
         {isDemoFeed && <DemoCameraFeed showLabel={showDemoLabel} />}
         {state.status === 'ready' && (
           <video
