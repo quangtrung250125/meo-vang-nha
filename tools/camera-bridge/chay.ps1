@@ -87,6 +87,12 @@ streams:
   Write-Host '  Da luu cau hinh (file go2rtc.yaml, chi nam tren may nay).'
 }
 
+# Tat cac tien trinh cu con sot lai tu lan chay truoc (neu co)
+foreach ($p in (Get-Process go2rtc, cloudflared, node -ErrorAction SilentlyContinue)) {
+  if ($p.Path -and $p.Path.StartsWith($bin, [StringComparison]::OrdinalIgnoreCase)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+}
+Start-Sleep -Seconds 1
+
 $procs = @()
 try {
   Write-Host ''
@@ -111,7 +117,7 @@ try {
     throw 'Cong bao ve khong chay. Chup man hinh nay gui lai.'
   }
   $log = Join-Path $root 'tunnel.log'
-  if (Test-Path $log) { Remove-Item $log -Force }
+  if (Test-Path $log) { Remove-Item $log -Force -ErrorAction SilentlyContinue }
   $procs += Start-Process -FilePath $cloudflared -ArgumentList 'tunnel', '--url', 'http://127.0.0.1:18080', '--no-autoupdate', '--protocol', 'http2' -RedirectStandardError $log -WindowStyle Hidden -PassThru
 
   Write-Host '  Dang tao duong ham ra internet...'
