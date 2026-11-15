@@ -120,7 +120,7 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
             muted
             autoPlay
             playsInline
-            controls
+            disablePictureInPicture
           />
         )}
         {state.status === 'loading' && <Loader2 className="w-8 h-8 text-white/70 animate-spin" />}
