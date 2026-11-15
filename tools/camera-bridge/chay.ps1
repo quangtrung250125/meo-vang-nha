@@ -10,6 +10,7 @@ New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $go2rtc = Join-Path $bin 'go2rtc.exe'
 $cloudflared = Join-Path $bin 'cloudflared.exe'
 $node = Join-Path $bin 'node.exe'
+$ffmpeg = Join-Path $bin 'ffmpeg.exe'
 
 function Download-File($url, $out) {
   Write-Host "  Dang tai $url"
@@ -45,7 +46,7 @@ function Test-Exe($path, $minMB) {
   $b = [IO.File]::ReadAllBytes($path)[0..1]
   return ($b[0] -eq 0x4D -and $b[1] -eq 0x5A)
 }
-foreach ($f in @(@($go2rtc, 5), @($cloudflared, 10), @($node, 20))) {
+foreach ($f in @(@($go2rtc, 5), @($cloudflared, 10), @($node, 20), @($ffmpeg, 20))) {
   if ((Test-Path $f[0]) -and -not (Test-Exe $f[0] $f[1])) {
     Write-Host "  File hong, tai lai: $($f[0])"
     Remove-Item $f[0] -Force
@@ -64,6 +65,20 @@ if (-not (Test-Path $node)) {
   Remove-Item $tmp -Recurse -Force
 }
 
+if (-not (Test-Path $ffmpeg)) {
+  $zip = Join-Path $bin 'ffmpeg.zip'
+  $tmp = Join-Path $bin 'ffmpeg-tmp'
+  Write-Host '  (ffmpeg kha nang lon, tai mot lan, vui long doi...)'
+  Download-File 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' $zip
+  Expand-Archive -Path $zip -DestinationPath $tmp -Force
+  $found = Get-ChildItem -Path $tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+  if (-not $found) { throw 'Khong tim thay ffmpeg.exe trong file tai ve.' }
+  Copy-Item $found.FullName $ffmpeg -Force
+  Remove-Item $zip -Force
+  Remove-Item $tmp -Recurse -Force
+}
+$env:PATH = "$bin;$env:PATH"
+
 $cfg = Join-Path $root 'go2rtc.yaml'
 if (-not (Test-Path $cfg)) {
   Write-Host ''
@@ -77,35 +92,63 @@ if (-not (Test-Path $cfg)) {
 api:
   listen: "127.0.0.1:11984"
 rtsp:
-  listen: ""
+  listen: "127.0.0.1:18554"
 webrtc:
   listen: ""
 streams:
-  camera: rtsp://admin:$code@${ip}:554/cam/realmonitor?channel=1&subtype=1
+  camera: ffmpeg:rtsp://admin:$code@${ip}:554/cam/realmonitor?channel=1&subtype=1#video=h264#audio=aac
 "@
   Set-Content -Path $cfg -Value $yaml -Encoding ASCII
   Write-Host '  Da luu cau hinh (file go2rtc.yaml, chi nam tren may nay).'
 }
 
+# Cau hinh cu: doi sang chuyen ma H.264 de trinh duyet nao cung phat duoc
+$txt = Get-Content $cfg -Raw
+if ($txt -match '(?m)^rtsp:\s*\r?\n\s*listen:\s*""') {
+  $txt = $txt -replace '(?m)^(rtsp:\s*\r?\n\s*listen:\s*)""', '$1"127.0.0.1:18554"'
+  Set-Content -Path $cfg -Value $txt -Encoding ASCII
+}
+if ($txt -notmatch 'ffmpeg:') {
+  $txt = $txt -replace '(?m)^(\s*camera:\s*)(rtsp://\S+)\s*$', '$1ffmpeg:$2#video=h264#audio=aac'
+  Set-Content -Path $cfg -Value $txt -Encoding ASCII
+}
+
+# Tat cac tien trinh cu con sot lai tu lan chay truoc (neu co)
+foreach ($p in (Get-Process go2rtc, cloudflared, node -ErrorAction SilentlyContinue)) {
+  if ($p.Path -and $p.Path.StartsWith($bin, [StringComparison]::OrdinalIgnoreCase)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+}
+Start-Sleep -Seconds 1
+
 $procs = @()
 try {
   Write-Host ''
   Write-Host '== Buoc 3: bat camera =='
-  $procs += Start-Process -FilePath $go2rtc -ArgumentList '-config', 'go2rtc.yaml' -WorkingDirectory $root -WindowStyle Minimized -PassThru
-  $procs += Start-Process -FilePath $node -ArgumentList 'proxy.js' -WorkingDirectory $root -WindowStyle Minimized -PassThru
+  $procs += Start-Process -FilePath $go2rtc -ArgumentList '-config', 'go2rtc.yaml' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'go2rtc.log') -RedirectStandardError (Join-Path $root 'go2rtc-err.log') -PassThru
+  $plog = Join-Path $root 'proxy.log'
+  $procs += Start-Process -FilePath $node -ArgumentList 'proxy.js' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $plog -RedirectStandardError (Join-Path $root 'proxy-err.log') -PassThru
   Start-Sleep -Seconds 3
 
   Write-Host '  Dang thu mo hinh tu camera...'
   try {
-    $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:18080/api/stream.m3u8?src=camera' -TimeoutSec 25
+    $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:18080/api/stream.m3u8?src=camera' -TimeoutSec 60
     if ($r.StatusCode -eq 200) { Write-Host '  OK: da nhan duoc hinh tu camera.' }
   } catch {
     Write-Host '  CANH BAO: chua mo duoc hinh tu camera. Kiem tra IP, ma an toan, va may dang cung Wi-Fi voi camera.'
     Write-Host '  (Xoa file go2rtc.yaml roi chay lai de nhap lai thong tin.)'
+    Write-Host '  --- Nhat ky go2rtc (da che ma an toan) ---'
+    foreach ($lf in @('go2rtc.log', 'go2rtc-err.log')) {
+      $lp = Join-Path $root $lf
+      if (Test-Path $lp) { Get-Content $lp -ErrorAction SilentlyContinue | Select-Object -Last 12 | ForEach-Object { Write-Host ('  ' + ($_ -replace 'rtsp://[^@\s]*@', 'rtsp://***@')) } }
+    }
   }
 
+  if ($procs[1].HasExited) {
+    Write-Host '  LOI: cong bao ve (node) bi tat. Noi dung loi:'
+    Get-Content (Join-Path $root 'proxy-err.log') -ErrorAction SilentlyContinue | Select-Object -First 8 | ForEach-Object { Write-Host "  $_" }
+    throw 'Cong bao ve khong chay. Chup man hinh nay gui lai.'
+  }
   $log = Join-Path $root 'tunnel.log'
-  if (Test-Path $log) { Remove-Item $log -Force }
+  if (Test-Path $log) { Remove-Item $log -Force -ErrorAction SilentlyContinue }
   $procs += Start-Process -FilePath $cloudflared -ArgumentList 'tunnel', '--url', 'http://127.0.0.1:18080', '--no-autoupdate', '--protocol', 'http2' -RedirectStandardError $log -WindowStyle Hidden -PassThru
 
   Write-Host '  Dang tao duong ham ra internet...'
@@ -113,8 +156,9 @@ try {
   for ($i = 0; $i -lt 60 -and -not $public; $i++) {
     Start-Sleep -Seconds 1
     if (Test-Path $log) {
-      $m = [regex]::Match((Get-Content $log -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com')
-      if ($m.Success) { $public = $m.Value }
+      foreach ($m in [regex]::Matches((Get-Content $log -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com')) {
+        if ($m.Value -ne 'https://api.trycloudflare.com') { $public = $m.Value; break }
+      }
     }
   }
   if (-not $public) { throw 'Khong tao duoc duong ham. Kiem tra mang Internet roi chay lai.' }

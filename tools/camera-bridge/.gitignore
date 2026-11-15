@@ -2,3 +2,7 @@
 bin/
 go2rtc.yaml
 tunnel.log
+proxy.log
+proxy-err.log
+go2rtc.log
+go2rtc-err.log
