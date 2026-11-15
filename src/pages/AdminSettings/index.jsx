@@ -24,7 +24,9 @@ import {
   Lock,
   ChevronRight,
   Settings,
+  Video,
 } from "lucide-react";
+import { getAuthHeaders } from "../../services/crossDeviceSync";
 
 const TABS = [
   { id: "account", label: "Tai khoan", icon: User },
@@ -33,6 +35,7 @@ const TABS = [
   { id: "zalo", label: "Zalo OA", icon: MessageCircle },
   { id: "email", label: "Email", icon: Mail },
   { id: "payment", label: "Cong thanh toan", icon: CreditCard },
+  { id: "camera", label: "Camera", icon: Video },
   { id: "logs", label: "Nhat ky hoat dong", icon: ClipboardList },
 ];
 
@@ -422,6 +425,103 @@ const LogsTab = () => {
   );
 };
 
+const CameraTab = () => {
+  const [streamUrl, setStreamUrl] = useState("");
+  const [saved, setSaved] = useState("");
+  const [status, setStatus] = useState({ type: "loading", text: "" });
+  const [busy, setBusy] = useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/camera/config", { headers: await getAuthHeaders() });
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (json.success) {
+          setStreamUrl(json.streamUrl || "");
+          setSaved(json.streamUrl || "");
+          setStatus({ type: "idle", text: "" });
+        } else {
+          setStatus({ type: "error", text: json.message || "Không đọc được cấu hình camera." });
+        }
+      } catch {
+        if (!cancelled) setStatus({ type: "error", text: "Không đọc được cấu hình camera." });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const save = async (value) => {
+    setBusy(true);
+    setStatus({ type: "idle", text: "" });
+    try {
+      const res = await fetch("/api/camera/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+        body: JSON.stringify({ streamUrl: value }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.success) {
+        setStreamUrl(json.streamUrl || "");
+        setSaved(json.streamUrl || "");
+        setStatus({
+          type: json.persisted === false ? "warn" : "ok",
+          text: json.message || (json.streamUrl ? "Đã lưu. Khách đang lưu trú sẽ thấy camera này." : "Đã xoá. Ô camera trở về nguồn mặc định."),
+        });
+      } else {
+        setStatus({ type: "error", text: json.message || "Không lưu được." });
+      }
+    } catch {
+      setStatus({ type: "error", text: "Không lưu được, vui lòng thử lại." });
+    }
+    setBusy(false);
+  };
+
+  const color = { ok: "text-emerald-600", warn: "text-amber-600", error: "text-red-600", loading: "text-gray-400", idle: "" }[status.type];
+
+  return (
+    <div className="space-y-6">
+      <SettingSection title="Camera trực tiếp" description="Dán địa chỉ luồng camera do công cụ chạy tại nhà tạo ra. Khách có đơn đang lưu trú sẽ xem được ở trang Theo dõi lưu trú.">
+        <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="camera-stream-url">Địa chỉ luồng camera (HLS, https://…/api/stream.m3u8?src=camera)</label>
+        <input
+          id="camera-stream-url"
+          data-testid="camera-stream-url"
+          type="url"
+          value={streamUrl}
+          onChange={(e) => setStreamUrl(e.target.value)}
+          placeholder="https://ten-ngau-nhien.trycloudflare.com/api/stream.m3u8?src=camera"
+          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+        />
+        <div className="flex flex-wrap items-center gap-3 mt-4">
+          <button
+            data-testid="camera-save"
+            disabled={busy || status.type === "loading" || streamUrl.trim() === saved}
+            onClick={() => save(streamUrl.trim())}
+            className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold disabled:opacity-40"
+          >
+            <Save className="h-4 w-4" />Lưu
+          </button>
+          {saved && (
+            <button
+              disabled={busy}
+              onClick={() => save("")}
+              className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 disabled:opacity-40"
+            >
+              Xoá, dùng nguồn mặc định
+            </button>
+          )}
+          {status.text && <span data-testid="camera-status" className={`text-sm font-medium ${color}`}>{status.text}</span>}
+        </div>
+        <p className="text-xs text-gray-500 mt-4 leading-relaxed">
+          Địa chỉ đổi mỗi lần bật công cụ tại nhà (bản Cloudflare miễn phí), nên mỗi lần bật lại cần dán địa chỉ mới.
+          Khi không có địa chỉ nào được lưu, ô camera dùng nguồn mặc định của hệ thống.
+        </p>
+      </SettingSection>
+    </div>
+  );
+};
+
 const AdminSettings = () => {
   const [activeTab, setActiveTab] = useState("account");
   const renderTab = () => {
@@ -432,6 +532,7 @@ const AdminSettings = () => {
       case "zalo": return <ZaloTab />;
       case "email": return <EmailTab />;
       case "payment": return <PaymentTab />;
+      case "camera": return <CameraTab />;
       case "logs": return <LogsTab />;
       default: return null;
     }

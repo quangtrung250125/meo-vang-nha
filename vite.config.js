@@ -104,6 +104,11 @@ function apiDevPlugin() {
             const { default: handler } = await import('./api/auth/phone.js');
             return handler(req, res);
           }
+          if (urlPath === '/api/camera/config') {
+            if (req.method !== 'GET') req.body = await parseBody();
+            const { default: handler } = await import('./api/camera/config.js');
+            return handler(req, res);
+          }
           if (urlPath === '/api/camera/live') {
             const { default: handler } = await import('./api/camera/live.js');
             return handler(req, res);
