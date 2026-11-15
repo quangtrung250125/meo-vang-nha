@@ -105,17 +105,11 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
       </div>
 
       <div className="relative rounded-xl overflow-hidden mb-4 bg-gray-900 aspect-video flex items-center justify-center border border-gray-200">
-        {isLive && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1 z-10">
-            <div className="w-1.5 h-1.5 bg-white rounded-full" />
-            LIVE
-          </div>
-        )}
         {isDemoFeed && <DemoCameraFeed showLabel={showDemoLabel} />}
         {state.status === 'ready' && (
           <video
             ref={videoRef}
-            className="w-full h-full object-cover bg-black"
+            className="w-full h-full object-contain bg-black"
             poster={state.cover || undefined}
             muted
             autoPlay
