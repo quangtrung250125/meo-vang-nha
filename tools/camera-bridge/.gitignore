@@ -1,0 +1,4 @@
+# Chỉ nằm trên máy chạy cầu nối: chứa mã an toàn của camera và các file tải về
+bin/
+go2rtc.yaml
+tunnel.log
