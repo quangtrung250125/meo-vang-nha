@@ -92,7 +92,8 @@ try {
   Write-Host ''
   Write-Host '== Buoc 3: bat camera =='
   $procs += Start-Process -FilePath $go2rtc -ArgumentList '-config', 'go2rtc.yaml' -WorkingDirectory $root -WindowStyle Minimized -PassThru
-  $procs += Start-Process -FilePath $node -ArgumentList 'proxy.js' -WorkingDirectory $root -WindowStyle Minimized -PassThru
+  $plog = Join-Path $root 'proxy.log'
+  $procs += Start-Process -FilePath $node -ArgumentList 'proxy.js' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $plog -RedirectStandardError (Join-Path $root 'proxy-err.log') -PassThru
   Start-Sleep -Seconds 3
 
   Write-Host '  Dang thu mo hinh tu camera...'
@@ -104,6 +105,11 @@ try {
     Write-Host '  (Xoa file go2rtc.yaml roi chay lai de nhap lai thong tin.)'
   }
 
+  if ($procs[1].HasExited) {
+    Write-Host '  LOI: cong bao ve (node) bi tat. Noi dung loi:'
+    Get-Content (Join-Path $root 'proxy-err.log') -ErrorAction SilentlyContinue | Select-Object -First 8 | ForEach-Object { Write-Host "  $_" }
+    throw 'Cong bao ve khong chay. Chup man hinh nay gui lai.'
+  }
   $log = Join-Path $root 'tunnel.log'
   if (Test-Path $log) { Remove-Item $log -Force }
   $procs += Start-Process -FilePath $cloudflared -ArgumentList 'tunnel', '--url', 'http://127.0.0.1:18080', '--no-autoupdate', '--protocol', 'http2' -RedirectStandardError $log -WindowStyle Hidden -PassThru

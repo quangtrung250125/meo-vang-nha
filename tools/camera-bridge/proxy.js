@@ -59,5 +59,8 @@ export function createProxy() {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  // Khong de cong bi tat vi mot loi le te: ghi log roi chay tiep
+  process.on('uncaughtException', (e) => console.error('Loi:', e && e.message));
+  process.on('unhandledRejection', (e) => console.error('Loi:', e && e.message));
   createProxy().listen(LISTEN_PORT, '127.0.0.1', () => console.log(`Cổng camera đang chạy ở cổng ${LISTEN_PORT}`));
 }
