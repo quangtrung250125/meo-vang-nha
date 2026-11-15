@@ -92,7 +92,7 @@ if (-not (Test-Path $cfg)) {
 api:
   listen: "127.0.0.1:11984"
 rtsp:
-  listen: ""
+  listen: "127.0.0.1:18554"
 webrtc:
   listen: ""
 streams:
@@ -104,6 +104,10 @@ streams:
 
 # Cau hinh cu: doi sang chuyen ma H.264 de trinh duyet nao cung phat duoc
 $txt = Get-Content $cfg -Raw
+if ($txt -match '(?m)^rtsp:\s*\r?\n\s*listen:\s*""') {
+  $txt = $txt -replace '(?m)^(rtsp:\s*\r?\n\s*listen:\s*)""', '$1"127.0.0.1:18554"'
+  Set-Content -Path $cfg -Value $txt -Encoding ASCII
+}
 if ($txt -notmatch 'ffmpeg:') {
   $txt = $txt -replace '(?m)^(\s*camera:\s*)(rtsp://\S+)\s*$', '$1ffmpeg:$2#video=h264#audio=aac'
   Set-Content -Path $cfg -Value $txt -Encoding ASCII
