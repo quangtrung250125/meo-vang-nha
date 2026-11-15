@@ -39,6 +39,18 @@ if (-not (Test-Path $go2rtc)) {
   Expand-Archive -Path $zip -DestinationPath $bin -Force
   Remove-Item $zip -Force
 }
+function Test-Exe($path, $minMB) {
+  if (-not (Test-Path $path)) { return $false }
+  if ((Get-Item $path).Length -lt ($minMB * 1MB)) { return $false }
+  $b = [IO.File]::ReadAllBytes($path)[0..1]
+  return ($b[0] -eq 0x4D -and $b[1] -eq 0x5A)
+}
+foreach ($f in @(@($go2rtc, 5), @($cloudflared, 10), @($node, 20))) {
+  if ((Test-Path $f[0]) -and -not (Test-Exe $f[0] $f[1])) {
+    Write-Host "  File hong, tai lai: $($f[0])"
+    Remove-Item $f[0] -Force
+  }
+}
 if (-not (Test-Path $cloudflared)) {
   Download-File 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' $cloudflared
 }
