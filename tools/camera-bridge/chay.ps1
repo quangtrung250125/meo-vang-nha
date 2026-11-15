@@ -10,6 +10,7 @@ New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $go2rtc = Join-Path $bin 'go2rtc.exe'
 $cloudflared = Join-Path $bin 'cloudflared.exe'
 $node = Join-Path $bin 'node.exe'
+$ffmpeg = Join-Path $bin 'ffmpeg.exe'
 
 function Download-File($url, $out) {
   Write-Host "  Dang tai $url"
@@ -45,7 +46,7 @@ function Test-Exe($path, $minMB) {
   $b = [IO.File]::ReadAllBytes($path)[0..1]
   return ($b[0] -eq 0x4D -and $b[1] -eq 0x5A)
 }
-foreach ($f in @(@($go2rtc, 5), @($cloudflared, 10), @($node, 20))) {
+foreach ($f in @(@($go2rtc, 5), @($cloudflared, 10), @($node, 20), @($ffmpeg, 20))) {
   if ((Test-Path $f[0]) -and -not (Test-Exe $f[0] $f[1])) {
     Write-Host "  File hong, tai lai: $($f[0])"
     Remove-Item $f[0] -Force
@@ -63,6 +64,20 @@ if (-not (Test-Path $node)) {
   Remove-Item $zip -Force
   Remove-Item $tmp -Recurse -Force
 }
+
+if (-not (Test-Path $ffmpeg)) {
+  $zip = Join-Path $bin 'ffmpeg.zip'
+  $tmp = Join-Path $bin 'ffmpeg-tmp'
+  Write-Host '  (ffmpeg kha nang lon, tai mot lan, vui long doi...)'
+  Download-File 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' $zip
+  Expand-Archive -Path $zip -DestinationPath $tmp -Force
+  $found = Get-ChildItem -Path $tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+  if (-not $found) { throw 'Khong tim thay ffmpeg.exe trong file tai ve.' }
+  Copy-Item $found.FullName $ffmpeg -Force
+  Remove-Item $zip -Force
+  Remove-Item $tmp -Recurse -Force
+}
+$env:PATH = "$bin;$env:PATH"
 
 $cfg = Join-Path $root 'go2rtc.yaml'
 if (-not (Test-Path $cfg)) {
