@@ -152,8 +152,9 @@ try {
   for ($i = 0; $i -lt 60 -and -not $public; $i++) {
     Start-Sleep -Seconds 1
     if (Test-Path $log) {
-      $m = [regex]::Match((Get-Content $log -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com')
-      if ($m.Success) { $public = $m.Value }
+      foreach ($m in [regex]::Matches((Get-Content $log -Raw -ErrorAction SilentlyContinue), 'https://[a-z0-9-]+\.trycloudflare\.com')) {
+        if ($m.Value -ne 'https://api.trycloudflare.com') { $public = $m.Value; break }
+      }
     }
   }
   if (-not $public) { throw 'Khong tao duoc duong ham. Kiem tra mang Internet roi chay lai.' }
