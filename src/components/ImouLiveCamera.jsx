@@ -46,25 +46,41 @@ const ImouLiveCamera = ({ booking, isDemo = false }) => {
     const video = videoRef.current;
     if (state.status !== 'ready' || !state.hls || !video) return undefined;
     let cancelled = false;
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = state.hls;
-      video.play().catch(() => {});
-    } else {
-      import('hls.js').then(({ default: Hls }) => {
-        if (cancelled || !Hls.isSupported()) return;
+    let retryTimer = null;
+    import('hls.js').then(({ default: Hls }) => {
+      if (cancelled) return;
+      if (Hls.isSupported()) {
+        // Chrome/Edge/Firefox/Android: dùng hls.js (ổn định hơn trình phát gốc), tự thử lại khi luồng chưa sẵn sàng
         hlsRef.current?.destroy();
-        const hls = new Hls({ liveDurationInfinity: true });
+        const hls = new Hls({
+          liveDurationInfinity: true,
+          manifestLoadingTimeOut: 30000,
+          manifestLoadingMaxRetry: 10,
+          manifestLoadingRetryDelay: 2000,
+          levelLoadingMaxRetry: 10,
+          fragLoadingMaxRetry: 10,
+        });
         hlsRef.current = hls;
         hls.loadSource(state.hls);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
         hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data?.fatal) setState((s) => ({ ...s, status: 'error', message: 'Camera đang tạm mất kết nối.' }));
+          if (!data?.fatal) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls.recoverMediaError();
+          } else {
+            retryTimer = setTimeout(() => { if (!cancelled) { hls.stopLoad(); hls.loadSource(state.hls); hls.startLoad(); } }, 3000);
+          }
         });
-      });
-    }
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari / iPhone phát trực tiếp
+        video.src = state.hls;
+        video.play().catch(() => {});
+      }
+    });
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
