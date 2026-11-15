@@ -104,18 +104,23 @@ $procs = @()
 try {
   Write-Host ''
   Write-Host '== Buoc 3: bat camera =='
-  $procs += Start-Process -FilePath $go2rtc -ArgumentList '-config', 'go2rtc.yaml' -WorkingDirectory $root -WindowStyle Minimized -PassThru
+  $procs += Start-Process -FilePath $go2rtc -ArgumentList '-config', 'go2rtc.yaml' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'go2rtc.log') -RedirectStandardError (Join-Path $root 'go2rtc-err.log') -PassThru
   $plog = Join-Path $root 'proxy.log'
   $procs += Start-Process -FilePath $node -ArgumentList 'proxy.js' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $plog -RedirectStandardError (Join-Path $root 'proxy-err.log') -PassThru
   Start-Sleep -Seconds 3
 
   Write-Host '  Dang thu mo hinh tu camera...'
   try {
-    $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:18080/api/stream.m3u8?src=camera' -TimeoutSec 25
+    $r = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:18080/api/stream.m3u8?src=camera' -TimeoutSec 60
     if ($r.StatusCode -eq 200) { Write-Host '  OK: da nhan duoc hinh tu camera.' }
   } catch {
     Write-Host '  CANH BAO: chua mo duoc hinh tu camera. Kiem tra IP, ma an toan, va may dang cung Wi-Fi voi camera.'
     Write-Host '  (Xoa file go2rtc.yaml roi chay lai de nhap lai thong tin.)'
+    Write-Host '  --- Nhat ky go2rtc (da che ma an toan) ---'
+    foreach ($lf in @('go2rtc.log', 'go2rtc-err.log')) {
+      $lp = Join-Path $root $lf
+      if (Test-Path $lp) { Get-Content $lp -ErrorAction SilentlyContinue | Select-Object -Last 12 | ForEach-Object { Write-Host ('  ' + ($_ -replace 'rtsp://[^@\s]*@', 'rtsp://***@')) } }
+    }
   }
 
   if ($procs[1].HasExited) {
