@@ -81,10 +81,17 @@ rtsp:
 webrtc:
   listen: ""
 streams:
-  camera: rtsp://admin:$code@${ip}:554/cam/realmonitor?channel=1&subtype=1
+  camera: ffmpeg:rtsp://admin:$code@${ip}:554/cam/realmonitor?channel=1&subtype=1#video=h264#audio=aac
 "@
   Set-Content -Path $cfg -Value $yaml -Encoding ASCII
   Write-Host '  Da luu cau hinh (file go2rtc.yaml, chi nam tren may nay).'
+}
+
+# Cau hinh cu: doi sang chuyen ma H.264 de trinh duyet nao cung phat duoc
+$txt = Get-Content $cfg -Raw
+if ($txt -notmatch 'ffmpeg:') {
+  $txt = $txt -replace '(?m)^(\s*camera:\s*)(rtsp://\S+)\s*$', '$1ffmpeg:$2#video=h264#audio=aac'
+  Set-Content -Path $cfg -Value $txt -Encoding ASCII
 }
 
 # Tat cac tien trinh cu con sot lai tu lan chay truoc (neu co)
