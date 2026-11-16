@@ -13,6 +13,97 @@ import { calculateMembership } from '../../utils/membership';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { promotionsList } from '../../mockData/promotionsData';
 import { articlesList } from '../../mockData/newsData';
+import { fetchPublicReviews } from '../../services/reviewsApi';
+import { PUBLIC_REVIEWS_MIN } from '../../utils/reviewRules';
+
+// Đánh giá mẫu: hiện tới khi có đủ đánh giá thật được admin duyệt (PUBLIC_REVIEWS_MIN)
+const SAMPLE_REVIEWS = [
+  {
+    name: 'Nguyễn Thị Lan',
+    avatar: 'L',
+    color: 'bg-rose-500',
+    rating: 5,
+    service: 'Lưu trú',
+    date: 'Tháng 9, 2026',
+    petName: 'Bơ (Maine Coon)',
+    review: 'Gửi Bơ ở đây lần đầu mà yên tâm hết sức! Camera 24/24 xem được, nhân viên nhắn tin cập nhật tình hình từng bữa ăn. Bé ăn ngon ngủ khoẻ, về nhà còn có vẻ nhớ chỗ 😂 Sẽ gửi lại lần sau!',
+    highlight: true,
+  },
+  {
+    name: 'Trần Minh Đức',
+    avatar: 'Đ',
+    color: 'bg-primary',
+    rating: 5,
+    service: 'Spa - Tắm cắt',
+    date: 'Tháng 8, 2026',
+    petName: 'Mochi (Scottish Fold)',
+    review: 'Tắm xong lông Mochi mượt và thơm hẳn, không bị ướt tai hay viêm tai sau đó. Nhân viên làm rất nhẹ nhàng, bé khá hợp tác. Giá cả phù hợp, sẽ book thường xuyên.',
+    highlight: false,
+  },
+  {
+    name: 'Phạm Thảo Vy',
+    avatar: 'V',
+    color: 'bg-violet-500',
+    rating: 5,
+    service: 'Gói Mèo Quý Tộc',
+    date: 'Tháng 9, 2026',
+    petName: 'Sữa (British Shorthair)',
+    review: 'Gói Quý Tộc đáng đồng tiền! 3 bữa chính + 1 bữa phụ đa dạng, phòng Deluxe sạch bóng. Đặc biệt tính năng thoại 2 chiều giúp mình "nói chuyện" với Sữa mỗi tối rất dễ thương. 10/10!',
+    highlight: false,
+  },
+  {
+    name: 'Lê Quang Huy',
+    avatar: 'H',
+    color: 'bg-emerald-500',
+    rating: 5,
+    service: 'Lưu trú',
+    date: 'Tháng 7, 2026',
+    petName: 'Tiger (Tabby)',
+    review: 'Đi công tác 10 ngày, gửi Tiger ở đây không lo gì cả. Mỗi ngày đều có ảnh và video update. Lần gửi từ 5 ngày còn được tắm miễn phí, Tiger về sạch thơm. Dịch vụ đón trả rất tiện.',
+    highlight: false,
+  },
+  {
+    name: 'Ngô Bảo Châu',
+    avatar: 'C',
+    color: 'bg-amber-500',
+    rating: 5,
+    service: 'Combo Tắm Sấy',
+    date: 'Tháng 8, 2026',
+    petName: 'Chè (Persian)',
+    review: 'Chè lông dài hay bị rối và khó tắm lắm nhưng bên này xử lý rất pro, sấy xong lông phồng đẹp, không bị xoắn. Nhân viên kiên nhẫn với bé dù Chè hay hờn dỗi 😄 Rất hài lòng!',
+    highlight: false,
+  },
+  {
+    name: 'Hoàng Thu Hương',
+    avatar: 'H',
+    color: 'bg-sky-500',
+    rating: 5,
+    service: 'Gói Mèo Sang Chảnh',
+    date: 'Tháng 9, 2026',
+    petName: 'Milo (Ragdoll)',
+    review: 'Phòng VIP sạch sẽ, thoáng mát. Milo ăn full pate mỗi ngày, nhân viên gửi ảnh bé đang ăn dễ thương lắm. Ưu đãi -10% lần 2 áp dụng đúng, mình đã gửi 3 lần rồi và lần nào cũng vừa ý!',
+    highlight: true,
+  },
+];
+
+const AVATAR_COLORS = ['bg-rose-500', 'bg-primary', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-sky-500'];
+
+// Đánh giá thật (đã duyệt) -> cùng dạng thẻ với đánh giá mẫu
+const toReviewCard = (r, idx) => {
+  const d = new Date(r.createdAt);
+  return {
+    name: r.name,
+    avatar: (r.name || 'K').charAt(0).toUpperCase(),
+    color: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+    rating: r.rating,
+    service: r.roomName ? `Lưu trú · ${r.roomName}` : 'Lưu trú',
+    date: Number.isNaN(d.getTime()) ? '' : `Tháng ${d.getMonth() + 1}, ${d.getFullYear()}`,
+    petName: r.petNames,
+    review: r.comment || (r.tags || []).join(' · '),
+    reply: r.adminReply,
+    highlight: r.rating === 5 && idx < 2,
+  };
+};
 
 const Home = () => {
   const [activeBanner, setActiveBanner] = useState(0);
@@ -26,6 +117,19 @@ const Home = () => {
   const { loyalty } = useLoyalty();
   const points = loyalty ? Number(loyalty.points) || 0 : membership.points;
   const tier = loyalty?.tier?.name ? `HẠNG ${String(loyalty.tier.name).toUpperCase()}` : membership.tier;
+
+  // Đánh giá thật đã được admin duyệt; chưa đủ PUBLIC_REVIEWS_MIN thì vẫn hiện đánh giá mẫu
+  const [publicReviews, setPublicReviews] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    fetchPublicReviews().then((res) => alive && setPublicReviews(res.reviews || [])).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const useRealReviews = publicReviews.length >= PUBLIC_REVIEWS_MIN;
+  const shownReviews = useRealReviews ? publicReviews.slice(0, 6).map(toReviewCard) : SAMPLE_REVIEWS;
+  const realAverage = useRealReviews
+    ? (publicReviews.reduce((sum, r) => sum + r.rating, 0) / publicReviews.length).toFixed(1)
+    : null;
   const displayOwner = customerProfile?.fullName || 'Khách Hàng Mới';
   const displayPetCode = petList && petList.length > 0 ? `MVN-${String(petList[0].id).slice(-5)}` : 'MVN-XXXXX';
 
@@ -328,7 +432,7 @@ const Home = () => {
       </section>
 
       {/* 6. Customer Reviews Section */}
-      <section className="bg-bg-cream/70 py-16">
+      <section id="danh-gia-khach-hang" className="bg-bg-cream/70 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <div className="inline-flex items-center gap-1.5 text-amber-700 text-xs font-bold uppercase tracking-wider mb-3">
@@ -346,81 +450,16 @@ const Home = () => {
                   </svg>
                 ))}
               </div>
-              <span className="text-2xl font-black text-text-dark">4.9</span>
-              <span className="text-sm text-gray-500 font-medium">/ 5.0 (200+ đánh giá thực tế)</span>
+              <span className="text-2xl font-black text-text-dark">{realAverage || '4.9'}</span>
+              <span className="text-sm text-gray-500 font-medium">
+                / 5.0 ({useRealReviews ? `${publicReviews.length} đánh giá từ khách đã gửi bé` : '200+ đánh giá thực tế'})
+              </span>
             </div>
           </div>
 
           {/* Reviews Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                name: 'Nguyễn Thị Lan',
-                avatar: 'L',
-                color: 'bg-rose-500',
-                rating: 5,
-                service: 'Lưu trú',
-                date: 'Tháng 9, 2026',
-                petName: 'Bơ (Maine Coon)',
-                review: 'Gửi Bơ ở đây lần đầu mà yên tâm hết sức! Camera 24/24 xem được, nhân viên nhắn tin cập nhật tình hình từng bữa ăn. Bé ăn ngon ngủ khoẻ, về nhà còn có vẻ nhớ chỗ 😂 Sẽ gửi lại lần sau!',
-                highlight: true,
-              },
-              {
-                name: 'Trần Minh Đức',
-                avatar: 'Đ',
-                color: 'bg-primary',
-                rating: 5,
-                service: 'Spa - Tắm cắt',
-                date: 'Tháng 8, 2026',
-                petName: 'Mochi (Scottish Fold)',
-                review: 'Tắm xong lông Mochi mượt và thơm hẳn, không bị ướt tai hay viêm tai sau đó. Nhân viên làm rất nhẹ nhàng, bé khá hợp tác. Giá cả phù hợp, sẽ book thường xuyên.',
-                highlight: false,
-              },
-              {
-                name: 'Phạm Thảo Vy',
-                avatar: 'V',
-                color: 'bg-violet-500',
-                rating: 5,
-                service: 'Gói Mèo Quý Tộc',
-                date: 'Tháng 9, 2026',
-                petName: 'Sữa (British Shorthair)',
-                review: 'Gói Quý Tộc đáng đồng tiền! 3 bữa chính + 1 bữa phụ đa dạng, phòng Deluxe sạch bóng. Đặc biệt tính năng thoại 2 chiều giúp mình "nói chuyện" với Sữa mỗi tối rất dễ thương. 10/10!',
-                highlight: false,
-              },
-              {
-                name: 'Lê Quang Huy',
-                avatar: 'H',
-                color: 'bg-emerald-500',
-                rating: 5,
-                service: 'Lưu trú',
-                date: 'Tháng 7, 2026',
-                petName: 'Tiger (Tabby)',
-                review: 'Đi công tác 10 ngày, gửi Tiger ở đây không lo gì cả. Mỗi ngày đều có ảnh và video update. Lần gửi từ 5 ngày còn được tắm miễn phí, Tiger về sạch thơm. Dịch vụ đón trả rất tiện.',
-                highlight: false,
-              },
-              {
-                name: 'Ngô Bảo Châu',
-                avatar: 'C',
-                color: 'bg-amber-500',
-                rating: 5,
-                service: 'Combo Tắm Sấy',
-                date: 'Tháng 8, 2026',
-                petName: 'Chè (Persian)',
-                review: 'Chè lông dài hay bị rối và khó tắm lắm nhưng bên này xử lý rất pro, sấy xong lông phồng đẹp, không bị xoắn. Nhân viên kiên nhẫn với bé dù Chè hay hờn dỗi 😄 Rất hài lòng!',
-                highlight: false,
-              },
-              {
-                name: 'Hoàng Thu Hương',
-                avatar: 'H',
-                color: 'bg-sky-500',
-                rating: 5,
-                service: 'Gói Mèo Sang Chảnh',
-                date: 'Tháng 9, 2026',
-                petName: 'Milo (Ragdoll)',
-                review: 'Phòng VIP sạch sẽ, thoáng mát. Milo ăn full pate mỗi ngày, nhân viên gửi ảnh bé đang ăn dễ thương lắm. Ưu đãi -10% lần 2 áp dụng đúng, mình đã gửi 3 lần rồi và lần nào cũng vừa ý!',
-                highlight: true,
-              },
-            ].map((review, idx) => (
+            {shownReviews.map((review, idx) => (
               <div
                 key={idx}
                 className={`bg-white rounded-3xl p-6 border shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col ${
@@ -429,7 +468,7 @@ const Home = () => {
               >
                 <div className="flex items-center gap-1 mb-4">
                   {[1,2,3,4,5].map(s => (
-                    <svg key={s} className="w-4 h-4 text-amber-400 fill-current" viewBox="0 0 20 20">
+                    <svg key={s} className={`w-4 h-4 fill-current ${s <= review.rating ? 'text-amber-400' : 'text-gray-200'}`} viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                   ))}
@@ -444,6 +483,12 @@ const Home = () => {
                 <p className="text-gray-700 text-sm leading-relaxed flex-1 mb-5 italic">
                   "{review.review}"
                 </p>
+
+                {review.reply && (
+                  <p className="text-xs text-gray-600 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 mb-4">
+                    <strong className="text-primary">Mèo Vắng Nhà:</strong> {review.reply}
+                  </p>
+                )}
 
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full">
@@ -464,6 +509,11 @@ const Home = () => {
               </div>
             ))}
           </div>
+
+          <p className="text-center text-sm text-gray-600 mt-8">
+            Bé vừa gửi ở Mèo Vắng Nhà?{' '}
+            <Link to="/my-booking" className="font-bold text-primary hover:underline">Đánh giá kỳ nghỉ của bé →</Link>
+          </p>
 
           <div className="text-center mt-12">
             <Link

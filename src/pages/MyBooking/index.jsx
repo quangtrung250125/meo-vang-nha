@@ -20,9 +20,10 @@ import {
   Undo2,
   MessageSquare,
   PencilLine,
+  Star,
   X
 } from 'lucide-react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHistoryContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
@@ -46,6 +47,9 @@ import { hasBookingCode, todayInVietnam, PAYMENT_STATUS, getDepositDueAt, format
 import { toast } from 'react-hot-toast';
 import { buildInvoice } from '../../utils/bookingInvoice';
 import { ADDONS } from '../../components/ServiceManagement';
+import ReviewModal from '../../components/ReviewModal';
+import useReviews from '../../hooks/useReviews';
+import { canEditReview, editDeadlineLabel, isWithinReviewWindow } from '../../utils/reviewRules';
 
 // Nhãn thanh toán: trạng thái cọc do server tính + "Đã thanh toán" khi khách trả đủ
 const getPaymentBadge = (booking) => {
@@ -124,16 +128,22 @@ const MyBooking = () => {
   const { petList } = usePetProfile();
   const { approvalModalBookingId, closeApprovalModal } = useUI();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('ALL');
   // Mở từ thông báo đẩy (/my-booking?code=MVN-...): cuộn tới và tô sáng đúng đơn đó
-  const [searchParams] = useSearchParams();
-  const highlightCode = searchParams.get('code') || '';
+  // Mở từ thông báo mời đánh giá (/my-booking?review=MVN-...): bật luôn hộp đánh giá của đơn đó
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reviewCode = searchParams.get('review') || '';
+  const highlightCode = searchParams.get('code') || reviewCode;
   const [selectedBookingForApproval, setSelectedBookingForApproval] = useState(null);
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState(null);
   const [selectedBookingForProposal, setSelectedBookingForProposal] = useState(null);
   const [selectedBookingForNote, setSelectedBookingForNote] = useState(null);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const { reviews } = useReviews(Boolean(authenticatedCustomer) || isAdmin);
+  const reviewOf = (booking) => reviews.find((r) => r.bookingCode === (booking.code || booking.id)) || null;
 
   // Kiểm tra phòng còn đủ chỗ cho khoảng ngày mới (loại trừ chính đơn đang đổi)
   const hasRoomCapacity = (booking, newCheckIn, newCheckOut) => {
@@ -222,6 +232,20 @@ const MyBooking = () => {
     return () => clearTimeout(timer);
   }, [highlightKey]);
 
+  // Bấm thông báo mời đánh giá: mở hộp đánh giá khi đơn đã check-out đã có trong danh sách
+  const reviewTarget = reviewCode && !isAdmin
+    ? processedBookings.find(b => (b.code === reviewCode || b.id === reviewCode) && b.normalizedStatus === BOOKING_STATUS.COMPLETED)
+    : null;
+  useEffect(() => {
+    if (!reviewTarget) return;
+    setSelectedBookingForReview(reviewTarget);
+    const next = new URLSearchParams(searchParams);
+    next.delete('review');
+    next.set('code', reviewTarget.code || reviewTarget.id);
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewTarget?.id]);
+
   const filteredBookings = processedBookings.filter(booking => {
     if (activeTab === 'ALL') return true;
     return booking.normalizedStatus === activeTab;
@@ -272,6 +296,14 @@ const MyBooking = () => {
         booking={selectedBookingForProposal}
         onClose={() => setSelectedBookingForProposal(null)}
         onConfirm={handleAdminPropose}
+      />
+
+      <ReviewModal
+        isOpen={Boolean(selectedBookingForReview)}
+        booking={selectedBookingForReview}
+        existing={selectedBookingForReview ? reviewOf(selectedBookingForReview) : null}
+        customerName={activeCustomer?.fullName || ''}
+        onClose={() => setSelectedBookingForReview(null)}
       />
 
       {selectedBookingForNote && (
@@ -540,6 +572,37 @@ const MyBooking = () => {
                         </p>
                       )}
 
+                      {/* Đánh giá đã gửi + câu trả lời của Mèo Vắng Nhà */}
+                      {isCompleted && reviewOf(booking) && (() => {
+                        const review = reviewOf(booking);
+                        return (
+                          <div className="mt-2 text-xs bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-left">
+                            <p className="flex items-center gap-1 font-semibold text-amber-700">
+                              {isAdmin ? 'Khách đã đánh giá' : 'Bạn đã đánh giá'}
+                              <span className="flex">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star key={s} className={`w-3.5 h-3.5 ${s <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
+                                ))}
+                              </span>
+                            </p>
+                            {review.comment && <p className="text-gray-600 mt-1">“{review.comment}”</p>}
+                            {review.adminReply && (
+                              <p className="text-gray-700 mt-1.5 bg-white border border-amber-100 rounded-md px-2 py-1.5">
+                                <strong className="text-primary">Mèo Vắng Nhà trả lời:</strong> {review.adminReply}
+                              </p>
+                            )}
+                            {isAdmin && (
+                              <Link
+                                to={`${location.pathname.startsWith('/admin') ? '/admin' : ''}/reviews?tab=list&code=${encodeURIComponent(review.bookingCode)}`}
+                                className="inline-block mt-1.5 font-semibold text-orange-600 hover:underline"
+                              >
+                                {review.adminReply ? 'Xem ở trang Đánh giá & Phản hồi →' : 'Trả lời khách ở trang Đánh giá & Phản hồi →'}
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       {(booking.specialNote || booking.adminNote) && (
                         <div className="mt-2 flex flex-col gap-1 text-xs">
                           {booking.specialNote && (
@@ -632,6 +695,22 @@ const MyBooking = () => {
                           <span>{booking.specialNote ? 'Sửa yêu cầu' : 'Yêu cầu đặc biệt'}</span>
                         </button>
                       )}
+
+                      {/* 2d. Đánh giá kỳ nghỉ sau check-out (30 ngày), sửa được trong 7 ngày */}
+                      {!isAdmin && isCompleted && authenticatedCustomer && (() => {
+                        const review = reviewOf(booking);
+                        if (review ? !canEditReview(review) : !isWithinReviewWindow(booking.checkedOutAt)) return null;
+                        return (
+                          <button
+                            onClick={() => setSelectedBookingForReview(booking)}
+                            title={review ? `Sửa được tới ${editDeadlineLabel(review)}` : undefined}
+                            className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${review ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200' : 'text-white bg-amber-500 hover:bg-amber-600 shadow-sm'}`}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${review ? '' : 'fill-white'}`} />
+                            <span>{review ? 'Sửa đánh giá' : 'Đánh giá'}</span>
+                          </button>
+                        );
+                      })()}
 
                       {/* 3. VÔ HIỆU HÓA HOẶC ẨN ĐỔI LỊCH/HỦY ĐƠN KHI ĐÃ CHECK-IN HOẶC HOÀN TẤT */}
                       {!isAdmin && (isInHouse || isCompleted) && (

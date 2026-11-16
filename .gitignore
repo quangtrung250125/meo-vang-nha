@@ -13,3 +13,4 @@ playwright-report
 api/_lib/marketing_store.json
 api/_lib/messenger_store.json
 api/_lib/loyalty_store.json
+api/_lib/reviews_store.json

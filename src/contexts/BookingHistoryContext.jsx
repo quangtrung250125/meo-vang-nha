@@ -484,9 +484,10 @@ export const BookingHistoryProvider = ({ children }) => {
 
     // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
     if (updatedData?.status === 'Đã hoàn tất' || updatedData?.status === 'check-out') {
+      // Đơn không có mã khách / SĐT thì không gửi (trước đây gửi nhầm cho một tài khoản dự phòng)
       triggerBookingCompletedNotification({
-        userId: target?.customerId || target?.customerPhone || 'ducan',
-        bookingCode: bookingId,
+        userId: target?.customerId || target?.customerPhone || target?.ownerPhone || null,
+        bookingCode: target?.code || bookingId,
         petNames: target?.catNames || target?.petName || 'Bé mèo',
       });
     }
@@ -558,8 +559,9 @@ export const BookingHistoryProvider = ({ children }) => {
 
   // Gửi Web Push tới tài khoản khách (không chặn luồng nếu server push chưa cấu hình)
   const pushToCustomer = (booking, title, body) => {
+    if (!(booking.customerId || booking.customerPhone || booking.ownerPhone)) return;
     sendNotification({
-      userId: booking.customerId || booking.customerPhone || booking.ownerPhone || 'ducan',
+      userId: booking.customerId || booking.customerPhone || booking.ownerPhone,
       title,
       body,
       url: '/my-booking',

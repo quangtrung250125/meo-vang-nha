@@ -421,6 +421,30 @@ export async function findViewableInHouseBooking(code, user, accessToken = null)
   return booking;
 }
 
+const CHECKED_OUT_STATUSES = ['check-out', 'Đã hoàn tất', 'hoàn tất'];
+
+/**
+ * Đánh giá sau check-out: tìm đơn ĐÃ CHECK-OUT của chính khách gửi đánh giá.
+ * Trả về { code, checkedOutAt } hoặc null nếu không phải đơn của khách / chưa check-out.
+ */
+export async function findCheckedOutBookingForUser(code, user, accessToken = null) {
+  if (!code || !user?.id) return null;
+  await syncFromDb();
+  const closed = closedBookings.get(code);
+  if (closed && closed.customerId === user.id && CHECKED_OUT_STATUSES.includes(closed.status)) {
+    return { code, checkedOutAt: closed.checkedOutAt || closed.closedAt || null };
+  }
+  if (accessToken) {
+    // Đơn đọc được bằng quyền của chính khách (RLS Supabase) là đơn của khách
+    const stored = await findStoredBookingForUser(code, accessToken);
+    const ownerOk = stored && (!stored.customerId || stored.customerId === user.id);
+    if (ownerOk && CHECKED_OUT_STATUSES.includes(stored.status)) {
+      return { code, checkedOutAt: stored.checkedOutAt || null };
+    }
+  }
+  return null;
+}
+
 /**
  * Xử lý đặt phòng Atomic: Đảm bảo khi 2 tài khoản bấm cùng lúc chỉ có 1 tài khoản đặt thành công
  */

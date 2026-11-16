@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet, Megaphone, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet, Megaphone, RefreshCw, CheckCircle2, Star } from 'lucide-react';
 import { MAX_STAY_CHANGES, REQUEST_STATUS, pendingStayChangeRequest, lastDecidedStayChangeRequest } from '../utils/stayChangeRules';
 import { useBookingHistory, isBookingOfCustomer } from '../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../contexts/CustomerContext';
@@ -9,6 +9,8 @@ import { PROPOSAL_LABEL, formatDateRange, isClosedStatus } from '../utils/bookin
 import { PAYMENT_STATUS, depositToTransferOf } from '../utils/bookingDeposit';
 import useMarketingInbox from '../hooks/useMarketingInbox';
 import { trackInboxClick } from '../services/marketingApi';
+import useReviews from '../hooks/useReviews';
+import { isCheckedOutStatus, shouldRemindReview } from '../utils/reviewRules';
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_MS;
@@ -28,6 +30,8 @@ const BookingNotificationBell = ({ className = '' }) => {
   const { openApprovalModal } = useUI();
   // Tin Admin gửi qua Marketing tự động (Web Push) cũng được lưu ở đây cho khách xem lại
   const inbox = useMarketingInbox(!isAdmin ? authenticatedCustomer?.id : null);
+  // Đánh giá sau check-out: khách được nhắc đánh giá / thấy câu trả lời, admin thấy đánh giá mới
+  const reviewState = useReviews(Boolean(authenticatedCustomer) || isAdmin);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -95,6 +99,22 @@ const BookingNotificationBell = ({ className = '' }) => {
           path: '/tracking',
         });
       }
+      // Mời đánh giá kỳ nghỉ: nhắc trong 14 ngày sau check-out, tới khi khách gửi đánh giá
+      const code = b.code || b.id;
+      if (!isAdmin && authenticatedCustomer && reviewState.loaded && isCheckedOutStatus(b.status)
+        && shouldRemindReview(b.checkedOutAt) && !reviewState.reviews.some((r) => r.bookingCode === code)) {
+        list.push({
+          key: `review-invite-${code}`,
+          bookingId: b.id,
+          icon: Star,
+          tone: 'bg-amber-100 text-amber-600',
+          title: `Đánh giá kỳ nghỉ của bé ${b.catNames || (b.petProfiles || []).map((p) => p?.name).filter(Boolean).join(', ') || 'mèo cưng'}`,
+          desc: `Đơn #${code} đã check-out. Bấm để chấm điểm và góp ý cho Mèo Vắng Nhà.`,
+          time: b.checkedOutAt,
+          reminder: true,
+          path: `/my-booking?review=${encodeURIComponent(code)}`,
+        });
+      }
       // Khách sửa đơn xong cần cọc thêm: nhắc tới khi chuyển đủ (mã đặt phòng vẫn giữ nguyên)
       if (!isAdmin && b.paymentStatus === PAYMENT_STATUS.AWAITING_TOP_UP && !isClosedStatus(b.status)) {
         list.push({
@@ -155,6 +175,31 @@ const BookingNotificationBell = ({ className = '' }) => {
         });
       }
     });
+    reviewState.reviews.forEach((r) => {
+      if (!isAdmin && r.adminReply && isRecent(r.repliedAt)) {
+        list.push({
+          key: `review-reply-${r.bookingCode}`,
+          icon: MessageSquare,
+          tone: 'bg-amber-100 text-amber-600',
+          title: `Mèo Vắng Nhà đã trả lời đánh giá đơn #${r.bookingCode}`,
+          desc: r.adminReply,
+          time: r.repliedAt,
+          reminder: true,
+          path: `/my-booking?code=${encodeURIComponent(r.bookingCode)}`,
+        });
+      }
+      if (isAdmin && isRecent(r.updatedAt || r.createdAt)) {
+        list.push({
+          key: `review-new-${r.bookingCode}-${r.updatedAt}`,
+          icon: Star,
+          tone: r.rating <= 2 ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600',
+          title: `${r.customerName || 'Khách'} đánh giá ${r.rating}★ đơn #${r.bookingCode}`,
+          desc: r.comment || (r.tags || []).join(', '),
+          time: r.updatedAt || r.createdAt,
+          path: `/reviews?tab=list&code=${encodeURIComponent(r.bookingCode)}`,
+        });
+      }
+    });
     if (!isAdmin) {
       inbox.messages.forEach((m) => {
         list.push({
@@ -171,7 +216,7 @@ const BookingNotificationBell = ({ className = '' }) => {
       });
     }
     return list.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
-  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread]);
+  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread, reviewState.reviews, reviewState.loaded]);
 
   // Mở chuông thì tin Marketing đang hiện được tính là đã xem (lần sau không đếm trên chấm đỏ nữa)
   useEffect(() => {
@@ -192,7 +237,7 @@ const BookingNotificationBell = ({ className = '' }) => {
       return;
     }
     if (item.actionable) openApprovalModal(item.bookingId);
-    const prefix = location.pathname.startsWith('/admin') && item.path?.startsWith('/room-status') ? '/admin' : '';
+    const prefix = location.pathname.startsWith('/admin') && (item.path?.startsWith('/room-status') || item.path?.startsWith('/reviews')) ? '/admin' : '';
     navigate(item.path ? `${prefix}${item.path}` : bookingPath);
   };
 

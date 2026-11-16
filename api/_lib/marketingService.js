@@ -5,6 +5,7 @@ import { normalizeVnPhone } from '../../src/utils/phone.js';
 import { ownPushIds } from './pushAccess.js';
 import { listStoredBookings } from './bookingsDb.js';
 import { getSyncData } from './syncService.js';
+import { handleReviews } from './reviewsService.js';
 import { isPushConfigured, sendPushToUserIds, PUSH_NOT_CONFIGURED, getVapidStatus } from './pushService.js';
 import {
   getMarketingConfig,
@@ -408,6 +409,8 @@ export async function handleMarketing(req, res, action) {
     case 'inbox': return handleInbox(req, res);
     case 'track': return handleTrack(req, res);
     case 'run': return handleRun(req, res);
+    // Đánh giá sau check-out
+    case 'reviews': return handleReviews(req, res);
     // Hộp thư tập trung — Messenger
     case 'messenger': return handleWebhook(req, res);
     case 'messenger-inbox': return handleInboxList(req, res);
