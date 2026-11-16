@@ -78,8 +78,9 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
     if (!from || !to || from >= to) return [];
     return findRoomsWithSpace({
       rooms: ROOM_CONFIG, allBookingsByRoom: roomBookings || {}, from, to, cats, excludeCodes, maintenance: maintenanceRooms,
+      holdsEnd: to >= currentEnd, // ngày trả phòng cũng phải còn chỗ
     });
-  }, [roomBookings, maintenanceRooms, from, to, cats, excludeCodes.join(',')]);
+  }, [roomBookings, maintenanceRooms, from, to, currentEnd, cats, excludeCodes.join(',')]);
 
   // Gia hạn: phòng đang ở cuối kỳ còn chỗ không
   const sameRoomFree = mode === 'extend' && roomsWithSpace.some((r) => r.id === lastSeg?.roomId);

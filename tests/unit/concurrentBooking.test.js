@@ -116,7 +116,7 @@ describe('Nhiều khách gửi đặt phòng cùng lúc trên một máy chủ',
     const api = await startServer(makeDb(), null);
     const results = await Promise.all([
       call(api.handleAddBooking, order('VIP-02', 2, addDays(30), addDays(32), 'An')),
-      call(api.handleAddBooking, order('VIP-02', 2, addDays(32), addDays(34), 'Bình')),
+      call(api.handleAddBooking, order('VIP-02', 2, addDays(33), addDays(35), 'Bình')),
     ]);
     expect(results.map((r) => r.statusCode)).toEqual([200, 200]);
   });

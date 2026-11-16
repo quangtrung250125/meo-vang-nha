@@ -159,14 +159,24 @@ export function stayEntriesForRoom(roomId, allBookingsByRoom = {}) {
   return entries;
 }
 
-/** Số bé cao nhất đang ở một phòng trong mỗi đêm của khoảng [from, to), bỏ qua các đơn trong excludeCodes */
-export function peakCatsInRoom(roomId, allBookingsByRoom, from, to, excludeCodes = []) {
+/**
+ * Lượt ở này có giữ chỗ ngày d không. Đơn chưa check-out giữ luôn cả ngày trả phòng
+ * (admin bấm check-out thì đơn được bỏ qua, phòng trống lại ngay). Ngày chuyển phòng giữa kỳ thì không giữ.
+ */
+export const holdsDate = (b, d) => Boolean(b.checkIn && b.checkOut) && b.checkIn <= d
+  && (d < b.checkOut || (d === b.checkOut && !b._movesOutOn));
+
+/**
+ * Số bé cao nhất đang ở một phòng trong mỗi ngày của khoảng [from, to), bỏ qua các đơn trong excludeCodes.
+ * holdsEnd: tính cả ngày `to` (khi `to` là ngày trả phòng của đơn, đơn cũng giữ chỗ ngày đó).
+ */
+export function peakCatsInRoom(roomId, allBookingsByRoom, from, to, excludeCodes = [], { holdsEnd = false } = {}) {
   const entries = stayEntriesForRoom(roomId, allBookingsByRoom).filter((b) =>
     !isClosed(b.status) && !String(b.code || '').includes('BK')
     && !excludeCodes.includes(b.code) && !excludeCodes.includes(b.id));
   let peak = 0;
-  for (let d = from; d && d < to; d = addDays(d, 1)) {
-    const cats = entries.reduce((sum, b) => (b.checkIn <= d && d < b.checkOut ? sum + (Number(b.cats) || 1) : sum), 0);
+  for (let d = from; d && (d < to || (holdsEnd && d === to)); d = addDays(d, 1)) {
+    const cats = entries.reduce((sum, b) => (holdsDate(b, d) ? sum + (Number(b.cats) || 1) : sum), 0);
     if (cats > peak) peak = cats;
   }
   return peak;
@@ -176,11 +186,11 @@ export function peakCatsInRoom(roomId, allBookingsByRoom, from, to, excludeCodes
  * Các phòng còn đủ chỗ cho đơn trong khoảng [from, to) (không tính chính đơn đó), nhóm theo hạng.
  * rooms: [{ id, type, capacity }]
  */
-export function findRoomsWithSpace({ rooms, allBookingsByRoom, from, to, cats, excludeCodes = [], maintenance = {} }) {
+export function findRoomsWithSpace({ rooms, allBookingsByRoom, from, to, cats, excludeCodes = [], maintenance = {}, holdsEnd = false }) {
   return rooms
     .filter((r) => !maintenance[r.id] && r.capacity >= cats)
     .map((r) => {
-      const occupied = peakCatsInRoom(r.id, allBookingsByRoom, from, to, excludeCodes);
+      const occupied = peakCatsInRoom(r.id, allBookingsByRoom, from, to, excludeCodes, { holdsEnd });
       return { ...r, occupied, remaining: Math.max(0, r.capacity - occupied) };
     })
     .filter((r) => r.remaining >= cats);
@@ -239,6 +249,16 @@ export function validateStayPlan({ booking, segments, rooms, allBookingsByRoom, 
       if (occupied + cats > room.capacity) {
         return `Phòng ${s.roomId} không còn đủ chỗ ngày ${d}. Vui lòng chọn phòng khác.`;
       }
+    }
+  }
+  // Ngày trả phòng mới: đơn vẫn giữ chỗ tới khi check-out, nên phòng cuối phải còn chỗ cả ngày này
+  const last = sorted[sorted.length - 1];
+  const lastBefore = before[before.length - 1];
+  if (newEnd !== oldEnd || !lastBefore || lastBefore.roomId !== last.roomId) {
+    const room = rooms.find((r) => r.id === last.roomId);
+    const occupied = peakCatsInRoom(last.roomId, allBookingsByRoom, newEnd, addDays(newEnd, 1), excludeCodes);
+    if (occupied + cats > room.capacity) {
+      return `Phòng ${last.roomId} không còn đủ chỗ ngày ${newEnd}. Vui lòng chọn phòng khác.`;
     }
   }
   return null;

@@ -5,7 +5,7 @@ import { isClosedStatus, STORED_STATUS, BOOKING_STATUS, normalizeStatusValue } f
 import { latestPendingChanges } from '../src/utils/liveBookings';
 import { updateBookingRows } from '../src/utils/bookingRows';
 import { getAuthHeaders } from '../src/services/crossDeviceSync';
-import { stayEntriesForRoom } from '../src/utils/staySegments';
+import { stayEntriesForRoom, holdsDate, addDays } from '../src/utils/staySegments';
 
 // Gọi /api/bookings kèm token đăng nhập (server chỉ cho admin sửa/xóa đơn và xem đầy đủ thông tin)
 const callBookingsApi = async (method = 'GET', body) =>
@@ -228,42 +228,16 @@ export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, chec
 
   if (list.length === 0) return 0;
 
-  // Trường hợp 1: Có cả ngày checkIn và checkOut
+  // Trường hợp 1: Có cả ngày checkIn và checkOut.
+  // Tính từng ngày từ ngày nhận tới cả ngày trả phòng: đơn chưa check-out giữ chỗ luôn ngày trả,
+  // nên không nhận phòng gối đầu vào ngày khách trước chưa trả phòng (và ngược lại).
   if (checkIn && checkOut) {
-    const startDate = new Date(`${checkIn}T00:00:00`);
-    const endDate = new Date(`${checkOut}T00:00:00`);
-    const endLimit = startDate.getTime() >= endDate.getTime() ? startDate : endDate;
-
+    const last = checkOut > checkIn ? checkOut : checkIn;
     let maxOccupied = 0;
-    const curr = new Date(startDate);
-    const isSingleDay = startDate.getTime() === endLimit.getTime();
-
-    while (isSingleDay ? curr.getTime() <= endLimit.getTime() : curr.getTime() < endLimit.getTime()) {
-      const y = curr.getFullYear();
-      const m = String(curr.getMonth() + 1).padStart(2, '0');
-      const d = String(curr.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
-
-      let occupiedOnDate = 0;
-      for (const b of list) {
-        if (!b.checkIn || !b.checkOut) continue;
-        const coversDate =
-          b.checkIn <= dateStr &&
-          (b.checkOut > dateStr || (b.checkIn === b.checkOut && b.checkOut === dateStr));
-
-        if (coversDate) {
-          occupiedOnDate += Number(b.cats) || 1;
-        }
-      }
-
-      if (occupiedOnDate > maxOccupied) {
-        maxOccupied = occupiedOnDate;
-      }
-
-      if (isSingleDay) break;
-      curr.setDate(curr.getDate() + 1);
+    for (let dateStr = checkIn; dateStr && dateStr <= last; dateStr = addDays(dateStr, 1)) {
+      const occupiedOnDate = list.reduce((sum, b) => (holdsDate(b, dateStr) ? sum + (Number(b.cats) || 1) : sum), 0);
+      if (occupiedOnDate > maxOccupied) maxOccupied = occupiedOnDate;
     }
-
     return maxOccupied;
   }
 
@@ -501,7 +475,9 @@ export const RoomStateProvider = ({ children }) => {
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.bookings && isMounted) {
-            const closedCodes = new Set((json.closed || []).map((c) => c?.code).filter(Boolean));
+            // Đơn đã kết thúc: của chính mình (json.closed) + mã đơn vừa kết thúc của mọi khách (json.closedCodes),
+            // để phòng trống lại ngay trên máy này khi admin check-out / hủy đơn của khách khác
+            const closedCodes = new Set([...(json.closed || []).map((c) => c?.code), ...(json.closedCodes || [])].filter(Boolean));
             // Phòng hiện tại của từng đơn theo server (khách đổi phòng thì đơn nằm ở phòng mới)
             const serverRoomOf = new Map();
             Object.entries(json.bookings).forEach(([roomId, list]) => {
