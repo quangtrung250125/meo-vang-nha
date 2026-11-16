@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Gift, Search, CheckCircle2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useRoomState } from '../../contexts/RoomStateContext';
 import { sendWebNotification } from '../../utils/notificationService';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
+import AdminCustomerPicker from '../../components/AdminCustomerPicker';
 
 // Ngày hôm nay (giờ máy khách) dạng YYYY-MM-DD, dùng cho ô chọn ngày
 const getTodayStr = () => {
@@ -129,8 +131,10 @@ const TYPE_META = {
 const Step1Dates = ({ data, updateData, onNext }) => {
   // Kết nối với shared RoomStateContext
   const { getRoomAvailability, bookings } = useRoomState();
+  const { isAdmin } = useCustomerProfile();
 
   const [error, setError] = useState('');
+  const [customerError, setCustomerError] = useState('');
   // Quay lại từ bước Xác nhận vì phòng vừa bị người khác đặt trước: hiện ngay danh sách phòng đã cập nhật,
   // khách không phải bấm "Kiểm tra phòng trống" lại
   const [availableGroups, setAvailableGroups] = useState(() => (
@@ -216,6 +220,10 @@ const Step1Dates = ({ data, updateData, onNext }) => {
   };
 
   const handleNextClick = () => {
+    if (isAdmin && !data.assistedCustomer) {
+      setCustomerError('Vui lòng chọn khách hàng hoặc tạo tài khoản cho khách trước khi tiếp tục.');
+      return;
+    }
     if (!data.checkIn || !data.checkOut) {
       setError('Vui lòng chọn ngày gửi và ngày đón.');
       return;
@@ -280,6 +288,18 @@ const Step1Dates = ({ data, updateData, onNext }) => {
             Đóng
           </button>
         </div>
+      )}
+
+      {/* Nhân viên đặt hộ khách đến cửa hàng: chọn / tạo tài khoản khách ngay trên mục chọn thời gian */}
+      {isAdmin && (
+        <AdminCustomerPicker
+          value={data.assistedCustomer || null}
+          onChange={(customer) => {
+            updateData({ assistedCustomer: customer });
+            if (customer) setCustomerError('');
+          }}
+          error={customerError}
+        />
       )}
 
       {/* Date Inputs */}

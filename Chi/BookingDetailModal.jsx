@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useBookingHistory } from "../src/contexts/BookingHistoryContext";
 import { BOOKING_STATUS, PROPOSAL_LABEL, PROPOSAL_TYPE, normalizeStatusValue } from "../src/utils/bookingStatus";
+import { latestPendingChanges } from "../src/utils/liveBookings";
 
 // Badge hạng thành viên
 const MemberBadge = ({ tier }) => {
@@ -371,7 +372,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   const historyBooking = booking
     ? globalBookingList.find(b => b.id === booking.code || b.code === booking.code)
     : null;
-  const pending = historyBooking?.pending_changes || null;
+  // Đơn đặt hộ: room state (server) luôn có yêu cầu xác nhận, kể cả khi "Lịch đặt" trên máy này chưa tải kịp
+  const pending = latestPendingChanges(historyBooking, booking);
+  const awaitingCustomer = pending?.type === PROPOSAL_TYPE.CONFIRM_BOOKING;
 
   const showToast = (msg, type = "success") => {
     setToastMsg({ msg, type });
@@ -510,6 +513,10 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   }[normalizedStatus] || { cls: "bg-gray-200 text-gray-700", label: status };
 
   const handleCheckIn = () => {
+    if (awaitingCustomer) {
+      showToast("Đơn đặt hộ đang chờ khách xác nhận, chưa Check-in được.", "error");
+      return;
+    }
     onCheckIn(roomId, code);
     showToast(`✅ Check-in thành công cho ${code}!`);
     setTimeout(() => onClose(), 1500);
@@ -525,7 +532,8 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
 
   const handleDeleteConfirm = (reason) => {
     setShowDeleteConfirm(false);
-    if (historyBooking) {
+    // Đơn đặt hộ khách chưa xác nhận thì nhân viên hủy thẳng, không cần khách đồng ý
+    if (historyBooking && !awaitingCustomer) {
       if (adminProposeChange(historyBooking.id, { type: PROPOSAL_TYPE.CANCEL, reason })) {
         showToast(`📩 Đã gửi đề xuất hủy đơn ${code} tới khách`);
       }
@@ -562,6 +570,12 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   };
 
   const handleWithdrawProposal = () => {
+    if (awaitingCustomer && !historyBooking) {
+      onDelete(roomId, code, "Nhân viên hủy đơn đặt hộ khi khách chưa xác nhận");
+      showToast(`🗑️ Đã hủy đơn đặt hộ ${code}`, "error");
+      setTimeout(() => onClose(), 1200);
+      return;
+    }
     if (historyBooking && adminCancelProposal(historyBooking.id)) {
       showToast(`↩️ Đã rút lại đề xuất cho đơn ${code}`);
     }
@@ -656,14 +670,20 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
               <div className="mt-3 rounded-xl border-2 border-purple-200 bg-purple-50 p-3 flex items-start gap-2.5">
                 <Send className="h-4 w-4 text-purple-600 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0 text-xs text-purple-900">
-                  <p className="font-black">Chờ khách xác nhận: {PROPOSAL_LABEL[pending.type] || "Thay đổi"}</p>
+                  <p className="font-black">{awaitingCustomer ? "Đơn đặt hộ: chờ khách xác nhận" : <>Chờ khách xác nhận: {PROPOSAL_LABEL[pending.type] || "Thay đổi"}</>}</p>
+                  {awaitingCustomer && (
+                    <p className="mt-0.5">
+                      Khách xác nhận thì đơn mới được ghi nhận và Check-in được.
+                      {pending.dueAt ? ` Hạn xác nhận: ${new Date(pending.dueAt).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}.` : ""}
+                    </p>
+                  )}
                   {pending.type === PROPOSAL_TYPE.RESCHEDULE && (
                     <p className="mt-0.5">Lịch mới: {fmtDate(pending.newCheckIn)} → {fmtDate(pending.newCheckOut)}</p>
                   )}
                   {pending.reason && <p className="mt-0.5 italic">Lý do: {pending.reason}</p>}
                 </div>
                 <button onClick={handleWithdrawProposal} className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900">
-                  <Undo2 className="h-3.5 w-3.5" />Rút lại
+                  <Undo2 className="h-3.5 w-3.5" />{awaitingCustomer ? "Hủy đơn" : "Rút lại"}
                 </button>
               </div>
             )}
@@ -700,8 +720,9 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-bold text-sm hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
                 <Edit3 className="h-4 w-4" />Chỉnh sửa
               </button>
-              <button id={`btn-checkin-booking-${code}`} onClick={handleCheckIn} disabled={!isUpcoming}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-sm transition-all ${!isUpcoming ? "bg-blue-100 text-blue-400 border-2 border-blue-200 cursor-not-allowed" : "bg-green-500 hover:bg-green-600 text-white shadow-md shadow-green-200 hover:scale-[1.02] active:scale-[0.98]"}`}>
+              <button id={`btn-checkin-booking-${code}`} onClick={handleCheckIn} disabled={!isUpcoming || awaitingCustomer}
+                title={awaitingCustomer ? "Chờ khách xác nhận đơn đặt hộ" : ""}
+                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-sm transition-all ${!isUpcoming || awaitingCustomer ? "bg-blue-100 text-blue-400 border-2 border-blue-200 cursor-not-allowed" : "bg-green-500 hover:bg-green-600 text-white shadow-md shadow-green-200 hover:scale-[1.02] active:scale-[0.98]"}`}>
                 <LogIn className="h-4 w-4" />{isInHouse ? "Đang ở" : "Check-in"}
               </button>
               <button id={`btn-checkout-booking-${code}`} onClick={() => setShowInvoice(true)} disabled={!isInHouse}
@@ -711,7 +732,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
               </button>
               <button id={`btn-delete-booking-${code}`} onClick={() => setShowDeleteConfirm(true)} disabled={!isUpcoming || pending?.type === PROPOSAL_TYPE.CANCEL}
                 className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white border-2 border-red-200 text-red-500 font-bold text-sm hover:bg-red-500 hover:text-white hover:border-red-500 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-red-500 disabled:hover:scale-100">
-                <Trash2 className="h-4 w-4" />{historyBooking ? "Đề xuất hủy" : "Hủy đơn"}
+                <Trash2 className="h-4 w-4" />{historyBooking && !awaitingCustomer ? "Đề xuất hủy" : "Hủy đơn"}
               </button>
             </div>
           </div>

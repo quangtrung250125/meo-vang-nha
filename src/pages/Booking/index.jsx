@@ -24,7 +24,7 @@ const steps = [
 const Booking = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const location = useLocation();
-  const { isAuthenticated, authenticatedCustomer } = useCustomerProfile();
+  const { isAuthenticated, authenticatedCustomer, isAdmin } = useCustomerProfile();
   const { isAuthOpen, openAuth, closeAuth } = useUI();
   const { publishedItems: packagesList } = useServiceCatalog();
   
@@ -55,9 +55,9 @@ const Booking = () => {
 
   // Báo server khách đang đặt phòng dở (kịch bản "Bỏ dở đặt phòng" của Marketing tự động), đặt xong thì xóa
   useEffect(() => {
-    if (!isAuthenticated || currentStep < 2) return;
+    if (!isAuthenticated || isAdmin || currentStep < 2) return;
     trackBookingDraft(currentStep === 5 ? 'booked' : 'draft', { step: currentStep, phone: authenticatedCustomer?.phone });
-  }, [currentStep, isAuthenticated, authenticatedCustomer?.phone]);
+  }, [currentStep, isAuthenticated, isAdmin, authenticatedCustomer?.phone]);
 
   const handlePrev = () => {
     if (currentStep > 1) setCurrentStep(prev => prev - 1);
@@ -175,7 +175,14 @@ const Booking = () => {
 
         {/* Main Form Area */}
         <div className="bg-white rounded-3xl shadow-xl p-6 md:p-10 border border-gray-100">
-          {authenticatedCustomer && (
+          {isAdmin ? (
+            bookingData.assistedCustomer && currentStep > 1 && (
+              <div className="mb-6 flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-sky-800">
+                <span className="font-semibold">Đặt hộ khách: {bookingData.assistedCustomer.fullName || bookingData.assistedCustomer.phone}</span>
+                <span className="text-sky-600">{bookingData.assistedCustomer.isNewAccount ? 'Tài khoản vừa tạo' : 'Khách sẽ xác nhận đơn'}</span>
+              </div>
+            )
+          ) : authenticatedCustomer && (
             <div className="mb-6 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-700">
               <span className="font-semibold">Khách hàng: {authenticatedCustomer.fullName || 'Khách mới'}</span>
               <span className="text-emerald-600">Hồ sơ đang được đồng bộ</span>

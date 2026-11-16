@@ -393,6 +393,7 @@ const MyBooking = () => {
               const baseStatus = normalizeStatusValue(booking.status);
               const isClosed = isCompleted || isCancelled;
               const proposalLabel = PROPOSAL_LABEL[booking.pending_changes?.type] || 'Thay đổi';
+              const isAssistedPending = booking.pending_changes?.type === PROPOSAL_TYPE.CONFIRM_BOOKING;
 
               return (
                 <div 
@@ -420,9 +421,16 @@ const MyBooking = () => {
                               {isAdmin ? 'Đang chờ khách xác nhận' : 'Cần Bạn Xác Nhận'}
                             </span>
                             <span className="text-xs text-purple-700 font-bold">
-                              Đề xuất {proposalLabel}
+                              {isAssistedPending ? 'Đơn nhân viên đặt hộ' : `Đề xuất ${proposalLabel}`}
                             </span>
                           </div>
+                          {isAssistedPending ? (
+                            <p className="text-xs sm:text-sm font-semibold text-purple-950 mt-1">
+                              {isAdmin
+                                ? `Đã gửi cho ${booking.ownerName || 'khách'} xác nhận. Đơn chỉ được ghi nhận (Check-in được) sau khi khách bấm Xác nhận.`
+                                : 'Nhân viên Mèo Vắng Nhà đã đặt phòng giúp bạn tại cửa hàng. Vui lòng kiểm tra và xác nhận để đơn được ghi nhận.'}
+                            </p>
+                          ) : (<>
                           <p className="text-xs sm:text-sm font-semibold text-purple-950 mt-1">
                             {isAdmin ? 'Bạn đã gửi' : 'Admin đã gửi'} đề xuất <span className="underline font-bold">{proposalLabel.toLowerCase()}</span> cho đơn #{booking.id}
                             {booking.pending_changes.type === PROPOSAL_TYPE.RESCHEDULE && (
@@ -436,6 +444,7 @@ const MyBooking = () => {
                           <p className="text-xs text-purple-700 mt-0.5 italic">
                             Lý do: "{booking.pending_changes.reason}"
                           </p>
+                          </>)}
                         </div>
                       </div>
 
@@ -445,7 +454,7 @@ const MyBooking = () => {
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white border-2 border-purple-300 hover:bg-purple-100 text-purple-700 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer active:scale-95"
                         >
                           <Undo2 className="w-4 h-4" />
-                          <span>Rút lại đề xuất</span>
+                          <span>{isAssistedPending ? 'Hủy đơn đặt hộ' : 'Rút lại đề xuất'}</span>
                         </button>
                       ) : (
                         <button
@@ -453,7 +462,7 @@ const MyBooking = () => {
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs shadow-md shadow-purple-200 flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer active:scale-95"
                         >
                           <Sparkles className="w-4 h-4 text-yellow-300" />
-                          <span>Xem chi tiết & Phản hồi</span>
+                          <span>{isAssistedPending ? 'Xem & Xác nhận đơn' : 'Xem chi tiết & Phản hồi'}</span>
                         </button>
                       )}
                     </div>
@@ -564,7 +573,7 @@ const MyBooking = () => {
                       )}
 
                       {/* 2a. THAO TÁC CỦA ADMIN: Check-in / Check-out trực tiếp, Đổi lịch / Hủy / Thay đổi qua đề xuất */}
-                      {isAdmin && baseStatus === BOOKING_STATUS.UPCOMING && (
+                      {isAdmin && baseStatus === BOOKING_STATUS.UPCOMING && !isAssistedPending && (
                         <button
                           onClick={() => adminCheckIn(booking.id)}
                           className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
@@ -632,7 +641,7 @@ const MyBooking = () => {
                       )}
 
                       {/* Nút thanh toán nếu chưa thanh toán */}
-                      {(booking.paymentStatus !== 'Đã thanh toán' || (buildInvoice(booking, ADDONS)?.outstanding || 0) > 0) && !isCancelled && hasBookingCode(booking) && (
+                      {(booking.paymentStatus !== 'Đã thanh toán' || (buildInvoice(booking, ADDONS)?.outstanding || 0) > 0) && !isCancelled && !isAssistedPending && hasBookingCode(booking) && (
                         <button 
                           onClick={() => handlePayment(booking.id)}
                           className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-1 cursor-pointer"

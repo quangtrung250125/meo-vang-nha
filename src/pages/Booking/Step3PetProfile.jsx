@@ -3,10 +3,15 @@ import { Info, Plus, Check, Gift } from 'lucide-react';
 import { usePetProfile } from '../../contexts/PetContext';
 import PetForm from '../../components/PetForm';
 import { toast } from 'react-hot-toast';
+import { useCustomerProfile } from '../../contexts/CustomerContext';
 
 
 const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
-  const { petList, savePet } = usePetProfile();
+  const { petList: allPets, savePet } = usePetProfile();
+  const { isAdmin } = useCustomerProfile();
+  // Nhân viên đặt hộ: chỉ hiện mèo của khách đã chọn, mèo thêm mới được lưu vào hồ sơ của khách
+  const assistedId = isAdmin ? data.assistedCustomer?.id || null : null;
+  const petList = assistedId ? allPets.filter((p) => p.ownerId === assistedId) : allPets;
   const requiredPetCount = Math.max(1, Number(data.catCount) || 1);
   
   const [selectedIds, setSelectedIds] = useState(() => {
@@ -36,12 +41,12 @@ const Step3PetProfile = ({ data, updateData, onNext, onPrev }) => {
 
   const handleSaveNewPet = (petData) => {
     setIsSaving(true);
-    setTimeout(() => {
-      const newPet = { ...petData, id: petData.id || Date.now().toString() };
-      savePet(newPet);
+    setTimeout(async () => {
+      const newPet = { ...petData, id: petData.id || Date.now().toString(), ...(assistedId ? { ownerId: assistedId } : {}) };
+      const saved = await savePet(newPet);
       
       if (selectedIds.length < requiredPetCount) {
-        setSelectedIds(prev => [...prev, newPet.id]);
+        setSelectedIds(prev => [...prev, saved?.id || newPet.id]);
       }
       
       setIsSaving(false);

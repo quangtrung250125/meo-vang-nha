@@ -378,7 +378,7 @@ const AdminPage = () => {
                                 title="Rút lại đề xuất trước khi khách phản hồi"
                               >
                                 <Undo2 className="w-3.5 h-3.5" />
-                                <span>Rút lại đề xuất</span>
+                                <span>{booking.pending_changes?.type === 'CONFIRM_BOOKING' ? 'Hủy đơn đặt hộ' : 'Rút lại đề xuất'}</span>
                               </button>
                             )}
 

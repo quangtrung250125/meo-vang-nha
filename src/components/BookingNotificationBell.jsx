@@ -48,15 +48,20 @@ const BookingNotificationBell = ({ className = '' }) => {
       const changes = b.pending_changes;
       if (changes) {
         const label = PROPOSAL_LABEL[changes.type] || 'Thay đổi';
+        const isAssisted = changes.type === 'CONFIRM_BOOKING';
         list.push({
           key: `pending-${b.id}`,
           bookingId: b.id,
           icon: Send,
-          tone: 'bg-purple-100 text-purple-600',
-          title: isAdmin
-            ? `Đơn #${b.id}: chờ khách xác nhận ${label.toLowerCase()}`
-            : `Admin đề xuất ${label.toLowerCase()} đơn #${b.id}`,
-          desc: changes.reason || 'Vui lòng xem và xác nhận.',
+          tone: isAssisted ? 'bg-sky-100 text-sky-600' : 'bg-purple-100 text-purple-600',
+          title: isAssisted
+            ? (isAdmin ? `Đơn đặt hộ #${b.id}: chờ ${b.ownerName || 'khách'} xác nhận` : `Nhân viên đã đặt phòng giúp bạn (#${b.id})`)
+            : isAdmin
+              ? `Đơn #${b.id}: chờ khách xác nhận ${label.toLowerCase()}`
+              : `Admin đề xuất ${label.toLowerCase()} đơn #${b.id}`,
+          desc: isAssisted
+            ? `${b.roomId || ''} · ${formatDateRange(b.checkIn, b.checkOut)}. ${isAdmin ? 'Khách xác nhận thì đơn mới được ghi nhận.' : 'Vui lòng xác nhận để đơn được ghi nhận.'}`
+            : changes.reason || 'Vui lòng xem và xác nhận.',
           time: changes.timestamp,
           actionable: !isAdmin,
         });

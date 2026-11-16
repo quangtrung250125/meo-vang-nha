@@ -280,6 +280,8 @@ export const PetProvider = ({ children }) => {
 
     // B. Broadcast tức thì qua Supabase Cloud WebSockets đến điện thoại
     broadcastEvent('PETS_UPDATED', { pets: updatedList });
+    // Trả về hồ sơ đã lưu (mã có thể đổi sang mã Supabase) để nơi gọi chọn đúng bé vừa thêm
+    return safePet;
   };
   
   // ── 4. Xóa hồ sơ mèo ──

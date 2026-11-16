@@ -66,12 +66,14 @@ export const PROPOSAL_TYPE = {
   RESCHEDULE: 'RESCHEDULE', // Đổi lịch nhận/trả
   CANCEL: 'CANCEL',         // Hủy đơn
   UPDATE: 'UPDATE',         // Thay đổi gói dịch vụ / ghi chú đơn
+  CONFIRM_BOOKING: 'CONFIRM_BOOKING', // Nhân viên đặt phòng hộ khách đã có tài khoản: khách xác nhận thì đơn mới được ghi nhận
 };
 
 export const PROPOSAL_LABEL = {
   [PROPOSAL_TYPE.RESCHEDULE]: 'Đổi lịch',
   [PROPOSAL_TYPE.CANCEL]: 'Hủy đơn',
   [PROPOSAL_TYPE.UPDATE]: 'Thay đổi đơn',
+  [PROPOSAL_TYPE.CONFIRM_BOOKING]: 'Xác nhận đơn đặt hộ',
 };
 
 /**
