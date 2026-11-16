@@ -260,7 +260,7 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
                 <p className="text-xl font-extrabold text-text-dark font-title">Đang chờ nhân viên xác nhận</p>
                 <p className="text-sm text-gray-500 mt-1">
                   Yêu cầu đổi lần {requested.number}/{MAX_STAY_CHANGES}: <span className="font-bold text-text-dark">{requested.text}</span>.
-                  Lịch lưu trú và hóa đơn chỉ thay đổi khi nhân viên chấp nhận. Bạn sẽ nhận thông báo kết quả (kèm lý do nếu bị từ chối).
+                  Lịch lưu trú và hóa đơn chỉ thay đổi khi nhân viên chấp nhận. Bạn sẽ nhận thông báo khi có kết quả.
                 </p>
               </div>
             </div>
