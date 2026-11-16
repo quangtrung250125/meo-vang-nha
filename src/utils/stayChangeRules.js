@@ -9,7 +9,7 @@ import { getStaySegments } from './staySegments.js';
 export const MAX_STAY_CHANGES = 3;
 export const SELF_STAY_CHANGES = 1;
 
-export const STAY_CHANGE_RULE_TEXT = 'Quy tắc đổi phòng / đổi gói: bạn được tự đổi 1 lần. Từ lần thứ 2, yêu cầu đổi cần nhân viên xác nhận (chấp nhận hoặc từ chối kèm lý do). Mỗi đơn chỉ được đổi tối đa 3 lần trong suốt kỳ lưu trú.';
+export const STAY_CHANGE_RULE_TEXT = 'Quy tắc đổi phòng / đổi gói: bạn được tự đổi 1 lần. Từ lần thứ 2, yêu cầu đổi cần nhân viên xác nhận. Mỗi đơn chỉ được đổi tối đa 3 lần trong suốt kỳ lưu trú.';
 
 export const REQUEST_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };
 
