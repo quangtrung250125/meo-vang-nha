@@ -21,6 +21,9 @@ const EDIT_FIELDS = [
   'totalPrice', 'totalAmount', 'baseTotalPrice', 'pricingAdjustments', 'editedAt', 'lastEditSummary',
 ];
 
+// Đổi phòng / gói qua yêu cầu chờ nhân viên xác nhận
+const STAY_FIELDS = ['stayChangeRequests', 'staySegments', 'checkOut', 'baseCheckOut', 'stayChanges', 'stayChangedAt'];
+
 // Đơn đã kết thúc (Check-out / hủy) server không còn giữ trong kho phòng, chỉ trả về các trường này
 export const CLOSED_FIELDS = ['status', 'cancelReason', 'cancelledAt', 'cancelledBy', 'checkedOutAt', 'checkOutNote'];
 
@@ -56,6 +59,12 @@ export function getLiveBookingUpdates(local, { live = null, closed = null, now =
     });
     if ('pending_changes' in live && !same(local.pending_changes, live.pending_changes)) {
       updates.pending_changes = live.pending_changes ?? null;
+    }
+    // Yêu cầu đổi phòng / gói của khách và quyết định của nhân viên (chấp nhận thì lịch lưu trú đổi theo)
+    if (Array.isArray(live.stayChangeRequests) && !same(local.stayChangeRequests, live.stayChangeRequests)) {
+      STAY_FIELDS.forEach((key) => {
+        if (live[key] !== undefined && !same(local[key], live[key])) updates[key] = live[key];
+      });
     }
     // Chỉ lấy nội dung chỉnh sửa khi bản trên server được sửa sau bản trong trình duyệt
     if (live.editedAt && timeOf(live.editedAt) > timeOf(local.editedAt)) {

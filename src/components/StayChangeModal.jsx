@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   X, PawPrint, CalendarDays, CalendarCheck, CheckCircle2, AlertTriangle, MessageCircle, PhoneCall,
-  RefreshCw, ArrowUpCircle, BedDouble, Receipt,
+  RefreshCw, ArrowUpCircle, BedDouble, Receipt, Clock, XCircle, Send,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRoomState, ROOM_CONFIG } from '../contexts/RoomStateContext';
@@ -14,6 +14,9 @@ import {
   addDays, applyStayChange, describeSegment, findRoomsWithSpace, getStaySegments, nightsOf,
   packageNightlyPrice, roomTypeOf, sameStay, segmentOnDate, shortDate,
 } from '../utils/staySegments';
+import {
+  MAX_STAY_CHANGES, STAY_CHANGE_RULE_TEXT, REQUEST_STATUS, lastDecidedStayChangeRequest, planIsRoomChange, stayChangeQuota,
+} from '../utils/stayChangeRules';
 
 const TYPE_LABEL = { VIP: 'Hạng VIP', VVIP: 'Hạng VVIP', DELUXE: 'Hạng DELUXE' };
 const TYPE_RANK = { VIP: 1, VVIP: 2, DELUXE: 3 };
@@ -21,14 +24,15 @@ const money = (n) => `${Math.round(Number(n) || 0).toLocaleString('vi-VN')}đ`;
 const fullDate = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '');
 
 /**
- * Khách tự gia hạn, đổi phòng, đổi gói, nâng hạng ngay trên trang Theo dõi lưu trú, không cần chờ nhân viên duyệt.
+ * Khách tự gia hạn, đổi phòng, đổi gói, nâng hạng ngay trên trang Theo dõi lưu trú.
+ * Đổi phòng / gói: lần đầu khách tự đổi, lần 2 và 3 gửi yêu cầu chờ nhân viên xác nhận, tối đa 3 lần (utils/stayChangeRules).
  * Gia hạn: phòng đang ở còn chỗ thì kéo dài luôn; hết chỗ thì báo và gợi ý các phòng còn chỗ để khách chọn.
  * Mọi thay đổi ghi thành lịch theo chặng (ngày a – b phòng nào, gói nào) để hóa đơn tự tính theo.
  */
 const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpenChat, onOpenCall }) => {
   const { bookings: roomBookings, maintenanceRooms = {} } = useRoomState();
   const { publishedItems = [], roomSurcharges = {} } = useServiceCatalog();
-  const { customerChangeStay } = useBookingHistory();
+  const { customerChangeStay, customerRequestStayChange } = useBookingHistory();
 
   const [mode, setMode] = useState('extend'); // extend | change
   const [days, setDays] = useState(3);
@@ -38,6 +42,8 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
   const [changeFrom, setChangeFrom] = useState('');
   const [changeTo, setChangeTo] = useState('');
   const [done, setDone] = useState(null); // booking sau khi cập nhật (màn hình thành công)
+  const [requested, setRequested] = useState(null); // yêu cầu vừa gửi, chờ nhân viên xác nhận
+  const [sending, setSending] = useState(false);
 
   const today = todayInVietnam();
   const cats = Math.max(1, Number(booking?.cats) || (booking?.petIds || []).length || 1);
@@ -112,17 +118,25 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
     return { plan, next, before, after, diff: (after?.total || 0) - (before?.total || 0) };
   }, [booking, JSON.stringify(change)]);
 
+  // Quy tắc đổi phòng / gói: lần này có tính là 1 lần đổi không, và đi đường tự đổi hay gửi yêu cầu
+  const quota = stayChangeQuota(booking);
+  const isRoomChange = Boolean(preview && !nothingChanges && planIsRoomChange(booking, preview.plan.segments));
+  const needsRequest = isRoomChange && quota.mode === 'request';
+  const roomChangeBlocked = isRoomChange && (quota.mode === 'blocked' || quota.mode === 'waiting');
+  const showRule = mode === 'change' || showRoomList || isRoomChange;
+  const lastDecided = lastDecidedStayChangeRequest(booking);
+
   if (!isOpen || !booking) return null;
   const firstPet = resolvedPets?.[0];
 
   const reset = () => {
     setMode('extend'); setDays(3); setPickOther(false); setRoomId(''); setPkgId('');
-    setChangeFrom(''); setChangeTo(''); setDone(null);
+    setChangeFrom(''); setChangeTo(''); setDone(null); setRequested(null); setSending(false);
   };
   const handleClose = () => { reset(); onClose(); };
 
-  const handleConfirm = () => {
-    if (!preview || nothingChanges) return;
+  const handleConfirm = async () => {
+    if (!preview || nothingChanges || roomChangeBlocked || sending) return;
     if (isDemo) {
       toast.error('Đây là đơn mẫu, hãy đăng nhập và dùng đơn thật để gia hạn / đổi phòng.');
       return;
@@ -130,6 +144,16 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
     const text = mode === 'extend'
       ? `gia hạn ${nights} đêm (${shortDate(from)} – ${shortDate(to)}) ở ${describeSegment(change)}`
       : `đổi sang ${describeSegment(change)} ngày ${shortDate(from)} – ${shortDate(to)}`;
+    if (needsRequest) {
+      setSending(true);
+      const result = await customerRequestStayChange(booking.id || booking.code, preview.plan, { type: mode, text });
+      setSending(false);
+      if (result?.ok) {
+        setRequested(result.request);
+        toast.success('Đã gửi yêu cầu đổi phòng / gói, vui lòng chờ nhân viên xác nhận.');
+      }
+      return;
+    }
     const ok = customerChangeStay(booking.id || booking.code, preview.plan, { type: mode, text });
     if (ok) {
       setDone(preview.next);
@@ -214,7 +238,7 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
                 : <PawPrint className="w-5 h-5 text-white" />}
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-base leading-tight">{done ? 'Đã cập nhật lưu trú' : 'Gia hạn / Đổi phòng'}</h3>
+              <h3 className="font-bold text-base leading-tight">{requested ? 'Đã gửi yêu cầu' : done ? 'Đã cập nhật lưu trú' : 'Gia hạn / Đổi phòng'}</h3>
               <p className="text-white/80 text-xs mt-0.5 truncate">
                 {firstPet?.name || 'Bé mèo'}{nowSeg ? ` • ${describeSegment(nowSeg)}` : ''}
               </p>
@@ -225,7 +249,24 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
           </button>
         </div>
 
-        {done ? (
+        {requested ? (
+          /* ── Đã gửi yêu cầu đổi lần 2, 3: chờ nhân viên ── */
+          <div className="overflow-y-auto flex-1 p-6 space-y-5">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="w-9 h-9 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-xl font-extrabold text-text-dark font-title">Đang chờ nhân viên xác nhận</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Yêu cầu đổi lần {requested.number}/{MAX_STAY_CHANGES}: <span className="font-bold text-text-dark">{requested.text}</span>.
+                  Lịch lưu trú và hóa đơn chỉ thay đổi khi nhân viên chấp nhận. Bạn sẽ nhận thông báo khi có kết quả.
+                </p>
+              </div>
+            </div>
+            <button onClick={handleClose} className="w-full bg-primary hover:bg-secondary text-white font-bold py-3.5 rounded-2xl cursor-pointer">Đóng</button>
+          </div>
+        ) : done ? (
           /* ── Thành công: áp dụng ngay, không chờ nhân viên ── */
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
             <div className="flex flex-col items-center text-center gap-3">
@@ -275,6 +316,45 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
                   </button>
                 ))}
               </div>
+
+              {/* Quy tắc đổi phòng / gói (chữ đỏ) */}
+              {showRule && (
+                <div className="space-y-2" data-testid="stay-change-rule">
+                  <p className="text-sm font-semibold text-red-600 leading-snug" role="note">{STAY_CHANGE_RULE_TEXT}</p>
+                  <p className="text-xs font-bold text-red-600">
+                    {quota.mode === 'blocked'
+                      ? `Đơn của bạn đã đổi đủ ${MAX_STAY_CHANGES}/${MAX_STAY_CHANGES} lần, không thể đổi phòng hay gói thêm.`
+                      : quota.mode === 'waiting'
+                        ? `Bạn đã đổi ${quota.used}/${MAX_STAY_CHANGES} lần và đang có 1 yêu cầu chờ nhân viên xác nhận.`
+                        : quota.mode === 'self'
+                          ? `Bạn chưa đổi lần nào. Lần đổi này (1/${MAX_STAY_CHANGES}) được áp dụng ngay.`
+                          : `Bạn đã đổi ${quota.used}/${MAX_STAY_CHANGES} lần. Lần đổi này (${quota.nextNumber}/${MAX_STAY_CHANGES}) cần nhân viên xác nhận.`}
+                  </p>
+                </div>
+              )}
+              {quota.pending && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-2.5 text-sm">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-amber-800">
+                    <b>Đang chờ nhân viên xác nhận</b> yêu cầu lần {quota.pending.number}/{MAX_STAY_CHANGES}: {quota.pending.text}
+                  </p>
+                </div>
+              )}
+              {!quota.pending && lastDecided && (
+                lastDecided.status === REQUEST_STATUS.REJECTED ? (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-start gap-2.5 text-sm">
+                    <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-red-700">
+                      <b>Nhân viên đã từ chối</b> yêu cầu {lastDecided.text}. Lý do: <i>{lastDecided.rejectReason}</i>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-start gap-2.5 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <p className="text-emerald-800"><b>Nhân viên đã chấp nhận</b> yêu cầu {lastDecided.text}.</p>
+                  </div>
+                )
+              )}
 
               {/* Lịch hiện tại */}
               <div className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3">
@@ -398,11 +478,15 @@ const StayChangeModal = ({ isOpen, onClose, booking, resolvedPets, isDemo, onOpe
             <div className="p-5 border-t border-gray-100 shrink-0 flex flex-col gap-3">
               <button
                 onClick={handleConfirm}
-                disabled={!preview || nothingChanges}
+                disabled={!preview || nothingChanges || roomChangeBlocked || sending}
                 className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-secondary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 cursor-pointer text-base disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {mode === 'extend' ? <CalendarCheck className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
-                {mode === 'extend'
+                {needsRequest ? <Send className="w-5 h-5" /> : mode === 'extend' ? <CalendarCheck className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
+                {roomChangeBlocked
+                  ? (quota.mode === 'blocked' ? `Đã đổi đủ ${MAX_STAY_CHANGES} lần` : 'Đang chờ nhân viên xác nhận')
+                  : needsRequest
+                    ? `Gửi yêu cầu đổi (lần ${quota.nextNumber}/${MAX_STAY_CHANGES})`
+                    : mode === 'extend'
                   ? (effectiveRoomId && effectiveRoomId !== lastSeg?.roomId ? `Gia hạn ${days} ngày ở phòng ${effectiveRoomId}` : `Gia hạn ngay ${days} ngày`)
                   : (effectiveRoomId ? `Đổi sang phòng ${effectiveRoomId}` : 'Chọn phòng để đổi')}
               </button>

@@ -15,6 +15,7 @@ import { updateBookingRows } from '../utils/bookingRows';
 import { bookingFromDbRow, bookingKey, dedupeBookingsByCode, buildAuthoritativeBookings } from '../utils/bookingSync';
 import { getLiveBookingUpdates } from '../utils/liveBookings';
 import { getEditedDepositState } from '../utils/bookingDeposit';
+import { MAX_STAY_CHANGES, REQUEST_STATUS, planIsRoomChange, stayChangeQuota, stayChangeRequestsOf } from '../utils/stayChangeRules';
 
 // Trường tiền cọc server tính lại sau khi khách chỉnh sửa đơn
 const DEPOSIT_FIELDS = ['paymentStatus', 'depositRequired', 'depositAmount', 'depositReceivedAmount', 'depositDueAt'];
@@ -430,7 +431,7 @@ export const BookingHistoryProvider = ({ children }) => {
         'rescheduledAt', 'cancelReason', 'cancelledAt', 'cancelledBy',
         'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
         // Khách tự gia hạn / đổi phòng / đổi gói: server kiểm tra chỗ trống từng ngày trước khi nhận
-        'staySegments', 'baseCheckOut', 'stayChanges', 'stayChangedAt',
+        'staySegments', 'baseCheckOut', 'stayChanges', 'stayChangedAt', 'stayChangeRequests',
       ];
       const roomUpdates = serverUpdates || Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
@@ -726,16 +727,104 @@ export const BookingHistoryProvider = ({ children }) => {
       toast.error('Đơn đã kết thúc, không thể gia hạn hay đổi phòng.');
       return false;
     }
+    // Lần đổi phòng / gói đầu tiên mới được tự đổi, các lần sau phải gửi yêu cầu cho nhân viên
+    const roomChange = planIsRoomChange(booking, plan.segments);
+    if (roomChange) {
+      const quota = stayChangeQuota(booking);
+      if (quota.mode === 'blocked') {
+        toast.error(`Đơn đã đổi phòng / gói đủ ${MAX_STAY_CHANGES} lần, không thể đổi thêm.`);
+        return false;
+      }
+      if (quota.mode !== 'self') {
+        toast.error('Từ lần đổi thứ 2 cần nhân viên xác nhận, vui lòng gửi yêu cầu đổi.');
+        return false;
+      }
+    }
     const at = new Date().toISOString();
     updateBooking(bookingId, {
       staySegments: plan.segments,
       checkOut: plan.checkOut,
       // Ngày đón theo đơn trước khi khách tự gia hạn (hóa đơn tính phần gia hạn từ mốc này)
       baseCheckOut: booking.baseCheckOut || booking.checkOut,
-      stayChanges: [...(booking.stayChanges || []), { ...log, at }],
+      stayChanges: [...(booking.stayChanges || []), { ...log, at, ...(roomChange ? { roomChange: true } : {}) }],
       stayChangedAt: at,
     });
     broadcastSync('CUSTOMER_STAY_CHANGE', bookingId, `Khách hàng đơn #${bookingId}: ${log?.text || 'đã cập nhật lịch lưu trú'}`);
+    return true;
+  };
+
+  // ── 13c. KHÁCH HÀNG: Gửi yêu cầu đổi phòng / gói lần 2, 3 (chờ nhân viên chấp nhận hoặc từ chối) ──
+  // Trả về Promise { ok, message? }
+  const customerRequestStayChange = async (bookingId, plan, log) => {
+    const booking = findBooking(bookingId);
+    if (!booking || !plan?.segments?.length) return { ok: false };
+    if (isClosedStatus(booking.status)) {
+      toast.error('Đơn đã kết thúc, không thể đổi phòng.');
+      return { ok: false };
+    }
+    const quota = stayChangeQuota(booking);
+    if (quota.mode === 'blocked') {
+      toast.error(`Đơn đã đổi phòng / gói đủ ${MAX_STAY_CHANGES} lần, không thể đổi thêm.`);
+      return { ok: false };
+    }
+    if (quota.mode === 'waiting') {
+      toast.error('Bạn đang có yêu cầu đổi phòng chờ nhân viên xác nhận.');
+      return { ok: false };
+    }
+    const request = {
+      id: `SCR-${Date.now()}`,
+      type: log?.type || 'change',
+      text: log?.text || '',
+      segments: plan.segments,
+      checkOut: plan.checkOut,
+      number: quota.nextNumber,
+      status: REQUEST_STATUS.PENDING,
+      requestedAt: new Date().toISOString(),
+    };
+    const result = await updateBooking(bookingId, { stayChangeRequests: [...stayChangeRequestsOf(booking), request] });
+    if (result && result.ok === false) return result;
+    broadcastSync('CUSTOMER_STAY_CHANGE_REQUEST', bookingId, `Khách hàng đơn #${bookingId} xin ${request.text || 'đổi phòng / gói'} (lần ${request.number}/${MAX_STAY_CHANGES}), chờ nhân viên xác nhận`);
+    return { ok: true, request };
+  };
+
+  // ── 13d. NHÂN VIÊN: Chấp nhận hoặc từ chối (kèm lý do) yêu cầu đổi phòng / gói của khách ──
+  const adminDecideStayChange = (bookingId, requestId, { approve, reason = '' }) => {
+    const booking = findBooking(bookingId);
+    if (!booking) return false;
+    const requests = stayChangeRequestsOf(booking);
+    const request = requests.find((r) => r.id === requestId && r.status === REQUEST_STATUS.PENDING);
+    if (!request) {
+      toast.error('Yêu cầu này đã được xử lý.');
+      return false;
+    }
+    const trimmed = String(reason || '').trim();
+    if (!approve && !trimmed) {
+      toast.error('Vui lòng nhập lý do từ chối.');
+      return false;
+    }
+    const at = new Date().toISOString();
+    const decided = requests.map((r) => (r.id === requestId
+      ? { ...r, status: approve ? REQUEST_STATUS.APPROVED : REQUEST_STATUS.REJECTED, decidedAt: at, ...(approve ? {} : { rejectReason: trimmed }) }
+      : r));
+    const fields = { stayChangeRequests: decided };
+    if (approve) {
+      Object.assign(fields, {
+        staySegments: request.segments,
+        checkOut: request.checkOut,
+        baseCheckOut: booking.baseCheckOut || booking.checkOut,
+        stayChanges: [...(booking.stayChanges || []), { type: request.type, text: request.text, at, roomChange: true, approvedBy: 'staff' }],
+        stayChangedAt: at,
+      });
+    }
+    updateBooking(bookingId, fields);
+    const label = request.text || 'đổi phòng / gói';
+    broadcastSync('ADMIN_STAY_CHANGE_DECISION', bookingId, approve
+      ? `Nhân viên đã chấp nhận yêu cầu ${label} của đơn #${bookingId}`
+      : `Nhân viên đã từ chối yêu cầu ${label} của đơn #${bookingId}`);
+    pushToCustomer(booking,
+      approve ? `✅ Yêu cầu đổi phòng / gói đơn #${bookingId} đã được chấp nhận` : `❌ Yêu cầu đổi phòng / gói đơn #${bookingId} bị từ chối`,
+      approve ? `Lịch lưu trú và hóa đơn đã cập nhật: ${label}.` : `Lý do: ${trimmed}`);
+    toast.success(approve ? 'Đã chấp nhận, lịch lưu trú của khách đã cập nhật.' : 'Đã từ chối yêu cầu và gửi lý do cho khách.');
     return true;
   };
 
@@ -825,6 +914,8 @@ export const BookingHistoryProvider = ({ children }) => {
         customerRejectProposal,
         customerReschedule,
         customerChangeStay,
+        customerRequestStayChange,
+        adminDecideStayChange,
         customerCancel,
         customerUpdateNote,
         customerEditBooking,
