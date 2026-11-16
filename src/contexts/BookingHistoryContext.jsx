@@ -15,6 +15,7 @@ import { updateBookingRows } from '../utils/bookingRows';
 import { bookingFromDbRow, bookingKey, dedupeBookingsByCode, buildAuthoritativeBookings } from '../utils/bookingSync';
 import { getLiveBookingUpdates } from '../utils/liveBookings';
 import { getEditedDepositState } from '../utils/bookingDeposit';
+import { isAwaitingCustomerConfirm } from '../utils/assistedBooking';
 import { MAX_STAY_CHANGES, REQUEST_STATUS, planIsRoomChange, stayChangeQuota, stayChangeRequestsOf } from '../utils/stayChangeRules';
 
 // Trường tiền cọc server tính lại sau khi khách chỉnh sửa đơn
@@ -317,7 +318,8 @@ export const BookingHistoryProvider = ({ children }) => {
         };
 
         const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData?.session?.user?.id || bookingData.customerId || null;
+        // Đơn nhân viên đặt hộ thuộc về khách đã chọn, không phải tài khoản nhân viên
+        const userId = (isUUID(bookingData.customerId) ? bookingData.customerId : null) || sessionData?.session?.user?.id || bookingData.customerId || null;
         const rowId = isUUID(bookingData.dbId || bookingData.id) ? (bookingData.dbId || bookingData.id) : genUUID();
 
         await supabase.from('bookings').upsert({
@@ -381,7 +383,8 @@ export const BookingHistoryProvider = ({ children }) => {
         };
 
         const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData?.session?.user?.id || bookingData.customerId || null;
+        // Đơn nhân viên đặt hộ thuộc về khách đã chọn, không phải tài khoản nhân viên
+        const userId = (isUUID(bookingData.customerId) ? bookingData.customerId : null) || sessionData?.session?.user?.id || bookingData.customerId || null;
         const rowId = isUUID(bookingData.dbId || bookingData.id) ? (bookingData.dbId || bookingData.id) : genUUID();
 
         await supabase.from('bookings').upsert({
@@ -432,6 +435,8 @@ export const BookingHistoryProvider = ({ children }) => {
         'selectedPackage', 'packages', 'adminNote', 'specialNote', 'noteUpdatedAt',
         // Khách tự gia hạn / đổi phòng / đổi gói: server kiểm tra chỗ trống từng ngày trước khi nhận
         'staySegments', 'baseCheckOut', 'stayChanges', 'stayChangedAt', 'stayChangeRequests',
+        // Khách xác nhận đơn nhân viên đặt hộ
+        'customerConfirmedAt',
       ];
       const roomUpdates = serverUpdates || Object.fromEntries(
         Object.entries(updatedData).filter(([key]) => roomFields.includes(key))
@@ -503,14 +508,18 @@ export const BookingHistoryProvider = ({ children }) => {
     if (liveByCode.size === 0 && closedByCode.size === 0) return;
     const now = Date.now();
     let changed = false;
-    const next = bookingListRef.current.map((b) => {
+    // Đơn nhân viên vừa đặt hộ cho chính khách đang xem (server chỉ trả đủ thông tin đơn của người xem)
+    // mà trình duyệt chưa có -> thêm vào "Lịch đặt" để khách thấy và xác nhận ngay
+    const knownCodes = new Set(bookingListRef.current.map((b) => b.code || b.id));
+    const added = [...liveByCode.values()].filter((b) => b.bookedByStaff && b.customerId && b.ownerName && !knownCodes.has(b.code || b.id));
+    const next = [...added, ...bookingListRef.current].map((b) => {
       const key = b.code || b.id;
       const updates = getLiveBookingUpdates(b, { live: liveByCode.get(key), closed: closedByCode.get(key), now });
       if (!updates) return b;
       changed = true;
       return { ...b, ...updates };
     });
-    if (changed) commitList(next);
+    if (changed || added.length > 0) commitList(next);
   };
 
 
@@ -565,6 +574,10 @@ export const BookingHistoryProvider = ({ children }) => {
     if (!booking) return false;
     if (normalizeStatusValue(booking.status) !== BOOKING_STATUS.UPCOMING) {
       toast.error(`Chỉ có thể Check-in cho đơn đang ở trạng thái 'Sắp tới'`);
+      return false;
+    }
+    if (isAwaitingCustomerConfirm(booking)) {
+      toast.error('Đơn đặt hộ đang chờ khách xác nhận, chưa Check-in được.');
       return false;
     }
     // Check-in thì mọi đề xuất đổi lịch/hủy đang chờ không còn hiệu lực
@@ -638,6 +651,19 @@ export const BookingHistoryProvider = ({ children }) => {
   const adminCancelProposal = (bookingId) => {
     const booking = findBooking(bookingId);
     if (!booking || !booking.pending_changes) return false;
+    // Đơn đặt hộ chưa được khách xác nhận: rút lại = hủy đơn, không được tự ghi nhận thay khách
+    if (isAwaitingCustomerConfirm(booking)) {
+      updateBooking(bookingId, {
+        status: STORED_STATUS.CANCELLED,
+        cancelReason: 'Nhân viên hủy đơn đặt hộ khi khách chưa xác nhận',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'admin',
+        pending_changes: null,
+      });
+      broadcastSync('CANCEL_PROPOSAL', bookingId, `Admin đã hủy đơn đặt hộ #${bookingId}`);
+      toast.success('Đã hủy đơn đặt hộ và trả phòng.');
+      return true;
+    }
     updateBooking(bookingId, { pending_changes: null });
     broadcastSync('CANCEL_PROPOSAL', bookingId, `Admin đã rút lại đề xuất cho đơn #${bookingId}`);
     toast.success('Đã rút lại đề xuất, đơn giữ nguyên như cũ.');
@@ -650,6 +676,14 @@ export const BookingHistoryProvider = ({ children }) => {
     if (!booking || !booking.pending_changes) return false;
     const changes = booking.pending_changes;
     const updatedFields = { pending_changes: null };
+
+    if (changes.type === PROPOSAL_TYPE.CONFIRM_BOOKING) {
+      // Khách xác nhận đơn nhân viên đặt hộ -> đơn chính thức được ghi nhận
+      updateBooking(bookingId, { pending_changes: null, customerConfirmedAt: new Date().toISOString() });
+      broadcastSync('CUSTOMER_ACCEPT', bookingId, `Khách hàng đã xác nhận đơn đặt hộ #${bookingId}`);
+      toast.success('Bạn đã xác nhận đơn đặt phòng. Hẹn gặp bé tại Mèo Vắng Nhà!');
+      return true;
+    }
 
     if (changes.type === PROPOSAL_TYPE.CANCEL) {
       updatedFields.status = STORED_STATUS.CANCELLED;
@@ -682,6 +716,19 @@ export const BookingHistoryProvider = ({ children }) => {
     const booking = findBooking(bookingId);
     if (!booking || !booking.pending_changes) return false;
     const changes = booking.pending_changes;
+    if (changes.type === PROPOSAL_TYPE.CONFIRM_BOOKING) {
+      // Khách không đặt đơn này -> hủy đơn và trả phòng
+      updateBooking(bookingId, {
+        status: STORED_STATUS.CANCELLED,
+        cancelReason: 'Khách từ chối đơn nhân viên đặt hộ',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'customer',
+        pending_changes: null,
+      });
+      broadcastSync('CUSTOMER_REJECT', bookingId, `Khách hàng đã từ chối đơn đặt hộ #${bookingId}`);
+      toast.success('Bạn đã từ chối đơn. Đơn đặt phòng đã được hủy.');
+      return true;
+    }
     updateBooking(bookingId, { pending_changes: null });
     broadcastSync('CUSTOMER_REJECT', bookingId, `Khách hàng đã từ chối ${PROPOSAL_LABEL[changes.type] || 'thay đổi'} cho đơn #${bookingId}`);
     toast.success('Bạn đã từ chối đề xuất. Đơn đặt được giữ nguyên.');

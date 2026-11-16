@@ -25,6 +25,13 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
 
   const petsName = (booking.petProfiles || []).map(p => p.name).join(', ') || 'Bé cưng';
 
+  // Nhân viên đặt phòng hộ tại cửa hàng: khách xác nhận thì đơn mới được ghi nhận
+  if (changes.type === 'CONFIRM_BOOKING') {
+    return (
+      <ConfirmAssistedBooking booking={booking} petsName={petsName} onClose={onClose} onAccept={onAccept} onReject={onReject} />
+    );
+  }
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
@@ -184,6 +191,83 @@ const CustomerApprovalModal = ({ isOpen, onClose, booking, onAccept, onReject })
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>{isCancel ? 'Đồng ý hủy đơn' : isUpdate ? 'Xác nhận & Đồng ý thay đổi' : 'Xác nhận & Đồng ý đổi lịch'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const money = (n) => `${(Number(n) || 0).toLocaleString('vi-VN')}đ`;
+
+const ConfirmAssistedBooking = ({ booking, petsName, onClose, onAccept, onReject }) => {
+  const changes = booking.pending_changes;
+  const packages = booking.packages?.length ? booking.packages.join(' + ') : (booking.selectedPackage?.name || '');
+  const rows = [
+    ['Phòng', booking.roomId || booking.selectedRoom?.id],
+    ['Thời gian', `${formatDateSingle(booking.checkIn)} → ${formatDateSingle(booking.checkOut)}`],
+    ['Bé mèo', `${petsName}${booking.cats ? ` (${booking.cats} bé)` : ''}`],
+    ['Gói dịch vụ', packages],
+    ['Tổng tiền', money(booking.totalPrice ?? booking.totalAmount)],
+  ].filter(([, v]) => v);
+  const dueText = changes.dueAt ? new Date(changes.dueAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div
+        className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-sky-200 animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        data-testid="confirm-assisted-booking"
+      >
+        <div className="bg-gradient-to-r from-sky-600 via-cyan-600 to-sky-700 text-white p-6 relative shrink-0">
+          <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center" title="Đóng">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+            <span>Đơn nhân viên đặt giúp bạn</span>
+          </div>
+          <h2 className="text-xl md:text-2xl font-extrabold font-title">Xác nhận đơn đặt phòng</h2>
+          <p className="text-sky-100 text-xs mt-1">
+            Mã đơn: <strong className="text-white font-mono tracking-wider">#{booking.id}</strong>
+            {changes.staffName ? <> • Nhân viên: <strong className="text-white">{changes.staffName}</strong></> : null}
+          </p>
+        </div>
+
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            Nhân viên Mèo Vắng Nhà đã tạo đơn này cho bạn tại cửa hàng. Vui lòng kiểm tra thông tin bên dưới. Đơn chỉ được ghi nhận sau khi bạn bấm <strong>Xác nhận</strong>.
+          </p>
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl divide-y divide-gray-100">
+            {rows.map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-4 px-4 py-2.5 text-sm">
+                <span className="text-gray-500">{label}</span>
+                <span className="font-bold text-gray-800 text-right">{value}</span>
+              </div>
+            ))}
+          </div>
+          {dueText && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              Vui lòng xác nhận trước {dueText}, quá hạn đơn có thể bị hủy để nhường phòng.
+            </p>
+          )}
+        </div>
+
+        <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-3 items-center justify-end shrink-0">
+          <button
+            onClick={() => { onReject(booking.id); onClose(); }}
+            className="w-full sm:w-auto px-6 py-3 rounded-2xl border-2 border-gray-300 hover:border-rose-400 text-gray-700 hover:text-rose-600 hover:bg-rose-50 font-bold text-sm flex items-center justify-center gap-2"
+          >
+            <XCircle className="w-4 h-4" />
+            <span>Không phải đơn của tôi</span>
+          </button>
+          <button
+            onClick={() => { if (onAccept(booking.id) !== false) onClose(); }}
+            className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg shadow-emerald-300 flex items-center justify-center gap-2 active:scale-95"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Xác nhận đơn</span>
           </button>
         </div>
       </div>

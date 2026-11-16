@@ -7,6 +7,9 @@ import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
 import { stayEntriesForRoom, validateStayPlan, getStaySegments } from '../../src/utils/staySegments.js';
 import { MAX_STAY_CHANGES, REQUEST_STATUS, isRoomOrPackageChange, stayChangeQuota, stayChangeRequestsOf } from '../../src/utils/stayChangeRules.js';
 import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
+import { CONFIRM_DEADLINE_HOURS } from '../../src/utils/assistedBooking.js';
+
+const CONFIRM_BOOKING = 'CONFIRM_BOOKING';
 
 export const ROOM_CONFIG = [
   ...['VIP-01', 'VIP-02', 'VIP-03', 'VIP-04', 'VIP-05', 'VIP-06'].map((id) => ({
@@ -678,9 +681,27 @@ export async function handleAddBooking(req, res) {
   // Gắn đơn với tài khoản đang đăng nhập (nếu có) thay vì tin customerId do trình duyệt gửi lên
   const user = await getRequestUser(req);
   let payload = user && !user.isAdmin ? { ...booking, customerId: user.id } : booking;
+  // Chỉ nhân viên mới được đặt hộ / gửi yêu cầu xác nhận đơn cho khách
+  if (!user?.isAdmin) {
+    payload = { ...payload, pending_changes: null };
+    delete payload.bookedByStaff;
+  }
+  const assisted = Boolean(user?.isAdmin && payload.bookedByStaff && payload.customerId);
+  if (assisted && payload.pending_changes?.type === CONFIRM_BOOKING) {
+    // Hạn xác nhận tính theo giờ server
+    payload = {
+      ...payload,
+      pending_changes: {
+        ...payload.pending_changes,
+        timestamp: new Date().toISOString(),
+        dueAt: new Date(Date.now() + CONFIRM_DEADLINE_HOURS * 3600 * 1000).toISOString(),
+      },
+    };
+  }
 
-  // Tiền cọc do server tính theo số ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được
-  if (!user?.isAdmin || !payload.paymentStatus) {
+  // Tiền cọc do server tính theo số ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được.
+  // Đơn nhân viên đặt hộ cũng tính cọc như khách tự đặt.
+  if (!user?.isAdmin || !payload.paymentStatus || assisted) {
     const deposit = getDepositPolicy({ checkIn: payload.checkIn, checkOut: payload.checkOut, total: payload.totalPrice });
     payload = {
       ...payload,
@@ -738,12 +759,24 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
 
   // Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch vụ) ở "Lịch đặt của tôi"
   if (updates.customerEdit === true) {
+    if (booking.pending_changes?.type === CONFIRM_BOOKING) {
+      return fail(409, 'Vui lòng xác nhận đơn nhân viên đã đặt hộ trước khi thay đổi đơn.');
+    }
     return checkCustomerEdit({ booking, roomId, updates }, bookingsByRoom, todayStr);
   }
 
   const isUpcoming = UPCOMING_STATUSES.includes(booking.status);
   const pending = booking.pending_changes || null;
+  const awaitingConfirm = pending?.type === CONFIRM_BOOKING;
   const allowed = {};
+
+  // Đơn nhân viên đặt hộ chưa được khách xác nhận: chỉ được Xác nhận hoặc Từ chối (hủy)
+  if (awaitingConfirm && (updates.customerEdit === true || Array.isArray(updates.staySegments) || 'stayChangeRequests' in updates || 'checkIn' in updates || 'checkOut' in updates)) {
+    return fail(409, 'Vui lòng xác nhận đơn nhân viên đã đặt hộ trước khi thay đổi đơn.');
+  }
+  if (awaitingConfirm && 'customerConfirmedAt' in updates) {
+    allowed.customerConfirmedAt = new Date().toISOString();
+  }
 
   // Đồng ý / từ chối đề xuất của Admin
   if ('pending_changes' in updates) {
@@ -761,11 +794,13 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     if (updates.status !== 'cancelled') return fail(403, 'Chỉ Admin mới được Check-in / Check-out.');
     if (!isUpcoming) return fail(409, 'Chỉ được hủy đơn khi chưa Check-in.');
     const acceptingAdminCancel = pending?.type === 'CANCEL';
-    if (!acceptingAdminCancel && !canCustomerCancel(booking, userId, todayStr)) {
+    // Khách từ chối đơn nhân viên đặt hộ = hủy đơn (kể cả khi đã tới ngày nhận phòng)
+    if (!acceptingAdminCancel && !awaitingConfirm && !canCustomerCancel(booking, userId, todayStr)) {
       return fail(403, 'Đơn này không thể tự hủy. Vui lòng liên hệ Mèo Vắng Nhà để được hỗ trợ.');
     }
     allowed.status = 'cancelled';
     allowed.cancelledBy = acceptingAdminCancel ? 'admin' : 'customer';
+    if (awaitingConfirm) allowed.pending_changes = null;
     allowed.cancelledAt = new Date().toISOString();
     if (typeof updates.cancelReason === 'string') allowed.cancelReason = updates.cancelReason.slice(0, 500);
   }

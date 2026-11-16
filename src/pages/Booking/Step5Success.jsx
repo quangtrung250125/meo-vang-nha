@@ -7,6 +7,8 @@ import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateCo
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { paymentAccount } from '../../config/payment';
 import { buildVietQrPayload, isPaymentAccountReady } from '../../utils/vietqr';
+import { isClosedStatus } from '../../utils/bookingStatus';
+import { isAwaitingCustomerConfirm } from '../../utils/assistedBooking';
 import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
@@ -14,7 +16,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   const [bookingId, setBookingId] = useState(initialBookingId);
   const [bookingConflict, setBookingConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState('');
-  const { upsertBooking } = useBookingHistory();
+  const { upsertBooking, globalBookingList } = useBookingHistory();
   const { addNewBooking, bookings } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
@@ -150,17 +152,29 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   // Chỉ đơn cần cọc mới hiện QR chuyển khoản; đơn không cần cọc thanh toán khi hoàn thành dịch vụ
   const qrAmount = awaitingDeposit ? depositAmount : 0;
   const qrMemo = awaitingDeposit ? `COC ${bookingId}` : bookingId;
+  // Đơn nhân viên đặt hộ khách đã có tài khoản: theo dõi khách đã xác nhận / từ chối chưa
+  const assistedCustomer = data.assistedCustomer && data.confirmedBooking?.bookedByStaff ? data.assistedCustomer : null;
+  const historyBooking = globalBookingList.find((b) => b?.code === bookingId || b?.id === bookingId);
+  const customerDeclined = Boolean(assistedCustomer && historyBooking && isClosedStatus(historyBooking.status));
+  const awaitingCustomer = !customerDeclined && Boolean(liveBooking ? isAwaitingCustomerConfirm(liveBooking) : data.confirmedBooking?.pending_changes);
   const depositDueText = formatVietnamDateTime(getDepositDueAt(liveBooking?.depositDueAt ? liveBooking : data.confirmedBooking));
 
   return (
     <div className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-500 py-8">
       <div className="flex justify-center mb-6">
-        {awaitingDeposit
+        {awaitingDeposit || (assistedCustomer && awaitingCustomer)
           ? <Clock className="w-24 h-24 text-amber-500" />
           : <CheckCircle className="w-24 h-24 text-primary animate-bounce" />}
       </div>
 
-      {awaitingDeposit ? (
+      {assistedCustomer && awaitingCustomer ? (
+        <>
+          <h2 className="text-3xl font-bold text-text-dark font-title">Đã Tạo Đơn, Chờ Khách Xác Nhận</h2>
+          <p className="text-gray-600 max-w-md mx-auto">
+            Đơn cho các bé <strong>{data.petProfiles?.map(p => p.name).join(', ')}</strong> đã được gửi tới tài khoản của khách.
+          </p>
+        </>
+      ) : awaitingDeposit ? (
         <>
           <h2 className="text-3xl font-bold text-text-dark font-title">Đã Giữ Phòng, Chờ Đặt Cọc</h2>
           <p className="text-gray-600 max-w-md mx-auto">
@@ -182,6 +196,27 @@ const Step5Success = ({ data, onBackToStep1 }) => {
             Cảm ơn bạn đã tin tưởng Mèo Vắng Nhà. Yêu cầu đặt phòng của các bé <strong>{data.petProfiles?.map(p => p.name).join(', ')}</strong> đã được ghi nhận.
           </p>
         </>
+      )}
+
+      {/* Nhân viên đặt hộ: cho biết đơn đã được ghi nhận hay đang chờ khách xác nhận (tự cập nhật theo server) */}
+      {assistedCustomer && (
+        <div
+          data-testid="assisted-booking-status"
+          className={`max-w-md mx-auto rounded-2xl border-2 px-4 py-3 text-sm text-left ${
+            awaitingCustomer ? 'bg-purple-50 border-purple-200 text-purple-900' : customerDeclined ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          <p className="font-bold">Đơn đặt hộ khách {assistedCustomer.fullName} ({assistedCustomer.phone})</p>
+          {awaitingCustomer ? (
+            <p className="mt-1">Đã gửi thông báo cho khách. Đơn đang <strong>chờ khách xác nhận</strong>, phòng được giữ trong lúc chờ. Khách xác nhận xong đơn mới được ghi nhận và Check-in được.</p>
+          ) : customerDeclined ? (
+            <p className="mt-1">Khách đã từ chối đơn này, đơn đã được hủy và trả phòng.</p>
+          ) : assistedCustomer.isNewAccount ? (
+            <p className="mt-1">Tài khoản mới đã được tạo, đơn được ghi nhận ngay. Khách đăng nhập bằng SĐT <strong>{assistedCustomer.phone}</strong> và mật khẩu tạm <strong>{assistedCustomer.tempPassword}</strong> để theo dõi bé.</p>
+          ) : (
+            <p className="mt-1">Khách đã xác nhận, đơn đã được ghi nhận.</p>
+          )}
+        </div>
       )}
 
       {/* Thursday pate gift notification */}

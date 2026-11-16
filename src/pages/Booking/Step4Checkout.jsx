@@ -8,6 +8,8 @@ import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
 import { getDepositPolicy, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
+import { buildConfirmRequest, assistedOwnerFields } from '../../utils/assistedBooking';
+import { sendNotification } from '../../services/notificationTriggers';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -20,7 +22,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [addCamera, setAddCamera] = useState(Boolean(data.addCamera));
 
   const { addNewBooking } = useRoomState();
-  const { authenticatedCustomer, customerProfile } = useCustomerProfile();
+  const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
+  // Nhân viên đặt hộ khách đến cửa hàng
+  const assisted = isAdmin ? data.assistedCustomer || null : null;
   const { upsertBooking } = useBookingHistory();
   // Quy tắc giá admin đang bật (cuối tuần, mùa, lễ Tết, giảm giá)
   const { activeRules } = useServiceCatalog();
@@ -149,6 +153,14 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       createdAt: new Date().toISOString(),
     };
 
+    // Đặt hộ: chủ đơn là khách đã chọn. Khách đã có tài khoản phải xác nhận thì đơn mới được ghi nhận.
+    if (assisted) {
+      const staffName = authenticatedCustomer?.fullName || 'Nhân viên';
+      Object.assign(bookingPayload, assistedOwnerFields(assisted, { staffName, isNewAccount: assisted.isNewAccount }));
+      bookingPayload.ownerTier = assisted.tier || 'Thành viên';
+      if (!assisted.isNewAccount) bookingPayload.pending_changes = buildConfirmRequest({ staffName });
+    }
+
     // ── Kiểm tra độc quyền phòng theo ngày và thêm booking (Atomic qua server) ──
     const roomResult = await addNewBooking(roomId, bookingPayload);
 
@@ -188,7 +200,25 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       });
     }
 
-    if (confirmedBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
+    if (assisted) {
+      const awaitingConfirm = Boolean(confirmedBooking.pending_changes);
+      // Báo cho khách (chuông thông báo trên web tự hiện theo đơn, Web Push tới điện thoại nếu khách đã bật)
+      sendNotification({
+        userId: assisted.id,
+        title: awaitingConfirm ? `📩 Mèo Vắng Nhà đã đặt phòng giúp bạn (#${confirmedCode})` : `🎉 Đặt phòng thành công (#${confirmedCode})`,
+        body: awaitingConfirm
+          ? `Phòng ${roomId}, ${data.checkIn} → ${data.checkOut}. Vui lòng mở "Lịch đặt của tôi" để xác nhận đơn.`
+          : `Phòng ${roomId}, ${data.checkIn} → ${data.checkOut}. Nhân viên đã tạo đơn cho bạn tại cửa hàng.`,
+        url: `/my-booking?code=${confirmedCode}`,
+        tag: `booking-${confirmedCode}`,
+        data: { bookingId: confirmedCode },
+      }).catch(() => {});
+      sendWebNotification(awaitingConfirm ? '📩 Đã gửi đơn cho khách xác nhận' : '🎉 Đã đặt phòng cho khách', {
+        body: awaitingConfirm
+          ? `Đơn ${confirmedCode} của ${assisted.fullName} đang chờ khách xác nhận.`
+          : `Đơn ${confirmedCode} của ${assisted.fullName} đã được ghi nhận.`,
+      });
+    } else if (confirmedBooking.paymentStatus === PAYMENT_STATUS.AWAITING_DEPOSIT) {
       sendWebNotification('🏠 Đã giữ phòng cho các bé!', {
         body: `Vui lòng chuyển khoản cọc ${Number(confirmedBooking.depositAmount || 0).toLocaleString()}đ trong vòng ${DEPOSIT_DEADLINE_HOURS} giờ để nhận mã đặt phòng, nếu không đơn có thể bị hủy.`,
       });
