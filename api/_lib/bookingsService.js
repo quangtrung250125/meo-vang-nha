@@ -4,7 +4,8 @@ import { getRequestUser, getBearerToken } from './auth.js';
 import { getDepositPolicy, getEditedDepositState, isAwaitingDeposit, PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
-import { stayEntriesForRoom, validateStayPlan } from '../../src/utils/staySegments.js';
+import { stayEntriesForRoom, validateStayPlan, getStaySegments } from '../../src/utils/staySegments.js';
+import { MAX_STAY_CHANGES, REQUEST_STATUS, isRoomOrPackageChange, stayChangeQuota, stayChangeRequestsOf } from '../../src/utils/stayChangeRules.js';
 import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
 
 export const ROOM_CONFIG = [
@@ -785,11 +786,61 @@ export function checkCustomerUpdate({ userId, roomId, code, updates }, bookingsB
     const error = validateStayPlan({ booking, segments, rooms: ROOM_CONFIG, allBookingsByRoom: bookingsByRoom, todayStr });
     if (error) return fail(409, error);
     const sorted = [...segments].sort((a, b) => a.from.localeCompare(b.from));
+    // Chỉ lần đổi phòng / gói đầu tiên khách được tự đổi, các lần sau phải gửi yêu cầu cho nhân viên
+    const roomChange = isRoomOrPackageChange(getStaySegments(booking), sorted);
+    if (roomChange) {
+      const quota = stayChangeQuota(booking);
+      if (quota.mode === 'blocked') return fail(403, `Đơn đã đổi phòng / gói đủ ${MAX_STAY_CHANGES} lần, không thể đổi thêm.`);
+      if (quota.mode !== 'self') return fail(403, 'Từ lần đổi phòng / gói thứ 2 cần nhân viên xác nhận. Vui lòng gửi yêu cầu đổi.');
+    }
     allowed.staySegments = sorted;
     allowed.checkOut = sorted[sorted.length - 1].to;
     allowed.baseCheckOut = booking.baseCheckOut || booking.checkOut;
-    if (Array.isArray(updates.stayChanges)) allowed.stayChanges = updates.stayChanges.slice(-50);
+    // Lịch sử thay đổi do server giữ: chỉ nhận thêm dòng mới nhất, lần đổi phòng / gói do server tự đánh dấu
+    const log = Array.isArray(updates.stayChanges) ? updates.stayChanges[updates.stayChanges.length - 1] : null;
+    const entry = {
+      type: log?.type === 'change' ? 'change' : 'extend',
+      text: typeof log?.text === 'string' ? log.text.slice(0, 300) : '',
+      at: typeof log?.at === 'string' ? log.at : new Date().toISOString(),
+      ...(roomChange ? { roomChange: true } : {}),
+    };
+    allowed.stayChanges = [...(booking.stayChanges || []), entry].slice(-50);
     if (typeof updates.stayChangedAt === 'string') allowed.stayChangedAt = updates.stayChangedAt;
+  }
+
+  // Khách gửi yêu cầu đổi phòng / gói lần 2, 3 (chờ nhân viên chấp nhận hoặc từ chối)
+  if ('stayChangeRequests' in updates) {
+    const existing = stayChangeRequestsOf(booking);
+    const incoming = Array.isArray(updates.stayChangeRequests) ? updates.stayChangeRequests : [];
+    const req = incoming[incoming.length - 1];
+    if (!req || typeof req !== 'object') return fail(400, 'Yêu cầu đổi phòng không hợp lệ.');
+    const quota = stayChangeQuota(booking);
+    if (quota.mode === 'blocked') return fail(403, `Đơn đã đổi phòng / gói đủ ${MAX_STAY_CHANGES} lần, không thể đổi thêm.`);
+    if (quota.mode === 'waiting') return fail(409, 'Bạn đang có yêu cầu đổi phòng chờ nhân viên xác nhận.');
+    if (quota.mode === 'self') return fail(400, 'Lần đổi đầu tiên bạn được tự đổi, không cần gửi yêu cầu.');
+    const reqSegments = (Array.isArray(req.segments) ? req.segments : []).map((s) => ({
+      from: s?.from,
+      to: s?.to,
+      roomId: s?.roomId,
+      roomType: String(s?.roomId || '').split('-')[0],
+      packageId: typeof s?.packageId === 'string' ? s.packageId.slice(0, 60) : '',
+      packageName: typeof s?.packageName === 'string' ? s.packageName.slice(0, 120) : '',
+      pricePerNight: Number(s?.pricePerNight) || 0,
+    }));
+    const error = validateStayPlan({ booking, segments: reqSegments, rooms: ROOM_CONFIG, allBookingsByRoom: bookingsByRoom, todayStr });
+    if (error) return fail(409, error);
+    if (!isRoomOrPackageChange(getStaySegments(booking), reqSegments)) return fail(400, 'Yêu cầu này không đổi phòng hay gói nào.');
+    const sorted = [...reqSegments].sort((a, b) => a.from.localeCompare(b.from));
+    allowed.stayChangeRequests = [...existing, {
+      id: typeof req.id === 'string' ? req.id.slice(0, 60) : `SCR-${Date.now()}`,
+      type: req.type === 'extend' ? 'extend' : 'change',
+      text: typeof req.text === 'string' ? req.text.slice(0, 300) : '',
+      segments: sorted,
+      checkOut: sorted[sorted.length - 1].to,
+      number: quota.nextNumber,
+      status: REQUEST_STATUS.PENDING,
+      requestedAt: new Date().toISOString(),
+    }].slice(-20);
   }
 
   // Đổi lịch: khách tự đổi hoặc đồng ý đề xuất đổi lịch -> luôn kiểm tra ngày & sức chứa phòng

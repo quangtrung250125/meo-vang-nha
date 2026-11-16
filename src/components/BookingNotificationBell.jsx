@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet, Megaphone } from 'lucide-react';
+import { Bell, Send, CalendarClock, XCircle, MessageSquare, Settings, PencilLine, Wallet, Megaphone, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { MAX_STAY_CHANGES, REQUEST_STATUS, pendingStayChangeRequest, lastDecidedStayChangeRequest } from '../utils/stayChangeRules';
 import { useBookingHistory, isBookingOfCustomer } from '../contexts/BookingHistoryContext';
 import { useCustomerProfile } from '../contexts/CustomerContext';
 import { useUI } from '../contexts/UIContext';
@@ -58,6 +59,35 @@ const BookingNotificationBell = ({ className = '' }) => {
           desc: changes.reason || 'Vui lòng xem và xác nhận.',
           time: changes.timestamp,
           actionable: !isAdmin,
+        });
+      }
+      // Yêu cầu đổi phòng / gói lần 2, 3: Admin cần chấp nhận / từ chối, khách xem kết quả
+      const stayRequest = pendingStayChangeRequest(b);
+      if (stayRequest && isAdmin) {
+        list.push({
+          key: `stay-req-${b.id}-${stayRequest.id}`,
+          bookingId: b.id,
+          icon: RefreshCw,
+          tone: 'bg-amber-100 text-amber-600',
+          title: `Đơn #${b.id} xin đổi phòng / gói (lần ${stayRequest.number}/${MAX_STAY_CHANGES})`,
+          desc: `${stayRequest.text}. Mở Tình trạng phòng để chấp nhận hoặc từ chối.`,
+          time: stayRequest.requestedAt,
+          path: '/room-status',
+        });
+      }
+      const decided = !isAdmin ? lastDecidedStayChangeRequest(b) : null;
+      if (decided && isRecent(decided.decidedAt)) {
+        const approved = decided.status === REQUEST_STATUS.APPROVED;
+        list.push({
+          key: `stay-dec-${b.id}-${decided.id}`,
+          bookingId: b.id,
+          icon: approved ? CheckCircle2 : XCircle,
+          tone: approved ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600',
+          title: approved ? `Nhân viên đã chấp nhận đổi phòng / gói đơn #${b.id}` : `Nhân viên đã từ chối đổi phòng / gói đơn #${b.id}`,
+          desc: approved ? decided.text : `Lý do: ${decided.rejectReason}`,
+          time: decided.decidedAt,
+          reminder: true,
+          path: '/tracking',
         });
       }
       // Khách sửa đơn xong cần cọc thêm: nhắc tới khi chuyển đủ (mã đặt phòng vẫn giữ nguyên)
@@ -157,7 +187,8 @@ const BookingNotificationBell = ({ className = '' }) => {
       return;
     }
     if (item.actionable) openApprovalModal(item.bookingId);
-    navigate(bookingPath);
+    const prefix = location.pathname.startsWith('/admin') && item.path?.startsWith('/room-status') ? '/admin' : '';
+    navigate(item.path ? `${prefix}${item.path}` : bookingPath);
   };
 
   return (

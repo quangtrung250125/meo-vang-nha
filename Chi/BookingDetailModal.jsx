@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { PAYMENT_STATUS, isAwaitingDeposit, depositToTransferOf } from "../src/utils/bookingDeposit";
 import { buildInvoice, checkOutTimingLabel } from "../src/utils/bookingInvoice";
 import { ADDONS } from "../src/components/ServiceManagement";
-import { describeSegment, getStaySegments, shortDate } from "../src/utils/staySegments";
+import { describeSegment, getStaySegments, shortDate, validateStayPlan } from "../src/utils/staySegments";
+import { MAX_STAY_CHANGES, countStayChanges, pendingStayChangeRequest } from "../src/utils/stayChangeRules";
+import { useRoomState, ROOM_CONFIG } from "./RoomStateContext";
+import { todayInVietnam } from "../src/utils/bookingDeposit";
 import {
   X, Home, User, Phone, Cat, Calendar, CalendarCheck, Package,
   ExternalLink, AlertTriangle, Star, Crown, Shield, Sparkles,
-  Edit3, LogIn, LogOut, Trash2, Send, Undo2,
+  Edit3, LogIn, LogOut, Trash2, Send, Undo2, RefreshCw, CheckCircle2, XCircle,
 } from "lucide-react";
 import { useBookingHistory } from "../src/contexts/BookingHistoryContext";
 import { BOOKING_STATUS, PROPOSAL_LABEL, PROPOSAL_TYPE, normalizeStatusValue } from "../src/utils/bookingStatus";
@@ -289,6 +292,72 @@ const EditBookingModal = ({ booking, needsCustomerApproval, onSave, onClose }) =
 };
 
 // ─────────────────────────────────────────────
+// Yêu cầu đổi phòng / gói lần 2, 3 của khách: nhân viên chấp nhận hoặc từ chối kèm lý do
+// ─────────────────────────────────────────────
+const StayChangeRequestPanel = ({ booking, onDecide }) => {
+  const { bookings: roomBookings } = useRoomState();
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const request = pendingStayChangeRequest(booking);
+  if (!request) return null;
+
+  const approve = () => {
+    // Kiểm tra lại chỗ trống lúc chấp nhận (từ lúc khách gửi tới giờ phòng có thể đã kín)
+    const problem = validateStayPlan({
+      booking, segments: request.segments, rooms: ROOM_CONFIG, allBookingsByRoom: roomBookings || {}, todayStr: todayInVietnam(),
+    });
+    if (problem) { setError(`${problem} Hãy từ chối và báo lý do cho khách.`); return; }
+    onDecide(request.id, { approve: true });
+  };
+  const reject = () => {
+    if (!reason.trim()) { setError("Vui lòng nhập lý do từ chối."); return; }
+    onDecide(request.id, { approve: false, reason: reason.trim() });
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-xs text-amber-900" data-testid="stay-change-request">
+      <div className="flex items-start gap-2.5">
+        <RefreshCw className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-black">Khách xin đổi phòng / gói (lần {request.number || countStayChanges(booking) + 1}/{MAX_STAY_CHANGES})</p>
+          <p className="mt-0.5">{request.text}</p>
+          <ul className="mt-1 space-y-0.5 text-amber-800">
+            {request.segments.map((seg) => (
+              <li key={seg.from}>{shortDate(seg.from)} – {shortDate(seg.to)}: {describeSegment(seg)}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      {rejecting && (
+        <textarea
+          value={reason}
+          onChange={(e) => { setReason(e.target.value); setError(""); }}
+          placeholder="Lý do từ chối (khách sẽ thấy lý do này)"
+          rows={2}
+          className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-2.5 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
+          aria-label="Lý do từ chối"
+        />
+      )}
+      {error && <p className="mt-1.5 font-bold text-red-600">{error}</p>}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {rejecting ? (
+          <>
+            <button onClick={() => { setRejecting(false); setReason(""); setError(""); }} className="py-2 rounded-lg bg-white border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">Quay lại</button>
+            <button onClick={reject} className="py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold inline-flex items-center justify-center gap-1"><XCircle className="h-3.5 w-3.5" />Gửi từ chối</button>
+          </>
+        ) : (
+          <>
+            <button onClick={approve} className="py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold inline-flex items-center justify-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />Chấp nhận</button>
+            <button onClick={() => { setRejecting(true); setError(""); }} className="py-2 rounded-lg bg-white border-2 border-red-200 text-red-600 font-bold hover:bg-red-50 inline-flex items-center justify-center gap-1"><XCircle className="h-3.5 w-3.5" />Từ chối</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
 // BookingDetailModal – Popup chính
 // ─────────────────────────────────────────────
 const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, onDelete, onUpdate }) => {
@@ -297,7 +366,7 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
-  const { globalBookingList, adminProposeChange, adminCancelProposal } = useBookingHistory();
+  const { globalBookingList, adminProposeChange, adminCancelProposal, adminDecideStayChange } = useBookingHistory();
   // Đơn có trong "Lịch đặt" của khách -> đổi ngày / hủy phải được khách xác nhận
   const historyBooking = booking
     ? globalBookingList.find(b => b.id === booking.code || b.code === booking.code)
@@ -572,6 +641,16 @@ const BookingDetailModal = ({ booking, roomId, onClose, onCheckIn, onCheckOut, o
               <DetailRow icon={<Sparkles className="h-4 w-4 text-pink-500" />} label="Yêu cầu đặc biệt của khách">
                 <span className="text-gray-700 italic">“{historyBooking.specialNote}”</span>
               </DetailRow>
+            )}
+            {historyBooking && (
+              <StayChangeRequestPanel
+                booking={historyBooking}
+                onDecide={(requestId, decision) => {
+                  if (adminDecideStayChange(historyBooking.id, requestId, decision)) {
+                    showToast(decision.approve ? `✅ Đã chấp nhận đổi phòng / gói cho ${code}` : `↩️ Đã từ chối yêu cầu của ${code}`);
+                  }
+                }}
+              />
             )}
             {pending && (
               <div className="mt-3 rounded-xl border-2 border-purple-200 bg-purple-50 p-3 flex items-start gap-2.5">
