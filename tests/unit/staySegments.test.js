@@ -70,6 +70,17 @@ describe('Lịch lưu trú theo chặng', () => {
     expect(service.getPeakOccupancyForRoom('VVIP-01', all, '2026-11-06', '2026-11-07')).toBe(1);
   });
 
+  it('đơn chưa check-out giữ chỗ cả ngày trả phòng, check-out rồi thì trả chỗ ngay', () => {
+    const a = { ...lan, cats: 2, status: 'đang ở', checkIn: '2026-11-14', checkOut: '2026-11-16' };
+    expect(peakCatsInRoom('VIP-01', { 'VIP-01': [a] }, '2026-11-16', '2026-11-18')).toBe(2);
+    expect(peakCatsInRoom('VIP-01', { 'VIP-01': [a] }, '2026-11-17', '2026-11-19')).toBe(0);
+    expect(peakCatsInRoom('VIP-01', { 'VIP-01': [{ ...a, status: 'check-out' }] }, '2026-11-16', '2026-11-18')).toBe(0);
+    // Chiều ngược lại: trả phòng đúng ngày A nhận phòng
+    expect(peakCatsInRoom('VIP-01', { 'VIP-01': [a] }, '2026-11-12', '2026-11-14', [], { holdsEnd: true })).toBe(2);
+    expect(service.getPeakOccupancyForRoom('VIP-01', { 'VIP-01': [a] }, '2026-11-16', '2026-11-18')).toBe(2);
+    expect(service.getPeakOccupancyForRoom('VIP-01', { 'VIP-01': [a] }, '2026-11-12', '2026-11-14')).toBe(2);
+  });
+
   it('phòng hiện tại hết chỗ thì gợi ý phòng khác còn chỗ', () => {
     const all = { 'VIP-01': [lan, minh], 'VIP-02': [], 'VVIP-01': [] };
     const rooms = findRoomsWithSpace({ rooms: ROOMS, allBookingsByRoom: all, from: '2026-11-05', to: '2026-11-07', cats: 1, excludeCodes: [lan.code] });
@@ -103,6 +114,18 @@ describe('Server nhận thay đổi khách tự làm', () => {
     expect(full.message).toContain('không còn đủ chỗ');
     const other = update(lan, all, extend(lan, '2026-11-07', 'VIP-02'));
     expect(other.ok).toBe(true);
+  });
+
+  it('gia hạn tới đúng ngày khách sau nhận phòng thì bị chặn (ngày trả phòng vẫn giữ chỗ)', () => {
+    // An 2 bé nhận VIP-01 từ 06/11: chị Lan gia hạn tới 06/11 thì 2 khách cùng có mặt ngày 06/11
+    const an = { ...minh, code: 'MVN-33333', id: 'MVN-33333', customerId: 'an', checkIn: '2026-11-06', checkOut: '2026-11-08' };
+    const all = { 'VIP-01': [lan, an], 'VIP-02': [], 'VVIP-01': [] };
+    const res = update(lan, all, extend(lan, '2026-11-06'));
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain('06');
+    // An đã check-out thì gia hạn được
+    const allOut = { 'VIP-01': [lan, { ...an, status: 'check-out' }], 'VIP-02': [], 'VVIP-01': [] };
+    expect(update(lan, allOut, extend(lan, '2026-11-06')).ok).toBe(true);
   });
 
   it('không được sửa ngày đã qua, không được tự hạ giá gói đã đặt', () => {

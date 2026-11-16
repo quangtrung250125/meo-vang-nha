@@ -4,7 +4,7 @@ import { getRequestUser, getBearerToken } from './auth.js';
 import { getDepositPolicy, getEditedDepositState, isAwaitingDeposit, PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS } from '../../src/utils/bookingDeposit.js';
 import { listStoredBookings, saveStoredBooking, updateStoredBooking, findStoredBookingForUser } from './bookingsDb.js';
 import { DEMO_BOOKING_IDS } from '../../src/utils/demoBookings.js';
-import { stayEntriesForRoom, validateStayPlan, getStaySegments } from '../../src/utils/staySegments.js';
+import { stayEntriesForRoom, validateStayPlan, getStaySegments, holdsDate, addDays } from '../../src/utils/staySegments.js';
 import { MAX_STAY_CHANGES, REQUEST_STATUS, isRoomOrPackageChange, stayChangeQuota, stayChangeRequestsOf } from '../../src/utils/stayChangeRules.js';
 import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
 import { CONFIRM_DEADLINE_HOURS } from '../../src/utils/assistedBooking.js';
@@ -243,6 +243,16 @@ export function getClosedBookingsFor(user, now = Date.now()) {
     });
 }
 
+/**
+ * Mã các đơn vừa kết thúc (3 ngày gần đây) cho mọi người xem, chỉ có mã đơn, không có thông tin khách.
+ * Trình duyệt dùng để bỏ đơn cũ còn nhớ trong máy, nên phòng trống lại ngay khi admin check-out / hủy.
+ */
+export function getRecentClosedCodes(now = Date.now()) {
+  return [...closedBookings.values()]
+    .filter((c) => now - (Date.parse(c.closedAt || '') || 0) < ADMIN_CLOSED_WINDOW_MS)
+    .map((c) => c.code);
+}
+
 // Nạp lại đơn từ Supabase (tối đa 3 giây một lần) để mọi bản server đều thấy đủ đơn, kể cả sau khi khởi động lại
 const DB_SYNC_TTL_MS = 3000;
 let lastDbSync = 0;
@@ -329,41 +339,16 @@ export function getPeakOccupancyForRoom(roomId, allBookingsByRoom, checkIn, chec
 
   if (list.length === 0) return 0;
 
+  // Trường hợp 1: Có cả ngày checkIn và checkOut.
+  // Tính từng ngày từ ngày nhận tới cả ngày trả phòng: đơn chưa check-out giữ chỗ luôn ngày trả,
+  // nên không nhận phòng gối đầu vào ngày khách trước chưa trả phòng (và ngược lại).
   if (checkIn && checkOut) {
-    const startDate = new Date(`${checkIn}T00:00:00`);
-    const endDate = new Date(`${checkOut}T00:00:00`);
-    const endLimit = startDate.getTime() >= endDate.getTime() ? startDate : endDate;
-
+    const last = checkOut > checkIn ? checkOut : checkIn;
     let maxOccupied = 0;
-    const curr = new Date(startDate);
-    const isSingleDay = startDate.getTime() === endLimit.getTime();
-
-    while (isSingleDay ? curr.getTime() <= endLimit.getTime() : curr.getTime() < endLimit.getTime()) {
-      const y = curr.getFullYear();
-      const m = String(curr.getMonth() + 1).padStart(2, '0');
-      const d = String(curr.getDate()).padStart(2, '0');
-      const dateStr = `${y}-${m}-${d}`;
-
-      let occupiedOnDate = 0;
-      for (const b of list) {
-        if (!b.checkIn || !b.checkOut) continue;
-        const coversDate =
-          b.checkIn <= dateStr &&
-          (b.checkOut > dateStr || (b.checkIn === b.checkOut && b.checkOut === dateStr));
-
-        if (coversDate) {
-          occupiedOnDate += Number(b.cats) || 1;
-        }
-      }
-
-      if (occupiedOnDate > maxOccupied) {
-        maxOccupied = occupiedOnDate;
-      }
-
-      if (isSingleDay) break;
-      curr.setDate(curr.getDate() + 1);
+    for (let dateStr = checkIn; dateStr && dateStr <= last; dateStr = addDays(dateStr, 1)) {
+      const occupiedOnDate = list.reduce((sum, b) => (holdsDate(b, dateStr) ? sum + (Number(b.cats) || 1) : sum), 0);
+      if (occupiedOnDate > maxOccupied) maxOccupied = occupiedOnDate;
     }
-
     return maxOccupied;
   }
 
@@ -650,7 +635,7 @@ export async function handleGetBookings(req, res) {
   const bookings = user?.isAdmin ? all : toPublicBookings(all, user?.id || null);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  return res.end(JSON.stringify({ success: true, bookings, closed: getClosedBookingsFor(user) }));
+  return res.end(JSON.stringify({ success: true, bookings, closed: getClosedBookingsFor(user), closedCodes: getRecentClosedCodes() }));
 }
 
 // Chỉ trả danh sách đầy đủ cho admin, khách chỉ thấy bản rút gọn

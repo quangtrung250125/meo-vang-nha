@@ -95,10 +95,21 @@ describe('POST /api/bookings: kiểm tra dữ liệu đơn', () => {
     expect(second.statusCode).toBe(409);
   });
 
-  it('cho nhận phòng đúng ngày khách trước trả phòng', async () => {
-    await call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VIP-04', booking: newBooking({ checkIn: addDays(50), checkOut: addDays(52), cats: 2 }) } });
-    const res = await call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VIP-04', booking: newBooking({ checkIn: addDays(52), checkOut: addDays(54), cats: 2 }) } });
-    expect(res.statusCode).toBe(200);
+  it('ngày khách trước trả phòng vẫn giữ chỗ cho tới khi khách đó check-out', async () => {
+    const add = (checkIn, checkOut) => call(api.handleAddBooking, { method: 'POST', body: { roomId: 'VIP-04', booking: newBooking({ checkIn, checkOut, cats: 2 }) } });
+    const a = await add(addDays(50), addDays(52));
+    // Khách A chưa check-out: chưa nhận phòng ngày A trả, ngày hôm sau thì được
+    expect((await add(addDays(52), addDays(54))).statusCode).toBe(409);
+    expect((await add(addDays(53), addDays(55))).statusCode).toBe(200);
+    // Ngược lại cũng vậy: không trả phòng đúng ngày khách sau nhận phòng
+    expect((await add(addDays(48), addDays(50))).statusCode).toBe(409);
+    // Admin check-out A: phòng trống lại ngay ngày A trả
+    await call(api.handleUpdateBooking, { method: 'PUT', token: 'token-admin', body: { roomId: 'VIP-04', code: a.payload.booking.code, updates: { status: 'check-out' } } });
+    expect((await add(addDays(51), addDays(52))).statusCode).toBe(200);
+    // Trình duyệt của mọi khách nhận mã đơn A vừa check-out (chỉ có mã) để bỏ đơn cũ còn nhớ, thấy phòng trống ngay
+    const guest = (await call(api.handleGetBookings, {})).payload;
+    expect(guest.closedCodes).toContain(a.payload.booking.code);
+    expect(guest.closed).toEqual([]);
   });
 
   it('không ghi đè đơn cũ khi gửi trùng mã, mà cấp mã mới', async () => {
