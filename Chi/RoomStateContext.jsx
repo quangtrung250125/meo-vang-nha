@@ -822,6 +822,9 @@ export const RoomStateProvider = ({ children }) => {
           success: false,
           conflict: !data.invalid,
           invalid: Boolean(data.invalid),
+          // Mã giảm giá / điểm thưởng không còn hợp lệ lúc gửi đơn
+          promoError: Boolean(data.promoError),
+          promoField: data.field || '',
           reason: data.reason || (data.invalid ? 'INVALID_BOOKING' : 'ROOM_CAPACITY_FULL'),
           message: data.message || `Phòng ${roomId} đã kín chỗ! Vui lòng bấm "Chọn phòng khác".`,
           conflictedRoomId: roomId,

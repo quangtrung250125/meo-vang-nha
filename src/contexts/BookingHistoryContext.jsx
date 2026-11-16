@@ -16,6 +16,7 @@ import { bookingFromDbRow, bookingKey, dedupeBookingsByCode, buildAuthoritativeB
 import { getLiveBookingUpdates } from '../utils/liveBookings';
 import { getEditedDepositState } from '../utils/bookingDeposit';
 import { isAwaitingCustomerConfirm } from '../utils/assistedBooking';
+import { payableAtBooking } from '../utils/loyalty';
 import { MAX_STAY_CHANGES, REQUEST_STATUS, planIsRoomChange, stayChangeQuota, stayChangeRequestsOf } from '../utils/stayChangeRules';
 
 // Trường tiền cọc server tính lại sau khi khách chỉnh sửa đơn
@@ -929,7 +930,7 @@ export const BookingHistoryProvider = ({ children }) => {
       ...(booking.staySegments ? { staySegments: null, baseCheckOut: null } : {}),
     };
     // Tính trước tiền cọc để trang khách hiện ngay, server tính lại và trả về bản chính thức
-    const deposit = getEditedDepositState({ booking, checkIn, checkOut, total: changes.totalPrice ?? booking.totalPrice });
+    const deposit = getEditedDepositState({ booking, checkIn, checkOut, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice ?? booking.totalPrice }) });
 
     const result = await updateBooking(bookingId, { ...editFields, ...deposit }, {
       serverUpdates: { ...editFields, customerEdit: true },

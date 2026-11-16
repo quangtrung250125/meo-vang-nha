@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Tag,
@@ -13,25 +13,9 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import {
-  PROMO_TABS,
-  loadFromStorage,
-  saveToStorage,
-  STORAGE_KEYS,
-  initialPromotions,
-  initialVouchers,
-  initialGiftsCombos,
-  initialMinigameSettings,
-  initialMinigamePrizes,
-  initialLoyaltyTiers,
-  initialLoyaltyRules,
-  initialCustomerPoints,
-  initialPointsAuditLogs,
-  initialReferralSettings,
-  initialReferralLogs,
-  initialAnalyticsData,
-  formatCurrency
-} from './promotionsStore';
+import { PROMO_TABS, setRemoteSaver, formatCurrency } from './promotionsStore';
+import { buildAdminLoyaltyView, buildPromoAnalytics } from '../../utils/loyalty';
+import { fetchLoyaltyAdmin, saveLoyaltyConfig, adjustCustomerPoints } from '../../services/loyaltyApi';
 
 import Tab1AllPromotions from './Tab1AllPromotions';
 import Tab2Vouchers from './Tab2Vouchers';
@@ -59,43 +43,22 @@ const AdminPromotions = () => {
     ? currentTabParam
     : 'all-promotions';
 
-  // Khởi tạo state từ LocalStorage hoặc initial data
-  const [promotions, setPromotions] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.PROMOTIONS, initialPromotions)
-  );
-  const [vouchers, setVouchers] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.VOUCHERS, initialVouchers)
-  );
-  const [gifts, setGifts] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.GIFTS_COMBOS, initialGiftsCombos)
-  );
-  const [minigameSettings, setMinigameSettings] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.MINIGAME_SETTINGS, initialMinigameSettings)
-  );
-  const [minigamePrizes, setMinigamePrizes] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.MINIGAME_PRIZES, initialMinigamePrizes)
-  );
-  const [loyaltyTiers, setLoyaltyTiers] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.LOYALTY_TIERS, initialLoyaltyTiers)
-  );
-  const [loyaltyRules, setLoyaltyRules] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.LOYALTY_RULES, initialLoyaltyRules)
-  );
-  const [customerPoints, setCustomerPoints] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.CUSTOMER_POINTS, initialCustomerPoints)
-  );
-  const [pointsAuditLogs, setPointsAuditLogs] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.POINTS_AUDIT_LOGS, initialPointsAuditLogs)
-  );
-  const [referralSettings, setReferralSettings] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.REFERRAL_SETTINGS, initialReferralSettings)
-  );
-  const [referralLogs, setReferralLogs] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.REFERRAL_LOGS, initialReferralLogs)
-  );
-  const [analyticsData, setAnalyticsData] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.ANALYTICS_DATA, initialAnalyticsData)
-  );
+  // Dữ liệu thật từ máy chủ: cài đặt Admin đã lưu + lượt dùng mã, điểm từng khách, lượt giới thiệu
+  const [promotions, setPromotions] = useState([]);
+  const [vouchers, setVouchers] = useState([]);
+  const [gifts, setGifts] = useState([]);
+  const [minigameSettings, setMinigameSettings] = useState({});
+  const [minigamePrizes, setMinigamePrizes] = useState([]);
+  const [loyaltyTiers, setLoyaltyTiers] = useState([]);
+  const [loyaltyRules, setLoyaltyRules] = useState({});
+  const [customerPoints, setCustomerPoints] = useState([]);
+  const [pointsAuditLogs, setPointsAuditLogs] = useState([]);
+  const [referralSettings, setReferralSettings] = useState({});
+  const [referralLogs, setReferralLogs] = useState([]);
+  const [overview, setOverview] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  // Tăng mỗi lần tải lại để các tab nhận số liệu mới
+  const [dataVersion, setDataVersion] = useState(0);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -105,26 +68,76 @@ const AdminPromotions = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleRefreshData = () => {
+  const loadData = useCallback(async ({ silent = false } = {}) => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setPromotions(loadFromStorage(STORAGE_KEYS.PROMOTIONS, initialPromotions));
-      setVouchers(loadFromStorage(STORAGE_KEYS.VOUCHERS, initialVouchers));
-      setGifts(loadFromStorage(STORAGE_KEYS.GIFTS_COMBOS, initialGiftsCombos));
-      setMinigameSettings(loadFromStorage(STORAGE_KEYS.MINIGAME_SETTINGS, initialMinigameSettings));
-      setMinigamePrizes(loadFromStorage(STORAGE_KEYS.MINIGAME_PRIZES, initialMinigamePrizes));
-      setLoyaltyTiers(loadFromStorage(STORAGE_KEYS.LOYALTY_TIERS, initialLoyaltyTiers));
-      setCustomerPoints(loadFromStorage(STORAGE_KEYS.CUSTOMER_POINTS, initialCustomerPoints));
-      setPointsAuditLogs(loadFromStorage(STORAGE_KEYS.POINTS_AUDIT_LOGS, initialPointsAuditLogs));
-      setReferralSettings(loadFromStorage(STORAGE_KEYS.REFERRAL_SETTINGS, initialReferralSettings));
-      setReferralLogs(loadFromStorage(STORAGE_KEYS.REFERRAL_LOGS, initialReferralLogs));
-      setAnalyticsData(loadFromStorage(STORAGE_KEYS.ANALYTICS_DATA, initialAnalyticsData));
-
+    try {
+      const data = await fetchLoyaltyAdmin();
+      const view = buildAdminLoyaltyView(data, window.location.origin);
+      setOverview(data);
+      setPromotions(view.promotions);
+      setVouchers(view.vouchers);
+      setGifts(view.gifts);
+      setMinigameSettings(view.minigameSettings);
+      setMinigamePrizes(view.minigamePrizes);
+      setLoyaltyTiers(view.tiers);
+      setLoyaltyRules(view.rules);
+      setCustomerPoints(view.customerPoints);
+      setPointsAuditLogs(view.pointsAuditLogs);
+      setReferralSettings(view.referralSettings);
+      setReferralLogs(view.referralLogs);
+      setDataVersion((v) => v + 1);
+      setLoadError('');
       setLastUpdated(new Date());
+      if (!silent) toast.success('Đã làm mới dữ liệu Khuyến mãi & Điểm thưởng!');
+    } catch (err) {
+      setLoadError(err.message || 'Không tải được dữ liệu');
+      if (!silent) toast.error(`Không tải được dữ liệu: ${err.message}`);
+    } finally {
       setIsRefreshing(false);
-      toast.success('Đã làm mới dữ liệu Khuyến mãi & Điểm thưởng!');
-    }, 400);
+    }
+  }, []);
+
+  // Các tab gọi saveToStorage(...) khi Admin sửa: lưu luôn lên máy chủ để trang khách dùng ngay
+  useEffect(() => {
+    setRemoteSaver(async (partial) => {
+      try {
+        await saveLoyaltyConfig(partial);
+      } catch (err) {
+        toast.error(`Chưa lưu được lên máy chủ: ${err.message}`);
+      }
+    });
+    loadData({ silent: true });
+    return () => setRemoteSaver(null);
+  }, [loadData]);
+
+  // Đơn vừa check-out / hủy ở trang khác: tải lại điểm & lượt dùng
+  useEffect(() => {
+    let timer = null;
+    const onSync = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => loadData({ silent: true }), 2000);
+    };
+    window.addEventListener('mvn_booking_sync', onSync);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('mvn_booking_sync', onSync);
+    };
+  }, [loadData]);
+
+  const handleRefreshData = () => loadData();
+
+  // Cộng / trừ điểm thủ công cho khách (ghi vào nhật ký điểm trên máy chủ)
+  const handleAdjustPoints = async ({ customerId, delta, reason }) => {
+    await adjustCustomerPoints({ customerId, delta, reason });
+    await loadData({ silent: true });
   };
+
+  const analyticsData = useMemo(() => buildPromoAnalytics({
+    redemptions: overview?.redemptions || [],
+    promotions,
+    vouchers,
+    customers: overview?.customers || [],
+  }), [overview, promotions, vouchers]);
 
   // Render nội dung từng tab
   const renderTabContent = () => {
@@ -164,6 +177,7 @@ const AdminPromotions = () => {
             setCustomerPoints={setCustomerPoints}
             pointsAuditLogs={pointsAuditLogs}
             setPointsAuditLogs={setPointsAuditLogs}
+            onAdjustPoints={handleAdjustPoints}
           />
         );
       case 'referral':
@@ -178,7 +192,9 @@ const AdminPromotions = () => {
       case 'analytics-roi':
         return (
           <Tab7AnalyticsROI
-            analyticsData={analyticsData}
+            redemptions={overview?.redemptions || []}
+            customers={overview?.customers || []}
+            vouchers={vouchers}
             promotions={promotions}
           />
         );
@@ -215,10 +231,10 @@ const AdminPromotions = () => {
                 Mã giảm giá: {vouchers.filter((v) => v.status === 'active').length} mã
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                Thành viên tích điểm: {customerPoints.length} khách
+                Thành viên tích điểm: {customerPoints.filter((c) => c.currentPoints > 0 || c.earnedPoints > 0).length} khách
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-600 border border-orange-200">
-                Doanh thu tăng thêm: {formatCurrency(analyticsData.summary?.incrementalRevenue)}
+                Doanh thu từ đơn dùng ưu đãi (30 ngày): {formatCurrency(analyticsData.summary?.incrementalRevenue)}
               </span>
             </div>
           </div>
@@ -267,8 +283,23 @@ const AdminPromotions = () => {
         </div>
 
         {/* 3. Nội dung Tab đang chọn */}
-        <div className="transition-all duration-300">
-          {renderTabContent()}
+        <div className="transition-all duration-300" key={dataVersion}>
+          {loadError && (
+            <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-sm text-rose-700">
+              Không tải được dữ liệu Khuyến mãi & Điểm thưởng từ máy chủ: {loadError}. Bấm "Làm mới" để thử lại.
+            </div>
+          )}
+          {overview && overview.database === false && (
+            <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              Máy chủ chưa kết nối được bảng <strong>loyalty_store</strong> trên Supabase nên dữ liệu chỉ được giữ tạm. Chạy file SQL trong hướng dẫn để lưu lâu dài.
+            </div>
+          )}
+          {dataVersion === 0 ? (
+            <div className="py-20 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin text-orange-500" />
+              {loadError ? 'Chưa có dữ liệu' : 'Đang tải dữ liệu thật...'}
+            </div>
+          ) : renderTabContent()}
         </div>
       </div>
     </div>

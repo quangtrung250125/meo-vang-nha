@@ -30,9 +30,8 @@ const Tab5LoyaltyTiers = ({
   loyaltyRules,
   setLoyaltyRules,
   customerPoints,
-  setCustomerPoints,
   pointsAuditLogs,
-  setPointsAuditLogs,
+  onAdjustPoints,
 }) => {
   const [rulesForm, setRulesForm] = useState({ ...loyaltyRules });
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,88 +65,47 @@ const Tab5LoyaltyTiers = ({
     setIsPointModalOpen(true);
   };
 
-  // Xác nhận cộng / trừ điểm
-  const handleConfirmPoints = (e) => {
+  // Xác nhận cộng / trừ điểm: ghi vào nhật ký điểm trên máy chủ (khách thấy ngay trong hồ sơ)
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const handleConfirmPoints = async (e) => {
     e.preventDefault();
     if (!selectedCustomer) return;
-    if (pointAmount <= 0) {
+    const amount = Math.floor(Number(pointAmount) || 0);
+    if (amount <= 0) {
       toast.error('Số điểm phải lớn hơn 0!');
       return;
     }
-
     const currentPts = selectedCustomer.currentPoints || 0;
-    if (pointAction === 'subtract' && pointAmount > currentPts) {
-      toast.error(`Khách hàng chỉ có ${currentPts} điểm, không thể trừ ${pointAmount} điểm!`);
+    if (pointAction === 'subtract' && amount > currentPts) {
+      toast.error(`Khách hàng chỉ có ${currentPts} điểm, không thể trừ ${amount} điểm!`);
       return;
     }
-
-    const diff = pointAction === 'add' ? pointAmount : -pointAmount;
-    const nextPoints = currentPts + diff;
-
-    // Cập nhật customerPoints
-    const updatedCusts = customerPoints.map((c) => {
-      if (c.id === selectedCustomer.id) {
-        // Tự động kiểm tra nâng hạng nếu điểm vượt ngưỡng
-        let tier = c.tier;
-        let tierName = c.tierName;
-        if (nextPoints >= 500) {
-          tier = 'diamond';
-          tierName = 'Kim cương';
-        } else if (nextPoints >= 250) {
-          tier = 'gold';
-          tierName = 'Vàng';
-        } else if (nextPoints >= 100) {
-          tier = 'silver';
-          tierName = 'Bạc';
-        }
-
-        return {
-          ...c,
-          currentPoints: nextPoints,
-          tier,
-          tierName,
-        };
-      }
-      return c;
-    });
-    setCustomerPoints(updatedCusts);
-    saveToStorage(STORAGE_KEYS.CUSTOMER_POINTS, updatedCusts);
-
-    // Ghi vào Audit Log
-    const newLog = {
-      id: 'log-' + Date.now(),
-      timestamp: new Date().toLocaleString('vi-VN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      customerId: selectedCustomer.id,
-      customerName: selectedCustomer.fullName,
-      action: pointAction,
-      amount: pointAmount,
-      reason: pointReason || (pointAction === 'add' ? 'Cộng điểm thủ công' : 'Trừ điểm thủ công'),
-      actor: 'Admin (0962606249)',
-    };
-    const updatedLogs = [newLog, ...pointsAuditLogs];
-    setPointsAuditLogs(updatedLogs);
-    saveToStorage(STORAGE_KEYS.POINTS_AUDIT_LOGS, updatedLogs);
-
-    toast.success(
-      pointAction === 'add'
-        ? `Đã cộng +${pointAmount} điểm cho khách hàng ${selectedCustomer.fullName}!`
-        : `Đã trừ -${pointAmount} điểm của khách hàng ${selectedCustomer.fullName}!`
-    );
-    setIsPointModalOpen(false);
+    setIsAdjusting(true);
+    try {
+      await onAdjustPoints({
+        customerId: selectedCustomer.id,
+        delta: pointAction === 'add' ? amount : -amount,
+        reason: pointReason || (pointAction === 'add' ? 'Cộng điểm thủ công' : 'Trừ điểm thủ công'),
+      });
+      toast.success(
+        pointAction === 'add'
+          ? `Đã cộng +${amount} điểm cho khách hàng ${selectedCustomer.fullName}!`
+          : `Đã trừ -${amount} điểm của khách hàng ${selectedCustomer.fullName}!`
+      );
+      setIsPointModalOpen(false);
+    } catch (err) {
+      toast.error(err.message || 'Chưa cộng / trừ được điểm, vui lòng thử lại.');
+    } finally {
+      setIsAdjusting(false);
+    }
   };
 
   // Lọc bảng điểm khách
   const filteredCustomers = customerPoints.filter((c) => {
     const matchSearch =
-      c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone.includes(searchTerm) ||
-      (c.catNames && c.catNames.some((n) => n.toLowerCase().includes(searchTerm.toLowerCase())));
+      String(c.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(c.phone || '').includes(searchTerm) ||
+      (c.catNames && c.catNames.some((n) => String(n).toLowerCase().includes(searchTerm.toLowerCase())));
     const matchTier = tierFilter === 'all' || c.tier === tierFilter;
     return matchSearch && matchTier;
   });
@@ -163,7 +121,7 @@ const Tab5LoyaltyTiers = ({
               4 Hạng Thẻ Thành Viên & Hệ Số Tích Điểm
             </h3>
             <p className="text-xs text-gray-500">
-              Khách hàng tự động thăng hạng khi hoàn tất đơn hàng đạt hạn mức tích lũy
+              Khách tự lên hạng khi chi tiêu đã check-out đạt mức tối thiểu hoặc đủ số đơn hoàn tất
             </p>
           </div>
         </div>
@@ -430,7 +388,7 @@ const Tab5LoyaltyTiers = ({
                 <th className="py-3.5 px-4">Khách hàng & Bé mèo</th>
                 <th className="py-3.5 px-4">Hạng hiện tại</th>
                 <th className="py-3.5 px-4">Điểm hiện có</th>
-                <th className="py-3.5 px-4">Điểm sắp hết hạn</th>
+                <th className="py-3.5 px-4">Chi tiêu & điểm đã dùng</th>
                 <th className="py-3.5 px-4">Lên hạng tiếp theo</th>
                 <th className="py-3.5 px-4 text-right">Điều chỉnh thủ công</th>
               </tr>
@@ -439,7 +397,7 @@ const Tab5LoyaltyTiers = ({
               {filteredCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-gray-500">
-                    Không tìm thấy khách hàng nào
+                    Chưa có khách hàng nào có đơn hoặc tài khoản tích điểm
                   </td>
                 </tr>
               ) : (
@@ -484,30 +442,26 @@ const Tab5LoyaltyTiers = ({
                           {cust.currentPoints} <span className="text-xs font-normal text-gray-400">điểm</span>
                         </span>
                         <span className="text-[11px] text-gray-400">
-                          Đã tích lũy từ {cust.totalBookings || 1} đơn
+                          Đã tích {cust.earnedPoints || 0} điểm từ {cust.totalBookings || 0} đơn hoàn tất
                         </span>
                       </td>
 
                       {/* Điểm sắp hết hạn */}
                       <td className="py-3.5 px-4">
-                        {cust.expiringPoints > 0 ? (
-                          <div className="text-xs">
-                            <span className="font-bold text-amber-600 block">
-                              {cust.expiringPoints} điểm
-                            </span>
-                            <span className="text-[11px] text-gray-400">Hạn: {cust.expiryDate}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">Không có điểm sắp hết</span>
-                        )}
+                        <div className="text-xs">
+                          <span className="font-bold text-gray-800 block">{formatCurrency(cust.totalSpent)}</span>
+                          <span className="text-[11px] text-gray-400">
+                            Đã dùng {cust.usedPoints || 0} điểm{cust.referredCount ? ` · Giới thiệu ${cust.referredCount} người` : ''}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Điểm cần lên hạng tiếp theo */}
                       <td className="py-3.5 px-4">
-                        {cust.pointsToNextTier > 0 ? (
+                        {cust.spendToNextTier > 0 ? (
                           <div className="text-xs">
                             <span className="text-gray-600">
-                              Cần <strong className="text-orange-600 font-bold">+{cust.pointsToNextTier} điểm</strong>
+                              Chi tiêu thêm <strong className="text-orange-600 font-bold">{formatCurrency(cust.spendToNextTier)}</strong>
                             </span>
                             <span className="text-[11px] text-gray-400 block">
                               Để lên hạng {cust.nextTierName}
@@ -515,7 +469,7 @@ const Tab5LoyaltyTiers = ({
                           </div>
                         ) : (
                           <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            Hạng Kim Cương cao nhất
+                            Hạng cao nhất
                           </span>
                         )}
                       </td>
@@ -559,7 +513,10 @@ const Tab5LoyaltyTiers = ({
           Nhật ký hoạt động cộng/trừ điểm gần đây (Audit Log)
         </h3>
         <div className="space-y-2.5">
-          {pointsAuditLogs.map((log) => (
+          {pointsAuditLogs.length === 0 && (
+            <p className="text-xs text-gray-400 py-4 text-center">Chưa có lần cộng / trừ điểm nào. Điểm tự cộng khi khách check-out.</p>
+          )}
+          {pointsAuditLogs.slice(0, 100).map((log) => (
             <div
               key={log.id}
               className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-start justify-between gap-3 text-xs"
@@ -648,7 +605,8 @@ const Tab5LoyaltyTiers = ({
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2 text-white text-xs font-bold rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer ${
+                  disabled={isAdjusting}
+                  className={`disabled:opacity-60 px-5 py-2 text-white text-xs font-bold rounded-xl shadow-md transition-all hover:scale-[1.02] cursor-pointer ${
                     pointAction === 'add'
                       ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
                       : 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'

@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { Phone, Loader2, AlertCircle, LogOut } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCustomerProfile } from '../contexts/CustomerContext';
+import { claimReferralCode, getRememberedReferral, clearRememberedReferral } from '../services/loyaltyApi';
 
 // Google không cung cấp số điện thoại, nên khách đăng nhập Google lần đầu sẽ được hỏi SĐT ở đây.
 const GooglePhonePrompt = () => {
   const { authenticatedCustomer, saveMissingPhone, logoutCustomer, isAdmin } = useCustomerProfile();
   const [phone, setPhone] = useState('');
+  // Khách mới đăng ký bằng Google: nhập mã giới thiệu của bạn bè (nếu có)
+  const [referralCode, setReferralCode] = useState(() => getRememberedReferral());
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -24,6 +27,20 @@ const GooglePhonePrompt = () => {
     try {
       await saveMissingPhone(phone);
       toast.success('Đã lưu số điện thoại. Chào mừng bạn đến Mèo Vắng Nhà!');
+      const code = referralCode.trim().toUpperCase();
+      if (code) {
+        try {
+          const res = await claimReferralCode(code);
+          if (res?.ok) {
+            clearRememberedReferral();
+            toast.success(res.message || 'Đã ghi nhận mã giới thiệu.');
+          } else if (res?.message) {
+            toast.error(res.message);
+          }
+        } catch (err) {
+          toast.error(err.message || 'Chưa ghi nhận được mã giới thiệu.');
+        }
+      }
     } catch (error) {
       const msg = error.message || 'Không lưu được số điện thoại, vui lòng thử lại!';
       setErrorMessage(msg);
@@ -77,6 +94,17 @@ const GooglePhonePrompt = () => {
               onChange={(e) => { setPhone(e.target.value); setErrorMessage(''); }}
               placeholder="0987654321"
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Mã giới thiệu <span className="font-normal text-gray-400">(không bắt buộc)</span></label>
+            <input
+              type="text"
+              name="referralCode"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value)}
+              placeholder="VD: MEOAB12C"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider focus:outline-none focus:border-primary transition-colors"
             />
           </div>
           <button

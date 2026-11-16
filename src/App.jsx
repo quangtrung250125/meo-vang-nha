@@ -29,6 +29,7 @@ import { CareLogProvider } from './contexts/CareLogContext';
 import { UIProvider } from './contexts/UIContext';
 import { RoomStateProvider } from './contexts/RoomStateContext';
 import { ServiceCatalogProvider } from './contexts/ServiceCatalogContext';
+import { LoyaltyProvider } from './contexts/LoyaltyContext';
 import { Toaster } from 'react-hot-toast';
 import CustomerSyncBridge from './components/CustomerSyncBridge';
 import PushBridge from './components/PushBridge';
@@ -114,13 +115,15 @@ function App() {
             <CareLogProvider>
               <RoomStateProvider>
                 <ServiceCatalogProvider>
-                  <Toaster position="top-center" reverseOrder={false} />
-                  <CustomerSyncBridge />
-                  <PushBridge />
-                  <OrderSourceBridge />
-                  <BrowserRouter>
-                    <AppRoutes />
-                  </BrowserRouter>
+                  <LoyaltyProvider>
+                    <Toaster position="top-center" reverseOrder={false} />
+                    <CustomerSyncBridge />
+                    <PushBridge />
+                    <OrderSourceBridge />
+                    <BrowserRouter>
+                      <AppRoutes />
+                    </BrowserRouter>
+                  </LoyaltyProvider>
                 </ServiceCatalogProvider>
               </RoomStateProvider>
             </CareLogProvider>

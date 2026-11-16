@@ -166,20 +166,32 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
             <div className="w-full sm:w-64 space-y-2 text-xs">
               <div className="flex justify-between text-gray-600">
                 <span>Tổng tiền dịch vụ:</span>
-                <span className="font-bold">{formatVND(invoice.subTotal || 1400000)}</span>
+                <span className="font-bold">{formatVND(invoice.subTotal ?? 1400000)}</span>
               </div>
-              <div className="flex justify-between text-amber-600">
-                <span>Ưu đãi VIP Vàng (-10%):</span>
-                <span className="font-semibold">- {formatVND(invoice.discount || 140000)}</span>
-              </div>
-              <div className="flex justify-between text-gray-500">
-                <span>Đã đặt cọc:</span>
-                <span>- {formatVND(invoice.deposit || 200000)}</span>
-              </div>
+              {Array.isArray(invoice.discountLines) ? (
+                // Hóa đơn thật: mã giảm giá, điểm thưởng khách đã dùng
+                invoice.discountLines.map((d) => (
+                  <div key={d.label} className="flex justify-between text-amber-600" data-testid="invoice-discount-line">
+                    <span>{d.label}:</span>
+                    <span className="font-semibold">- {formatVND(d.amount)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex justify-between text-amber-600">
+                  <span>Ưu đãi VIP Vàng (-10%):</span>
+                  <span className="font-semibold">- {formatVND(invoice.discount ?? 140000)}</span>
+                </div>
+              )}
+              {(invoice.deposit ?? 200000) > 0 && (
+                <div className="flex justify-between text-gray-500">
+                  <span>{invoice.depositLabel || 'Đã đặt cọc'}:</span>
+                  <span>{formatVND(invoice.deposit ?? 200000)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-extrabold text-primary pt-2 border-t border-gray-200">
-                <span>Tổng đã thanh toán:</span>
-                <span className="text-base text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg">
-                  {formatVND(invoice.total || 1060000)}
+                <span>{invoice.totalLabel || 'Tổng đã thanh toán'}:</span>
+                <span className="text-base text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg" data-testid="invoice-total">
+                  {formatVND(invoice.total ?? 1060000)}
                 </span>
               </div>
             </div>

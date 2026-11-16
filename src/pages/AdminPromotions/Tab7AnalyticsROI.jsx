@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -18,17 +18,24 @@ import {
   formatCurrency,
   exportDataToExcelCSV
 } from './promotionsStore';
+import { buildPromoAnalytics } from '../../utils/loyalty';
 
 const PERIODS = [
   { id: '7days', label: '7 ngày qua' },
   { id: '30days', label: '30 ngày qua' },
-  { id: 'quarter', label: 'Quý này (Q4/2026)' },
-  { id: 'year', label: 'Năm nay (2026)' },
+  { id: 'quarter', label: '3 tháng qua' },
+  { id: 'year', label: '12 tháng qua' },
 ];
 
-const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
+const Tab7AnalyticsROI = ({ redemptions = [], customers = [], vouchers = [], promotions }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('30days');
   const [selectedProgram, setSelectedProgram] = useState('all');
+
+  // Số liệu thật: các đơn có dùng mã giảm giá / điểm thưởng trong kỳ đã chọn
+  const analyticsData = useMemo(
+    () => buildPromoAnalytics({ redemptions, promotions, vouchers, customers, period: selectedPeriod }),
+    [redemptions, promotions, vouchers, customers, selectedPeriod]
+  );
 
   const {
     summary,
@@ -74,7 +81,7 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
   };
 
   // Tìm tuần có số lượt dùng cao nhất để tính chiều cao cột biểu đồ
-  const maxWeeklyUsage = Math.max(...weeklyUsage.map((w) => w.count), 100);
+  const maxWeeklyUsage = Math.max(...weeklyUsage.map((w) => w.count), 1);
 
   return (
     <div className="space-y-6">
@@ -133,14 +140,14 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
           <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Lượt xem ưu đãi</span>
+            <span className="text-xs font-medium">Khách dùng ưu đãi</span>
             <Eye className="w-4 h-4 text-sky-500" />
           </div>
           <p className="text-2xl font-black text-gray-800">
-            {summary.views.toLocaleString('vi-VN')}
+            {summary.views.toLocaleString('vi-VN')} <span className="text-xs font-normal text-gray-400">khách</span>
           </p>
-          <span className="text-[11px] text-emerald-600 font-semibold mt-1 inline-block">
-            +18% so với kỳ trước
+          <span className="text-[11px] text-gray-400 mt-1 inline-block">
+            Trong {PERIODS.find((p) => p.id === selectedPeriod)?.label.toLowerCase()}
           </span>
         </div>
 
@@ -153,20 +160,20 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
             {summary.redemptions} <span className="text-xs font-normal text-gray-400">lượt</span>
           </p>
           <span className="text-[11px] text-gray-400 mt-1 inline-block">
-            Tỉ lệ đổi: ~{((summary.redemptions / summary.views) * 100).toFixed(1)}%
+            Mã giảm giá + dùng điểm trên đơn đặt phòng
           </span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
           <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-medium">Doanh thu tăng thêm</span>
+            <span className="text-xs font-medium">Doanh thu đơn dùng ưu đãi</span>
             <TrendingUp className="w-4 h-4 text-orange-500" />
           </div>
           <p className="text-xl font-black text-gray-800">
             {formatCurrency(summary.incrementalRevenue)}
           </p>
-          <span className="text-[11px] text-emerald-600 font-semibold mt-1 inline-block">
-            +32.4 triệu so với tháng trước
+          <span className="text-[11px] text-gray-400 mt-1 inline-block">
+            Số tiền khách thực trả (đã trừ giảm giá)
           </span>
         </div>
 
@@ -179,7 +186,9 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
             {formatCurrency(summary.promotionsCost)}
           </p>
           <span className="text-[11px] text-gray-400 mt-1 inline-block">
-            Chiếm {((summary.promotionsCost / summary.incrementalRevenue) * 100).toFixed(1)}% doanh thu
+            {summary.incrementalRevenue > 0
+              ? `Bằng ${((summary.promotionsCost / summary.incrementalRevenue) * 100).toFixed(1)}% doanh thu`
+              : 'Chưa có doanh thu'}
           </span>
         </div>
 
@@ -192,7 +201,9 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
             +{summary.roiPercent}%
           </p>
           <span className="text-[11px] text-emerald-100 mt-1 inline-block leading-tight">
-            Mỗi 1đ ưu đãi mang lại 4.54đ doanh thu ròng
+            {summary.promotionsCost > 0
+              ? `Mỗi 1đ ưu đãi mang lại ${(summary.netProfit / summary.promotionsCost).toFixed(2)}đ doanh thu ròng`
+              : 'Chưa có chi phí ưu đãi trong kỳ'}
           </span>
         </div>
       </div>
@@ -313,7 +324,9 @@ const Tab7AnalyticsROI = ({ analyticsData, promotions }) => {
               Đánh giá chuyên sâu:
             </span>
             <p className="text-[11px] leading-relaxed text-emerald-800">
-              Chiến dịch "Đón Boss Lần Đầu" mang lại 44% khách mới với chi phí chuyển đổi tối ưu. Tỉ lệ khách cũ quay lại (56%) phản ánh mức độ hài lòng cao từ chính sách tích điểm.
+              {summary.redemptions === 0
+                ? 'Chưa có đơn nào dùng mã giảm giá hoặc điểm thưởng trong kỳ này.'
+                : `${summary.redemptions} lượt ưu đãi trong kỳ: ${customerDistribution.newCustomersPercent}% đến từ khách mới, ${customerDistribution.returningCustomersPercent}% từ khách cũ quay lại.${campaignPerformance[0]?.redemptions ? ` Dùng nhiều nhất: "${campaignPerformance[0].campaignName}" (${campaignPerformance[0].redemptions} lượt).` : ''}`}
             </p>
           </div>
         </div>

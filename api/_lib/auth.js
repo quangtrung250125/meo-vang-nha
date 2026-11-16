@@ -47,6 +47,8 @@ export async function getRequestUser(req) {
       fullName: String(meta.full_name || meta.fullName || meta.name || '').trim(),
       phone: String(meta.phone || user.phone || phoneFromEmail || '').trim(),
       createdAt: user.created_at || null,
+      // Mã giới thiệu khách nhập lúc tạo tài khoản (ghi nhận ở lần đầu mở trang điểm thưởng)
+      referredByCode: String(meta.referred_by_code || '').trim().toUpperCase(),
     };
   } catch {
     return null;
