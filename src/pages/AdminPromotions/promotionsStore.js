@@ -941,12 +941,37 @@ export const loadFromStorage = (key, fallback) => {
   }
 };
 
+// Phần cài đặt nào của trang Admin ứng với khóa lưu nào (lưu lên máy chủ để khách & mọi máy Admin dùng chung)
+const REMOTE_CONFIG_KEYS = {
+  mvn_admin_promotions_v1: 'promotions',
+  mvn_admin_vouchers_v1: 'vouchers',
+  mvn_admin_gifts_combos_v1: 'gifts',
+  mvn_admin_minigame_settings_v1: 'minigameSettings',
+  mvn_admin_minigame_prizes_v1: 'minigamePrizes',
+  mvn_admin_loyalty_tiers_v1: 'tiers',
+  mvn_admin_loyalty_rules_v1: 'rules',
+  mvn_admin_referral_settings_v1: 'referralSettings',
+};
+let remoteSaver = null;
+const remoteTimers = {};
+
+// Trang Admin đăng ký hàm lưu lên máy chủ (null để tắt)
+export const setRemoteSaver = (fn) => {
+  remoteSaver = typeof fn === 'function' ? fn : null;
+};
+
 export const saveToStorage = (key, value) => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
     console.warn(`Lỗi save key ${key}:`, err);
+  }
+  const configKey = REMOTE_CONFIG_KEYS[key];
+  if (configKey && remoteSaver) {
+    clearTimeout(remoteTimers[key]);
+    const saver = remoteSaver;
+    remoteTimers[key] = setTimeout(() => saver({ [configKey]: value }), 250);
   }
 };
 

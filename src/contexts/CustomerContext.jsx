@@ -4,6 +4,7 @@ import { fetchServerSync, pushServerSync, broadcastEvent, subscribeSyncEvents, s
 import { getAdminEmails, isAdminUser } from '../utils/adminAccess';
 import { normalizeVnPhone } from '../utils/phone';
 import { fromPetRow, toPetRow, newUuid } from '../utils/petRows';
+import { claimReferralCode, getRememberedReferral, clearRememberedReferral } from '../services/loyaltyApi';
 
 const CustomerContext = createContext();
 
@@ -366,6 +367,9 @@ export const CustomerProvider = ({ children }) => {
             }
         }
 
+        // Mã giới thiệu của người đã giới thiệu (khách nhập, hoặc từ đường link ?ref=MÃ)
+        const referralCode = String(profile.referralCode ?? getRememberedReferral() ?? '').trim().toUpperCase();
+
         // 1. Gọi Supabase Auth để tạo tài khoản
         const { data, error } = await supabase.auth.signUp({
             email,
@@ -375,6 +379,7 @@ export const CustomerProvider = ({ children }) => {
                     full_name: fullName,
                     phone: rawPhone,
                     labels: profile.labels || ['Khách hàng mới'],
+                    ...(referralCode ? { referred_by_code: referralCode } : {}),
                 }
             }
         });
@@ -426,6 +431,17 @@ export const CustomerProvider = ({ children }) => {
                 } catch (petErr) {
                     console.warn('Lỗi lưu thú cưng vào Supabase:', petErr);
                 }
+            }
+        }
+
+        // 4. Ghi nhận mã giới thiệu ngay (nếu chưa có phiên đăng nhập, máy chủ ghi nhận ở lần đăng nhập đầu tiên)
+        if (referralCode && data.session) {
+            try {
+                const res = await claimReferralCode(referralCode);
+                if (res?.ok) clearRememberedReferral();
+                else console.warn('Mã giới thiệu chưa được ghi nhận:', res?.message);
+            } catch (err) {
+                console.warn('Không ghi nhận được mã giới thiệu:', err?.message);
             }
         }
 

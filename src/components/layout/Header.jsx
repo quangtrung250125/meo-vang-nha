@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useUI } from '../../contexts/UIContext';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
 import BookingNotificationBell from '../BookingNotificationBell';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
@@ -20,6 +21,10 @@ const Header = () => {
   const navigate = useNavigate();
 
   const { authenticatedCustomer, isAuthenticated, isAdmin, logoutCustomer } = useCustomerProfile();
+  // Hạng & điểm thật của khách (máy chủ tính từ các đơn đã check-out)
+  const { loyalty } = useLoyalty();
+  const loyaltyTierName = loyalty?.tier?.name || 'Đồng';
+  const loyaltyPoints = Number(loyalty?.points) || 0;
   const { openAuth, openSearch } = useUI();
 
   // Current active user details (fallback to ducan demo if not set)
@@ -139,7 +144,7 @@ const Header = () => {
                       </p>
                       <p className="text-[11px] text-amber-700 font-extrabold flex items-center gap-0.5 leading-none mt-0.5">
                         <span className="text-[10px]">👑</span>
-                        <span>{currentUser.tier === 'diamond' ? 'Kim Cương' : 'Vàng'} • {currentUser.points || 850}đ</span>
+                        <span data-testid="header-tier-points">{loyaltyTierName} • {loyaltyPoints.toLocaleString('vi-VN')} điểm</span>
                       </p>
                     </div>
 
@@ -176,10 +181,10 @@ const Header = () => {
                       <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-3">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100/70 text-amber-900 font-extrabold text-xs rounded-xl border border-amber-200/40">
                           <span>👑</span>
-                          <span>{currentUser.tier === 'diamond' ? 'Hạng Kim Cương' : 'Hạng Vàng'}</span>
+                          <span>Hạng {loyaltyTierName}</span>
                         </span>
                         <span className="text-[#059669] font-black text-sm">
-                          {currentUser.points || 850} Điểm thưởng
+                          {loyaltyPoints.toLocaleString('vi-VN')} Điểm thưởng
                         </span>
                       </div>
 

@@ -13,6 +13,10 @@ import { useBookingHistory, isBookingOfCustomer } from '../../contexts/BookingHi
 import { usePetProfile } from '../../contexts/PetContext';
 import { BOOKING_STATUS_CONFIG, getBookingStatus } from '../../utils/bookingStatus';
 import InvoiceModal from '../../components/InvoiceModal';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { buildInvoice } from '../../utils/bookingInvoice';
+import { LEDGER_TYPES, referralLinkFor } from '../../utils/loyalty';
+import { ADDONS } from '../../components/ServiceManagement';
 import {
   getPushSubscriptionStatus,
   subscribeToPush,
@@ -22,15 +26,6 @@ import {
 } from '../../services/pushNotificationService';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-
-// Mock point transactions
-const INITIAL_POINT_HISTORY = [
-  { id: 1, date: '19/09/2026', desc: 'Hoàn tất lưu trú phòng VIP Hoàng Gia (4 ngày)', points: '+120', type: 'earn', code: '#MVN-2026-8891' },
-  { id: 2, date: '02/09/2026', desc: 'Dịch vụ Spa tắm tỉa dưỡng lông 2 bé', points: '+50', type: 'earn', code: '#MVN-2026-8420' },
-  { id: 3, date: '15/08/2026', desc: 'Thưởng sinh nhật khách hàng thân thiết', points: '+100', type: 'earn', code: '#PROMO-BIRTHDAY' },
-  { id: 4, date: '10/08/2026', desc: 'Đổi voucher giảm giá 100.000đ khi đặt phòng', points: '-200', type: 'spend', code: '#REDEEM-VOUCHER' },
-  { id: 5, date: '25/07/2026', desc: 'Lưu trú phòng Deluxe Sen Đá (3 ngày)', points: '+90', type: 'earn', code: '#MVN-2026-7734' },
-];
 
 // Mock sample transactions with full invoice data
 const SAMPLE_TRANSACTIONS = [
@@ -308,13 +303,70 @@ const CustomerProfile = () => {
       customerName: formData.fullName || transaction.customerName,
       customerPhone: formData.phone || transaction.customerPhone,
       customerEmail: formData.email || transaction.customerEmail,
-      customerTier: activeCustomer.tier ? `Thành viên ${activeCustomer.tier}` : 'Thành viên Vàng',
+      customerTier: `Hạng ${tierName}`,
     };
     setSelectedInvoice(completeInvoice);
     setIsInvoiceOpen(true);
   };
 
   const myBookings = globalBookingList.filter(b => isBookingOfCustomer(b, activeCustomer, isAdmin));
+
+  // Điểm thưởng, hạng, mã giới thiệu thật (máy chủ tính từ các đơn đã check-out)
+  const { loyalty, loading: loyaltyLoading } = useLoyalty();
+  const points = Number(loyalty?.points) || 0;
+  const tierName = loyalty?.tier?.name || 'Đồng';
+  const tierBenefits = loyalty?.tier?.benefits || [];
+  const nextTier = loyalty?.nextTier || null;
+  const spend = Number(loyalty?.spending?.spend) || 0;
+  const completedCount = Number(loyalty?.spending?.completedCount) || 0;
+  const referralCode = loyalty?.referralCode || '';
+  const referralLink = referralCode ? referralLinkFor(referralCode, typeof window !== 'undefined' ? window.location.origin : undefined) : '';
+  const referralSettings = loyalty?.referralSettings || {};
+  const referrals = loyalty?.referrals || [];
+  const referredCount = Number(loyalty?.referredCount) || 0;
+  const copyText = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`Đã sao chép ${label}!`);
+    } catch {
+      toast.error('Trình duyệt chặn sao chép, bạn hãy bôi đen và sao chép thủ công.');
+    }
+  };
+
+  // Hóa đơn thật của từng đơn (đã trừ mã giảm giá, điểm thưởng)
+  const realTransactions = myBookings
+    .filter(b => b.code || b.id)
+    .map((b) => {
+      const inv = buildInvoice(b, ADDONS);
+      const positive = (inv?.lines || []).filter(l => l.amount > 0);
+      const discounts = (inv?.lines || []).filter(l => l.amount < 0);
+      const created = b.createdAt ? new Date(b.createdAt) : null;
+      return {
+        id: b.code || b.id,
+        code: `#${b.code || b.id}`,
+        date: created && !Number.isNaN(created.getTime()) ? created.toLocaleString('vi-VN') : '',
+        createdAt: b.createdAt || '',
+        service: (b.packages || []).join(' + ') || b.selectedPackage?.name || 'Lưu trú khách sạn mèo',
+        roomName: b.roomId || b.selectedRoom?.id || '',
+        stayPeriod: `${b.checkIn || ''} - ${inv?.checkOut || b.checkOut || ''} (${inv?.nights || 1} đêm)`,
+        petNames: b.catNames || '',
+        paymentMethod: b.paymentStatus || 'Chuyển khoản VietQR',
+        status: BOOKING_STATUS_CONFIG[getBookingStatus(b)]?.label || 'Sắp tới',
+        amount: inv?.total || 0,
+        subTotal: positive.reduce((sum, l) => sum + l.amount, 0),
+        discountLines: discounts.map(l => ({ label: l.label, amount: -l.amount })),
+        deposit: inv?.received || 0,
+        depositLabel: inv?.isPaidInFull ? 'Đã thanh toán' : 'Đã chuyển (cọc)',
+        total: inv?.total || 0,
+        totalLabel: 'Tổng phải thanh toán',
+        promo: b.promo || null,
+        items: positive.map(l => ({ name: l.label, note: l.detail, qty: '', price: l.amount, total: l.amount })),
+      };
+    })
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const transactionList = realTransactions.length > 0
+    ? realTransactions
+    : (activeCustomer?.phone === '0376131531' ? SAMPLE_TRANSACTIONS : []);
 
   // Số bé đang gửi và ngày tham gia lấy từ dữ liệu thật thay vì số mẫu
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -339,6 +391,60 @@ const CustomerProfile = () => {
     }))),
     ...(activeCustomer?.phone === '0376131531' ? DEFAULT_BOARDING_HISTORY : [])
   ];
+
+  // Thẻ mã giới thiệu: khách A chia sẻ mã cho bạn (khách B) nhập khi tạo tài khoản
+  const referralCard = (
+    <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4 text-left space-y-3" data-testid="referral-card">
+      <div className="flex items-center gap-2">
+        <Gift className="w-4 h-4 text-orange-500" />
+        <p className="text-sm font-black text-gray-900">Mã giới thiệu bạn mới</p>
+      </div>
+      {referralCode ? (
+        <>
+          <div className="flex items-center justify-between gap-2 bg-white border-2 border-dashed border-orange-300 rounded-xl px-3 py-2">
+            <span className="font-mono text-lg font-black tracking-widest text-orange-600" data-testid="referral-code">{referralCode}</span>
+            <button
+              type="button"
+              onClick={() => copyText(referralCode, 'mã giới thiệu')}
+              className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold cursor-pointer"
+            >
+              Sao chép
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => copyText(referralLink, 'đường link giới thiệu')}
+            className="w-full text-xs font-semibold text-orange-700 hover:underline truncate text-left cursor-pointer"
+            title={referralLink}
+          >
+            🔗 {referralLink}
+          </button>
+          <p className="text-[11px] text-gray-600 leading-relaxed">
+            Gửi mã này cho bạn bè. Bạn bè nhập mã khi tạo tài khoản và hoàn tất (check-out) đơn đầu tiên thì bạn được ghi nhận
+            đã giới thiệu 1 người{Number(referralSettings.referrerRewardPoints) > 0 && referralSettings.enabled !== false ? ` và nhận ${referralSettings.referrerRewardPoints} điểm thưởng` : ''}.
+          </p>
+          <div className="flex items-center justify-between text-xs bg-white rounded-xl px-3 py-2 border border-orange-100">
+            <span className="text-gray-500">Đã giới thiệu thành công</span>
+            <span className="font-black text-emerald-600" data-testid="referred-count">{referredCount} người</span>
+          </div>
+          {referrals.length > 0 && (
+            <ul className="space-y-1 text-[11px]">
+              {referrals.map((r, i) => (
+                <li key={i} className="flex justify-between gap-2">
+                  <span className="font-semibold text-gray-700 truncate">{r.refereeName}</span>
+                  <span className={r.status === 'completed' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-semibold'}>
+                    {r.status === 'completed' ? `Đã hoàn tất đơn đầu${r.rewardPoints ? ` · +${r.rewardPoints} điểm` : ''}` : 'Đã đăng ký, chờ hoàn tất đơn đầu'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className="text-xs text-gray-500">{loyaltyLoading ? 'Đang tải mã giới thiệu...' : (activeCustomer?.id ? 'Chưa tải được mã giới thiệu, vui lòng tải lại trang.' : 'Đăng nhập để nhận mã giới thiệu của bạn.')}</p>
+      )}
+    </div>
+  );
 
   const formatVND = (num) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num || 0);
 
@@ -379,9 +485,9 @@ const CustomerProfile = () => {
                 <h1 className="text-2xl sm:text-3xl font-black font-title text-white">
                   {formData.fullName || 'ducan'}
                 </h1>
-                <span className="px-3 py-0.5 bg-[#eab308] text-[#713f12] font-black text-xs rounded-md shadow-xs flex items-center gap-1">
+                <span className="px-3 py-0.5 bg-[#eab308] text-[#713f12] font-black text-xs rounded-md shadow-xs flex items-center gap-1" data-testid="profile-tier">
                   <span>👑</span>
-                  <span>Hạng Vàng</span>
+                  <span>Hạng {tierName}</span>
                 </span>
               </div>
 
@@ -400,7 +506,7 @@ const CustomerProfile = () => {
 
                 <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
                   <Star className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                  <span>Điểm tích lũy: <strong className="text-amber-300 font-black">{activeCustomer.points || 850} điểm</strong></span>
+                  <span>Điểm tích lũy: <strong className="text-amber-300 font-black" data-testid="profile-points">{points.toLocaleString('vi-VN')} điểm</strong></span>
                 </span>
 
                 <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 flex items-center gap-1.5 border border-white/10">
@@ -530,16 +636,18 @@ const CustomerProfile = () => {
                   <span className="text-gray-500 flex items-center gap-2 text-xs">
                     <Crown className="w-3.5 h-3.5 text-amber-500" /> Hạng thành viên
                   </span>
-                  <span className="font-bold text-amber-700 text-xs">Hạng Vàng VIP</span>
+                  <span className="font-bold text-amber-700 text-xs">Hạng {tierName}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500 flex items-center gap-2 text-xs">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Điểm thưởng
                   </span>
-                  <span className="font-black text-emerald-600 text-xs">{activeCustomer.points || 850} điểm</span>
+                  <span className="font-black text-emerald-600 text-xs">{points.toLocaleString('vi-VN')} điểm</span>
                 </div>
               </div>
+
+              <div className="w-full mt-5">{referralCard}</div>
 
               <button
                 type="button"
@@ -677,59 +785,77 @@ const CustomerProfile = () => {
                 <div className="mb-8 text-sm space-y-1">
                   <p className="text-amber-100">Chủ nuôi: <span className="font-bold text-white text-base">{formData.fullName}</span></p>
                   <p className="text-amber-100">Số điện thoại: <span className="font-mono text-white">{formData.phone}</span></p>
-                  <p className="text-amber-100">Mã hội viên: <span className="font-mono text-white">MVN-88992</span></p>
+                  <p className="text-amber-100">Mã giới thiệu: <span className="font-mono text-white">{referralCode || '—'}</span></p>
                 </div>
                 <div className="flex justify-between items-end border-t border-amber-300/40 pt-4">
                   <div>
                     <p className="text-xs text-amber-100 uppercase">Điểm tích lũy</p>
-                    <p className="text-3xl font-black">{activeCustomer.points || 850} <span className="text-sm font-normal">Điểm</span></p>
+                    <p className="text-3xl font-black" data-testid="tier-card-points">{points.toLocaleString('vi-VN')} <span className="text-sm font-normal">Điểm</span></p>
+                    <p className="text-[11px] text-amber-100">1 điểm = {(Number(loyalty?.rules?.valuePerPoint) || 1000).toLocaleString('vi-VN')}đ khi trừ vào hóa đơn</p>
                   </div>
-                  <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-xl text-xs font-black border border-white/30 tracking-wider">
-                    👑 HẠNG VÀNG
+                  <span className="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-xl text-xs font-black border border-white/30 tracking-wider uppercase">
+                    👑 Hạng {tierName}
                   </span>
                 </div>
               </div>
 
               {/* VIP Benefits */}
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-                <h3 className="text-lg font-black text-gray-900">Đặc quyền Hạng Vàng của bạn</h3>
+                <h3 className="text-lg font-black text-gray-900">Đặc quyền hạng {tierName} của bạn</h3>
                 <ul className="space-y-2.5 text-sm text-gray-600">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Giảm <strong>10%</strong> mọi hóa đơn dịch vụ lưu trú và spa.</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Tặng kèm <strong>Pate cao cấp miễn phí</strong> vào Thứ 4 & Thứ 5 hàng tuần.</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Ưu tiên giữ phòng trong các dịp Lễ Tết cao điểm.</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Miễn phí xem <strong>Camera trực tiếp 24/7</strong> và nhật ký chăm sóc qua App.</span>
-                  </li>
+                  {tierBenefits.map((benefit) => (
+                    <li key={benefit} className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{benefit}</span>
+                    </li>
+                  ))}
                 </ul>
+                <div className="pt-3 border-t border-gray-100 text-xs text-gray-600 space-y-2">
+                  <p>Chi tiêu đã hoàn tất: <strong className="text-gray-900">{spend.toLocaleString('vi-VN')}đ</strong> · {completedCount} đơn đã check-out</p>
+                  {nextTier ? (
+                    <>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${Math.min(100, Number(loyalty?.tierProgress) || 0)}%` }} />
+                      </div>
+                      <p>
+                        Lên hạng <strong>{nextTier.name}</strong> khi chi tiêu từ {Number(nextTier.minSpend || 0).toLocaleString('vi-VN')}đ
+                        {Number(nextTier.minBookings) > 0 ? ` hoặc đủ ${nextTier.minBookings} đơn hoàn tất` : ''}.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-bold text-emerald-600">Bạn đang ở hạng cao nhất.</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Points History */}
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-black text-gray-900 mb-4">Lịch sử tích điểm & đổi quà</h3>
-              <div className="divide-y divide-gray-100">
-                {INITIAL_POINT_HISTORY.map(item => (
-                  <div key={item.id} className="py-3 flex items-center justify-between text-sm">
-                    <div>
-                      <p className="font-bold text-gray-800">{item.desc}</p>
-                      <p className="text-xs text-gray-400">{item.date} • {item.code}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Points History */}
+              <div className="lg:col-span-2 bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm">
+                <h3 className="text-lg font-black text-gray-900 mb-1">Lịch sử tích điểm & dùng điểm</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Mỗi {(Number(loyalty?.rules?.spendForOnePoint) || 10000).toLocaleString('vi-VN')}đ của đơn đã check-out được 1 điểm (nhân hệ số hạng). Dùng điểm ở bước thanh toán khi đặt phòng.
+                </p>
+                <div className="divide-y divide-gray-100" data-testid="points-history">
+                  {(loyalty?.ledger || []).length === 0 && (
+                    <p className="py-6 text-sm text-gray-400 text-center">Chưa có giao dịch điểm nào. Hoàn tất đơn gửi mèo đầu tiên để nhận điểm!</p>
+                  )}
+                  {(loyalty?.ledger || []).map(item => (
+                    <div key={item.id} className="py-3 flex items-center justify-between gap-3 text-sm">
+                      <div>
+                        <p className="font-bold text-gray-800">{item.reason}</p>
+                        <p className="text-xs text-gray-400">
+                          {item.at ? new Date(item.at).toLocaleString('vi-VN') : ''} • {LEDGER_TYPES[item.type]?.label || item.type}{item.bookingCode ? ` • #${item.bookingCode}` : ''}
+                        </p>
+                      </div>
+                      <span className={`font-black shrink-0 ${item.delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {item.delta >= 0 ? '+' : ''}{item.delta} điểm
+                      </span>
                     </div>
-                    <span className={`font-black ${item.type === 'earn' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {item.points} điểm
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+              <div>{referralCard}</div>
             </div>
           </div>
         )}
@@ -780,7 +906,7 @@ const CustomerProfile = () => {
                   ) : (
                     <button
                       onClick={() => {
-                        const inv = SAMPLE_TRANSACTIONS.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS[0];
+                        const inv = transactionList.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS[0];
                         openInvoice(inv);
                       }}
                       className="px-4 py-2 bg-emerald-50 text-[#00B16A] hover:bg-[#00B16A] hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
@@ -800,7 +926,10 @@ const CustomerProfile = () => {
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-4 animate-in fade-in duration-200">
             <h3 className="text-xl font-black text-gray-900 mb-2">Lịch sử hóa đơn điện tử</h3>
             <div className="space-y-4">
-              {SAMPLE_TRANSACTIONS.map((trans) => (
+              {transactionList.length === 0 && (
+                <p className="py-8 text-sm text-gray-400 text-center">Bạn chưa có hóa đơn nào. Đặt phòng cho bé để bắt đầu nhé!</p>
+              )}
+              {transactionList.map((trans) => (
                 <div 
                   key={trans.id}
                   className="p-5 rounded-2xl border border-gray-100 bg-white hover:bg-gray-50 transition shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
@@ -813,12 +942,17 @@ const CustomerProfile = () => {
                       <span className="text-xs text-gray-400">{trans.date}</span>
                     </div>
                     <h4 className="font-bold text-gray-800 text-sm">{trans.service}</h4>
-                    <p className="text-xs text-gray-500">Bé: {trans.petNames} • {trans.paymentMethod}</p>
+                    <p className="text-xs text-gray-500">Bé: {trans.petNames} • {trans.paymentMethod}{trans.status && trans.discountLines ? ` • ${trans.status}` : ''}</p>
+                    {trans.discountLines?.length > 0 && (
+                      <p className="text-xs font-semibold text-emerald-700">
+                        Đã giảm: {trans.discountLines.map(d => `${d.label} -${d.amount.toLocaleString('vi-VN')}đ`).join(' · ')}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between lg:justify-end gap-6 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
                     <div className="text-left lg:text-right">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Số tiền thanh toán</p>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">{trans.discountLines ? 'Tổng phải thanh toán' : 'Số tiền thanh toán'}</p>
                       <p className="text-lg font-black text-emerald-700">{formatVND(trans.amount)}</p>
                     </div>
 

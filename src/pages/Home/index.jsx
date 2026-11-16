@@ -10,6 +10,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { calculateMembership } from '../../utils/membership';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
 import { promotionsList } from '../../mockData/promotionsData';
 import { articlesList } from '../../mockData/newsData';
 
@@ -20,7 +21,11 @@ const Home = () => {
   const { globalBookingList } = useBookingHistory();
   const { openPolicy } = useUI();
 
-  const { tier, points } = calculateMembership(globalBookingList);
+  const membership = calculateMembership(globalBookingList);
+  // Khách đã đăng nhập: điểm & hạng thật từ máy chủ
+  const { loyalty } = useLoyalty();
+  const points = loyalty ? Number(loyalty.points) || 0 : membership.points;
+  const tier = loyalty?.tier?.name ? `HẠNG ${String(loyalty.tier.name).toUpperCase()}` : membership.tier;
   const displayOwner = customerProfile?.fullName || 'Khách Hàng Mới';
   const displayPetCode = petList && petList.length > 0 ? `MVN-${String(petList[0].id).slice(-5)}` : 'MVN-XXXXX';
 

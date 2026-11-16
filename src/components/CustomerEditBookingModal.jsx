@@ -11,6 +11,7 @@ import { useServiceCatalog } from '../contexts/ServiceCatalogContext';
 import { lodgingPricingForRoom } from '../utils/bookingPricing';
 import { buildBookingEdit, roomTypeOf, lodgingFitsRoom, EDIT_SECTIONS } from '../utils/bookingEdit';
 import { buildInvoice } from '../utils/bookingInvoice';
+import { payableAtBooking } from '../utils/loyalty';
 import {
   getEditedDepositState, getDepositPolicy, depositReceivedOf, depositToTransferOf, todayInVietnam,
   formatVietnamDateTime, getDepositDueAt, PAYMENT_STATUS, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS,
@@ -111,7 +112,7 @@ const PackageOption = ({ pkg, priceString, isSelected, isCurrent, onClick }) => 
 
 // Ghi chú thanh toán / đặt cọc theo quy định: gửi từ 5 ngày cọc 50%, dưới 5 ngày chỉ hiện giá
 const DepositNote = ({ booking, total }) => {
-  const policy = getDepositPolicy({ checkIn: booking.checkIn, checkOut: booking.checkOut, total: booking.totalPrice });
+  const policy = getDepositPolicy({ checkIn: booking.checkIn, checkOut: booking.checkOut, total: payableAtBooking(booking) });
   const received = depositReceivedOf(booking);
   const toTransfer = depositToTransferOf(booking);
 
@@ -387,7 +388,7 @@ const EditBookingContent = ({ booking, onClose }) => {
     const spaAmount = coupon ? pricing.spaTotal : pricing.spaOriginalTotal;
     const extraAmount = pricing.total - pricing.ruleAdjustmentTotal - lodgingAmount - spaAmount - pricing.cameraTotal;
     const preview = { ...booking, ...changes };
-    Object.assign(preview, getEditedDepositState({ booking, checkIn: changes.checkIn, checkOut: changes.checkOut, total: changes.totalPrice }));
+    Object.assign(preview, getEditedDepositState({ booking, checkIn: changes.checkIn, checkOut: changes.checkOut, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice }) }));
     const oldTotal = buildInvoice(booking, ADDONS)?.total ?? 0;
     const newTotal = buildInvoice({ ...preview, originalCheckIn: changes.checkIn, originalCheckOut: changes.checkOut }, ADDONS)?.total ?? pricing.total;
     const requestedExtras = newTotal - pricing.total;

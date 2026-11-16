@@ -414,6 +414,11 @@ export async function handleMarketing(req, res, action) {
     case 'messenger-send': return handleInboxSend(req, res);
     case 'messenger-link': return handleInboxLink(req, res);
     case 'messenger-ref': return handleMessengerRef(req, res);
+    // Khuyến mãi & Điểm thưởng dùng chung hàm API này (gói Vercel Hobby giới hạn 12 hàm)
+    case 'loyalty': {
+      const { handleLoyalty } = await import('./loyaltyService.js');
+      return handleLoyalty(req, res);
+    }
     default: return res.status(404).json({ error: 'Không có API này.' });
   }
 }

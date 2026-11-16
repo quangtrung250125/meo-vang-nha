@@ -3,6 +3,7 @@
 
 import { calculateBookingPrice, countStayDays } from './bookingPricing.js';
 import { formatDateRange } from './bookingStatus.js';
+import { promoDiscountOf } from './loyalty.js';
 
 export const EDIT_SECTIONS = {
   PETS: 'pets',
@@ -64,7 +65,8 @@ export function buildBookingEdit(booking, draft, { pricingRules = [] } = {}) {
     hasCamera: pricing.cameraIncluded || addCamera,
     addCamera: !pricing.cameraIncluded && addCamera,
     totalPrice: pricing.total,
-    totalAmount: pricing.total,
+    // Mã giảm giá / điểm đã dùng lúc đặt vẫn được trừ (số tiền giảm giữ nguyên như lúc đặt)
+    totalAmount: Math.max(0, pricing.total - promoDiscountOf(booking)),
     pricingAdjustments: pricing.ruleAdjustments,
     ...(booking.baseTotalPrice !== undefined ? { baseTotalPrice: pricing.total } : {}),
   };

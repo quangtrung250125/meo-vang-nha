@@ -10,6 +10,8 @@ import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
 import { CONFIRM_DEADLINE_HOURS } from '../../src/utils/assistedBooking.js';
 import { sanitizeOrderSource } from '../../src/utils/orderSource.js';
 import { linkConversationByRef } from './messengerService.js';
+import { quotePromo, commitPromo, onBookingClosed, setMemoryBookingsProvider } from './loyaltyService.js';
+import { payableAtBooking } from '../../src/utils/loyalty.js';
 
 const CONFIRM_BOOKING = 'CONFIRM_BOOKING';
 
@@ -208,6 +210,12 @@ function loadPersistedBookings() {
 
 globalBookings = loadPersistedBookings();
 
+// Điểm thưởng cần biết cả đơn đang mở lẫn đơn vừa đóng trong bộ nhớ server
+setMemoryBookingsProvider(() => [
+  ...Object.values(globalBookings).flat(),
+  ...closedFullBookings.values(),
+]);
+
 const FINISHED_STATUSES = ['check-out', 'Đã hoàn tất', 'hoàn tất', 'cancelled', 'Đã hủy'];
 
 // Đơn đã kết thúc (Check-out / hủy) bị bỏ khỏi kho phòng để trả chỗ, nhưng trang "Lịch đặt" của khách
@@ -217,9 +225,15 @@ const CLOSED_RECORD_FIELDS = ['status', 'cancelReason', 'cancelledAt', 'cancelle
 // Admin chỉ cần các đơn vừa kết thúc gần đây để dọn trang Tình trạng phòng ở các máy khác
 const ADMIN_CLOSED_WINDOW_MS = 3 * 24 * 3600 * 1000;
 
+// Bản đầy đủ của đơn vừa kết thúc (chỉ trong bộ nhớ server) để cộng điểm / hoàn điểm khi không có database
+const closedFullBookings = new Map();
+const MAX_CLOSED_FULL = 2000;
+
 function rememberClosedBooking(b, closedAt) {
   const code = b?.code || b?.id;
   if (!code) return;
+  closedFullBookings.set(code, { ...(closedFullBookings.get(code) || {}), ...b, code });
+  if (closedFullBookings.size > MAX_CLOSED_FULL) closedFullBookings.delete(closedFullBookings.keys().next().value);
   const record = { code, customerId: b.customerId || null, closedAt };
   CLOSED_RECORD_FIELDS.forEach((key) => {
     if (b[key] !== undefined) record[key] = b[key];
@@ -554,6 +568,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
         }
 
         let found = false;
+        let mergedBooking = null;
         const targetRooms = roomId ? [roomId] : Object.keys(globalBookings);
         const isFinished =
           updates?.status === 'check-out' ||
@@ -567,6 +582,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
           const idx = list.findIndex((b) => b.code === code || b.id === code);
           if (idx >= 0) {
             found = true;
+            mergedBooking = { ...list[idx], ...updates };
             if (isFinished) {
               rememberClosedBooking({ ...list[idx], ...updates }, new Date().toISOString());
               list.splice(idx, 1);
@@ -607,7 +623,10 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
 
         persistBookings();
         const storedUpdated = await updateStoredBooking(code, updates, accessToken);
-        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated });
+        if (!mergedBooking && isFinished && closedFullBookings.has(code)) {
+          mergedBooking = { ...closedFullBookings.get(code), ...updates };
+        }
+        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated, booking: mergedBooking });
       } catch (err) {
         return resolve({ success: false, error: err.message });
       }
@@ -688,10 +707,32 @@ export async function handleAddBooking(req, res) {
     };
   }
 
+  // Mã giảm giá / điểm thưởng: trình duyệt chỉ gửi yêu cầu, số tiền giảm do server kiểm tra và tính lại
+  const promoRequest = payload.promoRequest || null;
+  payload = { ...payload };
+  delete payload.promoRequest;
+  if (!user?.isAdmin) delete payload.promo;
+  if (promoRequest && (promoRequest.voucherCode || Number(promoRequest.pointsToUse) > 0)) {
+    const quote = await quotePromo({
+      user,
+      booking: payload,
+      voucherCode: promoRequest.voucherCode || '',
+      pointsToUse: Number(promoRequest.pointsToUse) || 0,
+      accessToken: getBearerToken(req),
+    });
+    if (!quote.ok) {
+      return res.status(400).json({ success: false, invalid: true, promoError: true, field: quote.field, message: quote.message });
+    }
+    if (quote.promo) {
+      payload.promo = quote.promo;
+      payload.totalAmount = payableAtBooking(payload);
+    }
+  }
+
   // Tiền cọc do server tính theo số ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được.
   // Đơn nhân viên đặt hộ cũng tính cọc như khách tự đặt.
   if (!user?.isAdmin || !payload.paymentStatus || assisted) {
-    const deposit = getDepositPolicy({ checkIn: payload.checkIn, checkOut: payload.checkOut, total: payload.totalPrice });
+    const deposit = getDepositPolicy({ checkIn: payload.checkIn, checkOut: payload.checkOut, total: payableAtBooking(payload) });
     payload = {
       ...payload,
       depositRequired: deposit.required,
@@ -718,6 +759,10 @@ export async function handleAddBooking(req, res) {
   // Đơn đặt từ link Messenger: gắn cuộc trò chuyện với tài khoản khách (nếu chưa gắn)
   if (payload.orderSourceRef && payload.customerId && !payload.bookedByStaff) {
     await linkConversationByRef(payload.orderSourceRef, payload.customerId, 'booking').catch(() => {});
+  }
+  // Đơn đã giữ phòng: ghi lượt dùng mã và trừ điểm của khách
+  if (result.booking?.promo && user && !user.isAdmin) {
+    await commitPromo({ user, booking: result.booking }).catch((e) => console.warn('[Loyalty] Không ghi được lượt dùng ưu đãi:', e.message));
   }
   return res.status(200).json(result);
 }
@@ -956,7 +1001,7 @@ export function checkCustomerEdit({ booking, roomId, updates }, bookingsByRoom, 
   allowed.roomId = targetRoomId;
   allowed.totalPrice = total;
   // Tiền cọc do server tính lại theo đơn mới, khách không tự đặt được
-  Object.assign(allowed, getEditedDepositState({ booking, checkIn: next.checkIn, checkOut: next.checkOut, total }));
+  Object.assign(allowed, getEditedDepositState({ booking, checkIn: next.checkIn, checkOut: next.checkOut, total: payableAtBooking({ ...next, totalPrice: total }) }));
   return { ok: true, updates: allowed };
 }
 
@@ -987,11 +1032,20 @@ export async function handleUpdateBooking(req, res) {
     if (result.ok === false) {
       return res.status(result.statusCode).json({ success: false, message: result.message });
     }
+    await afterBookingChanged(result);
     return res.status(200).json(await scopeResult(req, result));
   }
 
   const result = await updateBookingAtomic({ roomId, code: targetCode, updates: updates || req.body, accessToken });
+  await afterBookingChanged(result);
   return res.status(200).json(result);
+}
+
+// Đơn vừa check-out / hủy: cộng điểm, hoàn điểm & lượt mã, ghi nhận giới thiệu bạn bè
+async function afterBookingChanged(result) {
+  const b = result?.booking;
+  if (!result?.success || !b || !FINISHED_STATUSES.includes(b.status)) return;
+  await onBookingClosed(b);
 }
 
 export async function handleRemoveBooking(req, res) {
@@ -1004,6 +1058,7 @@ export async function handleRemoveBooking(req, res) {
   const accessToken = getBearerToken(req);
   await loadBookingForRequester(targetCode, accessToken);
   const result = await removeBookingAtomic({ roomId, code: targetCode, accessToken, reason });
+  await afterBookingChanged(result);
   return res.status(200).json(result);
 }
 

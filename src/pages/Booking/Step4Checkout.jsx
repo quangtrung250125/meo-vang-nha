@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Tag, Check, CheckCircle2, ShieldCheck, Sparkles, Percent, Gift, AlertTriangle, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Tag, CheckCircle2, Sparkles, Percent, Gift, AlertTriangle, RefreshCw, Star, X } from 'lucide-react';
 import { promotionInfo } from '../../mockData/servicesData';
 import { useRoomState, determineBookingStatus } from '../../contexts/RoomStateContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
@@ -11,11 +11,21 @@ import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 import { buildConfirmRequest, assistedOwnerFields } from '../../utils/assistedBooking';
 import { sendNotification } from '../../services/notificationTriggers';
 import { orderSourceFields, clearOrderSource, browserStorage } from '../../utils/orderSource';
+import { useLoyalty } from '../../contexts/LoyaltyContext';
+import { quoteLoyaltyPromo } from '../../services/loyaltyApi';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
-  const [couponCode, setCouponCode] = useState(promotionInfo.code);
-  const [isCouponApplied, setIsCouponApplied] = useState(true);
-  const [couponMessage, setCouponMessage] = useState('Đã áp dụng mã ưu đãi giảm 10%!');
+  // Ưu đãi 10% có sẵn trên giá niêm yết (giá gói đã giảm) luôn được áp dụng
+  const isCouponApplied = true;
+  // Mã giảm giá thật do Admin tạo ở trang Khuyến mãi & Điểm thưởng + điểm thưởng của khách
+  const [voucherInput, setVoucherInput] = useState(data.promoRequest?.voucherCode || '');
+  const [pointsInput, setPointsInput] = useState(data.promoRequest?.pointsToUse ? String(data.promoRequest.pointsToUse) : '');
+  const [promoRequest, setPromoRequest] = useState({ voucherCode: data.promoRequest?.voucherCode || '', pointsToUse: Number(data.promoRequest?.pointsToUse) || 0 });
+  const [promoQuote, setPromoQuote] = useState(null);
+  const [voucherError, setVoucherError] = useState('');
+  const [pointsError, setPointsError] = useState('');
+  const [isQuoting, setIsQuoting] = useState(false);
+  const { loyalty, refresh: refreshLoyalty } = useLoyalty();
   const [conflictError, setConflictError] = useState('');
   // 'conflict': phòng vừa hết chỗ | 'retry': hệ thống bận / mất mạng, đơn chưa được ghi | 'invalid': dữ liệu sai
   const [errorKind, setErrorKind] = useState('conflict');
@@ -72,19 +82,110 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     addCamera,
   });
 
-  // ── Đặt cọc: gửi bé từ 5 ngày trở lên thì cọc 50% mới nhận mã đặt phòng ──
-  const deposit = getDepositPolicy({ checkIn: data.checkIn, checkOut: data.checkOut, total });
+  const isLoggedIn = Boolean(authenticatedCustomer?.id);
+  const pointBalance = Number(promoQuote?.balance ?? loyalty?.points) || 0;
+  const valuePerPoint = Number(loyalty?.rules?.valuePerPoint) || 1000;
+  const promo = promoQuote?.promo || null;
+  const voucherDiscount = Number(promo?.voucherDiscount) || 0;
+  const pointsDiscount = Number(promo?.pointsDiscount) || 0;
+  // Số tiền khách phải trả sau khi trừ mã giảm giá và điểm (doanh thu, tiền cọc, QR đều theo số này)
+  const payable = Math.max(0, total - voucherDiscount - pointsDiscount);
+
+  // Hỏi máy chủ số tiền giảm của mã / điểm (máy chủ kiểm tra lại lần nữa khi gửi đơn)
+  const quoteSeq = useRef(0);
+  const runQuote = async (request) => {
+    const seq = ++quoteSeq.current;
+    if (!request.voucherCode && !(request.pointsToUse > 0)) {
+      setPromoQuote(null);
+      return { ok: true };
+    }
+    setIsQuoting(true);
+    try {
+      const res = await quoteLoyaltyPromo({
+        booking: { totalPrice: total, checkIn: data.checkIn, checkOut: data.checkOut },
+        voucherCode: request.voucherCode,
+        pointsToUse: request.pointsToUse,
+      });
+      if (seq !== quoteSeq.current) return res;
+      if (res.ok) setPromoQuote(res);
+      return res;
+    } catch (err) {
+      return { ok: false, message: err.message || 'Chưa kiểm tra được ưu đãi, vui lòng thử lại.' };
+    } finally {
+      if (seq === quoteSeq.current) setIsQuoting(false);
+    }
+  };
+
+  const applyPromo = async (next, field) => {
+    const res = await runQuote(next);
+    if (res.ok) {
+      setPromoRequest(next);
+      setVoucherError('');
+      setPointsError('');
+      if (updateData) updateData({ promoRequest: next });
+    } else if ((res.field || field) === 'points') {
+      setPointsError(res.message);
+    } else {
+      setVoucherError(res.message);
+    }
+    return res;
+  };
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
-    if (couponCode.trim().toUpperCase() === promotionInfo.code || couponCode.trim().toUpperCase() === 'SALE10') {
-      setIsCouponApplied(true);
-      setCouponMessage('Áp dụng mã thành công! Giảm 10% chi phí dịch vụ.');
-    } else {
-      setIsCouponApplied(false);
-      setCouponMessage('Mã giảm giá không hợp lệ hoặc đã hết hạn.');
+    const code = voucherInput.trim().toUpperCase();
+    if (!code) {
+      setVoucherError('Vui lòng nhập mã giảm giá');
+      return;
     }
+    applyPromo({ ...promoRequest, voucherCode: code }, 'voucher');
   };
+
+  const handleRemoveVoucher = () => {
+    setVoucherInput('');
+    applyPromo({ ...promoRequest, voucherCode: '' }, 'voucher');
+  };
+
+  const handleApplyPoints = (e) => {
+    e.preventDefault();
+    const pts = Math.floor(Number(pointsInput) || 0);
+    if (pts <= 0) {
+      setPointsError('Nhập số điểm muốn dùng');
+      return;
+    }
+    applyPromo({ ...promoRequest, pointsToUse: pts }, 'points');
+  };
+
+  const handleRemovePoints = () => {
+    setPointsInput('');
+    applyPromo({ ...promoRequest, pointsToUse: 0 }, 'points');
+  };
+
+  // Tổng tiền đổi (bật camera...) thì tính lại số tiền giảm; mã / điểm không còn hợp lệ thì gỡ ra
+  const lastTotal = useRef(total);
+  useEffect(() => {
+    if (lastTotal.current === total) return;
+    lastTotal.current = total;
+    if (!promoRequest.voucherCode && !(promoRequest.pointsToUse > 0)) return;
+    runQuote(promoRequest).then((res) => {
+      if (!res.ok) {
+        setPromoQuote(null);
+        setPromoRequest({ voucherCode: '', pointsToUse: 0 });
+        if (res.field === 'points') setPointsError(res.message);
+        else setVoucherError(res.message);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+
+  // Quay lại bước 4 với mã đã nhập trước đó: tính lại ngay
+  useEffect(() => {
+    if (isLoggedIn && (promoRequest.voucherCode || promoRequest.pointsToUse > 0)) runQuote(promoRequest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  // ── Đặt cọc: gửi bé từ 5 ngày trở lên thì cọc 50% mới nhận mã đặt phòng ──
+  const deposit = getDepositPolicy({ checkIn: data.checkIn, checkOut: data.checkOut, total: payable });
 
   const handleSubmit = async () => {
     const roomId = data.selectedRoom?.id;
@@ -144,8 +245,12 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       customerId: activeCustomer?.customerId || activeCustomer?.id || null,
       status: bookingStatus,
       totalPrice: total,
-      totalAmount: total,
+      totalAmount: payable,
       pricingAdjustments: ruleAdjustments,
+      // Mã giảm giá / điểm thưởng khách chọn: server kiểm tra lại rồi mới trừ vào đơn
+      ...(promoRequest.voucherCode || promoRequest.pointsToUse > 0
+        ? { promoRequest: { voucherCode: promoRequest.voucherCode, pointsToUse: promoRequest.pointsToUse } }
+        : {}),
       depositRequired: deposit.required,
       depositAmount: deposit.amount,
       paymentStatus: deposit.paymentStatus,
@@ -172,6 +277,13 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       const msg =
         roomResult.message ||
         `Rất tiếc, phòng ${roomId} không còn đủ chỗ trống trong khoảng thời gian này. Vui lòng bấm "Chọn phòng khác" để đổi phòng!`;
+      if (roomResult.promoError) {
+        // Mã / điểm vừa hết hiệu lực (hết lượt, đổi điều kiện...): gỡ ra để khách xem lại tổng tiền
+        setPromoQuote(null);
+        setPromoRequest({ voucherCode: '', pointsToUse: 0 });
+        if (roomResult.promoField === 'points') setPointsError(roomResult.message);
+        else setVoucherError(roomResult.message);
+      }
       const kind = roomResult.retryable ? 'retry' : roomResult.invalid ? 'invalid' : 'conflict';
       setErrorKind(kind);
       setConflictError(msg);
@@ -191,16 +303,23 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     // Lấy trạng thái cọc do server tính (nếu có) để bước 5 hiện đúng
     const confirmedBooking = { ...bookingPayload, ...(roomResult?.booking || {}), id: confirmedCode, code: confirmedCode };
 
+    delete confirmedBooking.promoRequest;
+
     // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
     upsertBooking(confirmedBooking);
     if (!assisted && bookingPayload.orderSource) clearOrderSource(browserStorage());
+    if (confirmedBooking.promo) {
+      refreshLoyalty();
+      try { window.dispatchEvent(new Event('mvn_loyalty_changed')); } catch { /* bỏ qua */ }
+    }
 
     // Cập nhật bookingData để Step 5 hiển thị
     if (updateData) {
       updateData({
         bookingId: confirmedCode,
         confirmedBooking,
-        totalAmount: total,
+        totalAmount: Number(confirmedBooking.totalAmount ?? payable),
+        promoRequest: null,
       });
     }
 
@@ -280,33 +399,99 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
           </div>
         </div>
 
-        {/* Voucher Input Box */}
-        <div className="mb-6 bg-gradient-to-r from-orange-50 to-emerald-50 p-4 rounded-2xl border border-orange-200/80">
-          <label className="block text-xs font-bold uppercase text-gray-700 mb-2 flex items-center gap-1.5">
-            <Tag className="w-4 h-4 text-accent" />
-            <span>Mã ưu đãi / Khuyến mãi</span>
-          </label>
-          <div className="flex gap-2">
-            <input 
-              type="text"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder="Nhập mã khuyến mãi (VD: MEOXINH10)"
-              className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold uppercase tracking-wider focus:outline-none focus:border-accent bg-white"
-            />
-            <button 
-              type="button"
-              onClick={handleApplyCoupon}
-              className="bg-accent hover:bg-accent-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-            >
-              Áp dụng
-            </button>
+        {/* Mã giảm giá & điểm thưởng thật */}
+        <div className="mb-6 bg-gradient-to-r from-orange-50 to-emerald-50 p-4 rounded-2xl border border-orange-200/80 space-y-4" data-testid="promo-box">
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-700 mb-2 flex items-center gap-1.5">
+              <Tag className="w-4 h-4 text-accent" />
+              <span>Mã giảm giá</span>
+            </label>
+            {promo?.voucherCode ? (
+              <div className="flex items-center justify-between gap-2 bg-white border border-emerald-200 rounded-xl px-4 py-2.5">
+                <div className="text-sm">
+                  <span className="font-black text-emerald-700 tracking-wider">{promo.voucherCode}</span>
+                  <span className="text-gray-500"> · {promo.voucherLabel}</span>
+                  <p className="text-xs font-bold text-emerald-700">Giảm {voucherDiscount.toLocaleString()}đ</p>
+                </div>
+                <button type="button" onClick={handleRemoveVoucher} className="text-gray-400 hover:text-red-500 p-1" title="Bỏ mã">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                <input
+                  type="text"
+                  value={voucherInput}
+                  onChange={(e) => { setVoucherInput(e.target.value); setVoucherError(''); }}
+                  placeholder={isLoggedIn ? 'Nhập mã giảm giá (VD: SUMMERBOSS)' : 'Đăng nhập để dùng mã giảm giá'}
+                  disabled={!isLoggedIn || isQuoting}
+                  data-testid="voucher-input"
+                  className="flex-1 min-w-0 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold uppercase tracking-wider focus:outline-none focus:border-accent bg-white disabled:bg-gray-100"
+                />
+                <button
+                  type="submit"
+                  disabled={!isLoggedIn || isQuoting}
+                  className="bg-accent hover:bg-accent-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-60"
+                >
+                  Áp dụng
+                </button>
+              </form>
+            )}
+            {voucherError && <p className="text-xs mt-2 font-semibold text-red-500" data-testid="voucher-error">{voucherError}</p>}
           </div>
-          {couponMessage && (
-            <p className={`text-xs mt-2 font-semibold ${isCouponApplied ? 'text-emerald-700' : 'text-red-500'}`}>
-              {couponMessage}
-            </p>
-          )}
+
+          <div className="border-t border-orange-200/60 pt-3">
+            <label className="block text-xs font-bold uppercase text-gray-700 mb-2 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                <span>Dùng điểm thưởng</span>
+              </span>
+              {isLoggedIn && (
+                <span className="normal-case font-semibold text-gray-500">
+                  Bạn có <strong className="text-amber-600">{pointBalance.toLocaleString()} điểm</strong> (1 điểm = {valuePerPoint.toLocaleString()}đ)
+                </span>
+              )}
+            </label>
+            {promo?.pointsUsed > 0 ? (
+              <div className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-xl px-4 py-2.5">
+                <div className="text-sm">
+                  <span className="font-black text-amber-700">{promo.pointsUsed.toLocaleString()} điểm</span>
+                  <p className="text-xs font-bold text-emerald-700">Giảm {pointsDiscount.toLocaleString()}đ</p>
+                </div>
+                <button type="button" onClick={handleRemovePoints} className="text-gray-400 hover:text-red-500 p-1" title="Không dùng điểm">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyPoints} className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={pointsInput}
+                  onChange={(e) => { setPointsInput(e.target.value); setPointsError(''); }}
+                  placeholder={isLoggedIn ? 'Số điểm muốn dùng' : 'Đăng nhập để dùng điểm thưởng'}
+                  disabled={!isLoggedIn || isQuoting || pointBalance <= 0}
+                  data-testid="points-input"
+                  className="flex-1 min-w-0 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-accent bg-white disabled:bg-gray-100"
+                />
+                <button
+                  type="submit"
+                  disabled={!isLoggedIn || isQuoting || pointBalance <= 0}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-60"
+                >
+                  Dùng điểm
+                </button>
+              </form>
+            )}
+            {pointsError && <p className="text-xs mt-2 font-semibold text-red-500" data-testid="points-error">{pointsError}</p>}
+            {isLoggedIn && !pointsError && !(promo?.pointsUsed > 0) && (
+              <p className="text-[11px] mt-1.5 text-gray-500">
+                {pointBalance > 0
+                  ? `Tối thiểu ${Number(loyalty?.rules?.minPointsToRedeem) || 0} điểm, trừ tối đa ${Number(loyalty?.rules?.maxRedeemPercentPerOrder) || 0}% giá trị đơn.`
+                  : 'Bạn chưa có điểm. Mỗi đơn hoàn tất (check-out) sẽ được cộng điểm.'}
+              </p>
+            )}
+          </div>
         </div>
 
         <h3 className="font-bold text-text-dark text-lg mb-4 border-b border-gray-200/60 pb-3">
@@ -401,6 +586,20 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             </div>
           ))}
 
+          {/* ── Mã giảm giá & điểm thưởng ── */}
+          {voucherDiscount > 0 && (
+            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100" data-testid="voucher-line">
+              <span className="flex items-center gap-1"><Tag className="w-4 h-4" />Mã giảm giá {promo.voucherCode}:</span>
+              <span>- {voucherDiscount.toLocaleString()}đ</span>
+            </div>
+          )}
+          {pointsDiscount > 0 && (
+            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100" data-testid="points-line">
+              <span className="flex items-center gap-1"><Star className="w-4 h-4" />Dùng {promo.pointsUsed.toLocaleString()} điểm thưởng:</span>
+              <span>- {pointsDiscount.toLocaleString()}đ</span>
+            </div>
+          )}
+
           {/* ── Thứ 5 quà tặng ── */}
           {isThursday && (
             <div className="flex justify-between items-start bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
@@ -427,11 +626,14 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="flex justify-between items-center pt-5 border-t-2 border-gray-200/80">
           <div>
             <span className="text-sm font-bold text-gray-400 uppercase block">Tổng thanh toán dự kiến</span>
-            {isCouponApplied && totalDiscountAmount > 0 && (
-              <span className="text-xs text-emerald-600 font-bold">Đã tiết kiệm {totalDiscountAmount.toLocaleString()}đ</span>
+            {isCouponApplied && totalDiscountAmount + voucherDiscount + pointsDiscount > 0 && (
+              <span className="text-xs text-emerald-600 font-bold">Đã tiết kiệm {(totalDiscountAmount + voucherDiscount + pointsDiscount).toLocaleString()}đ</span>
             )}
           </div>
-          <span className="text-3xl font-black text-accent">{total.toLocaleString()}đ</span>
+          <div className="text-right">
+            {payable !== total && <span className="block text-sm text-gray-400 line-through font-semibold">{total.toLocaleString()}đ</span>}
+            <span className="text-3xl font-black text-accent" data-testid="payable-total">{payable.toLocaleString()}đ</span>
+          </div>
         </div>
       </div>
 

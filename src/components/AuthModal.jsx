@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PawPrint, X, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2, Bell, BellOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useCustomerProfile } from '../contexts/CustomerContext';
+import { checkReferralCode, getRememberedReferral } from '../services/loyaltyApi';
 import {
   requestNotificationPermission,
   sendWelcomeNotifications,
@@ -27,7 +28,8 @@ const AuthModal = ({ isOpen, onClose }) => {
     phone: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    referralCode: getRememberedReferral(),
   });
 
   if (!isOpen) return null;
@@ -51,7 +53,8 @@ const AuthModal = ({ isOpen, onClose }) => {
       phone: '',
       email: '',
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      referralCode: getRememberedReferral(),
     });
   };
 
@@ -121,6 +124,22 @@ const AuthModal = ({ isOpen, onClose }) => {
         return;
       }
 
+      // Mã giới thiệu (không bắt buộc): kiểm tra có tồn tại trước khi tạo tài khoản
+      const referralCode = String(formData.referralCode || '').trim().toUpperCase();
+      if (referralCode) {
+        try {
+          const check = await checkReferralCode(referralCode);
+          if (!check.exists) {
+            const msg = `Mã giới thiệu "${referralCode}" không tồn tại. Vui lòng kiểm tra lại hoặc để trống.`;
+            setErrorMessage(msg);
+            toast.error(msg);
+            return;
+          }
+        } catch {
+          // Không kiểm tra được thì vẫn cho tạo tài khoản, máy chủ kiểm tra lại khi ghi nhận
+        }
+      }
+
       setIsLoading(true);
       try {
         await registerCustomer({
@@ -128,6 +147,7 @@ const AuthModal = ({ isOpen, onClose }) => {
           phone: formData.phone.trim(),
           email: formData.email.trim(),
           password: formData.password,
+          referralCode,
           pets: [],
         });
 
@@ -410,6 +430,21 @@ const AuthModal = ({ isOpen, onClose }) => {
                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'register' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Mã giới thiệu <span className="font-normal text-gray-400">(không bắt buộc)</span></label>
+                    <input
+                      type="text"
+                      name="referralCode"
+                      value={formData.referralCode}
+                      onChange={handleChange}
+                      placeholder="VD: MEOAB12C (mã bạn bè gửi cho bạn)"
+                      data-testid="register-referral"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider focus:outline-none focus:border-primary transition-colors"
+                    />
                   </div>
                 )}
 

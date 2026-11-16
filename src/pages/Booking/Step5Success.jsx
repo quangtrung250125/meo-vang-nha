@@ -10,6 +10,7 @@ import { buildVietQrPayload, isPaymentAccountReady } from '../../utils/vietqr';
 import { isClosedStatus } from '../../utils/bookingStatus';
 import { isAwaitingCustomerConfirm } from '../../utils/assistedBooking';
 import { orderSourceFields, clearOrderSource, browserStorage } from '../../utils/orderSource';
+import { payableAtBooking } from '../../utils/loyalty';
 import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
@@ -21,7 +22,8 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   const { addNewBooking, bookings } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
   const hasAdded = useRef(false);
-  const paymentTotal = Number(data.confirmedBooking?.totalPrice) || 0;
+  // Số tiền khách phải trả: tổng dịch vụ đã trừ mã giảm giá và điểm thưởng
+  const paymentTotal = data.confirmedBooking ? payableAtBooking(data.confirmedBooking) : 0;
 
   // Kiểm tra Thứ 5
   const isThursday = (() => {

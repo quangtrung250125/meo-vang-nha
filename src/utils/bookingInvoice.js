@@ -86,7 +86,7 @@ export function buildInvoice(booking, addonCatalog = {}) {
     key: 'base',
     kind: 'base',
     label: `Đơn đặt ban đầu (${bookedNights} đêm${cats > 1 ? ` × ${cats} bé` : ''})`,
-    detail: (booking.packages || []).join(', ') || booking.selectedPackage?.name || '',
+    detail: [].concat(booking.packages || []).join(', ') || booking.selectedPackage?.name || '',
     amount: baseTotal,
   }];
   const changes = [];
@@ -234,6 +234,29 @@ export function buildInvoice(booking, addonCatalog = {}) {
   }
   changes.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
 
+  // Mã giảm giá và điểm thưởng khách dùng lúc đặt phòng: trừ thẳng vào hóa đơn (doanh thu tính sau khi trừ)
+  const promo = booking.promo || null;
+  const voucherDiscount = Math.max(0, Number(promo?.voucherDiscount) || 0);
+  const pointsDiscount = Math.max(0, Number(promo?.pointsDiscount) || 0);
+  if (voucherDiscount > 0) {
+    lines.push({
+      key: 'voucher',
+      kind: 'voucher',
+      label: `Mã giảm giá ${promo.voucherCode || ''}`.trim(),
+      detail: promo.voucherLabel || '',
+      amount: -voucherDiscount,
+    });
+  }
+  if (pointsDiscount > 0) {
+    lines.push({
+      key: 'points',
+      kind: 'points',
+      label: `Dùng ${Number(promo.pointsUsed) || 0} điểm thưởng`,
+      detail: `${(Number(promo.pointsUsed) || 0).toLocaleString('vi-VN')} điểm × ${Math.round(pointsDiscount / Math.max(1, Number(promo.pointsUsed) || 1)).toLocaleString('vi-VN')}đ`,
+      amount: -pointsDiscount,
+    });
+  }
+
   const total = Math.max(0, lines.reduce((sum, l) => sum + l.amount, 0));
   const isPaid = String(booking.paymentStatus || '').trim() === PAID_LABEL;
   // Đơn cũ đã thanh toán nhưng chưa lưu số tiền: coi như đã trả đủ
@@ -270,6 +293,7 @@ export function buildInvoice(booking, addonCatalog = {}) {
     changes,
     total,
     baseTotal,
+    promoDiscount: voucherDiscount + pointsDiscount,
     paidAmount,
     depositPaid,
     received,
