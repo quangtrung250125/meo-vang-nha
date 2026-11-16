@@ -8,7 +8,8 @@ import { useRoomState, ROOM_CONFIG } from '../../../Chi/RoomStateContext';
 import useCustomerData from '../AdminCustomers/useCustomerData';
 import { activeBookings as mockActiveBookings } from '../../mockData/activeBookings';
 import { triggerCareLogUpdateNotification } from '../../services/notificationTriggers';
-import { mockReviews } from '../AdminReviews';
+import useReviews from '../../hooks/useReviews';
+import { needsAttention } from '../AdminReviews';
 import { computeDashboardKpis, computeRevenueSeries, computeRoomHeatmap } from '../../utils/dashboardReport';
 import { todayInVietnam } from '../../utils/bookingDeposit';
 
@@ -193,12 +194,16 @@ const AdminDashboard = () => {
     return activeRealBookings.filter((b) => b.checkOut === todayDateStr || !b.checkOut);
   }, [activeRealBookings, todayDateStr]);
 
-  // Đồng bộ khiếu nại thực tế từ module Đánh giá & Phản hồi (AdminReviews)
-  const complaintsList = useMemo(() => {
-    return mockReviews.filter(
-      (r) => r.status === 'complaint' || r.status === 'pending' || r.rating <= 3
-    );
-  }, []);
+  // Khiếu nại thật từ trang Đánh giá & Phản hồi: đánh giá từ 2 sao trở xuống chưa được trả lời
+  const { reviews } = useReviews(true);
+  const complaintsList = useMemo(() => reviews.filter(needsAttention).map((r) => ({
+    id: r.id,
+    bookingCode: r.bookingCode,
+    author: r.customerName || 'Khách',
+    petName: r.petNames,
+    rating: r.rating,
+    comment: r.comment || (r.tags || []).join(', '),
+  })), [reviews]);
 
   // Handler Check-in 1 chạm từ Tổng quan
   const handlePerformCheckIn = (roomId, bookingId) => {

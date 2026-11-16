@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight, Receipt,
+  ArrowLeft, Phone, Mail, CalendarDays, PawPrint, CalendarCheck, Wallet, BedDouble, HeartPulse, ChevronRight, Receipt, Star,
 } from 'lucide-react';
 import { bookingStage, formatMoney, formatDate, formatMonth, invoiceOf, isRevenueBooking, paymentStateOf, revenueMonthOf } from './customerUtils';
 import InvoiceDetailModal from './InvoiceDetailModal';
+import useReviews from '../../hooks/useReviews';
 import { Card, SectionTitle, SegmentBadge, StageBadge, PaymentBadge, Avatar, EmptyState } from './shared';
 
 const PERSONALITY_LABELS = {
@@ -11,6 +13,44 @@ const PERSONALITY_LABELS = {
   shy: 'Nhút nhát',
   stress: 'Dễ căng thẳng',
   hardToReach: 'Khó gần',
+};
+
+// Đánh giá khách đã gửi sau check-out, bấm để mở đúng đánh giá ở trang Đánh giá & Phản hồi
+const CustomerReviewsCard = ({ customerId }) => {
+  const prefix = useLocation().pathname.startsWith('/admin') ? '/admin' : '';
+  const { reviews } = useReviews(true);
+  const mine = reviews.filter((r) => r.customerId === customerId);
+  return (
+    <Card className="p-6">
+      <SectionTitle icon={Star} title={`Đánh giá sau check-out (${mine.length})`} subtitle="Bấm vào một đánh giá để trả lời hoặc duyệt hiển thị" />
+      {mine.length === 0 ? (
+        <p className="text-sm text-gray-500">Khách chưa gửi đánh giá nào.</p>
+      ) : (
+        <div className="space-y-2">
+          {mine.map((r) => (
+            <Link
+              key={r.bookingCode}
+              to={`${prefix}/reviews?tab=list&code=${encodeURIComponent(r.bookingCode)}`}
+              className="flex items-start gap-3 rounded-xl border border-gray-100 p-3 hover:border-orange-300 hover:bg-orange-50/40 transition"
+            >
+              <span className="flex shrink-0 mt-0.5">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star key={s} className={`h-3.5 w-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                ))}
+              </span>
+              <span className="flex-1 min-w-0 text-sm">
+                <span className="font-semibold text-gray-800">Đơn #{r.bookingCode}</span>
+                <span className="text-gray-400"> · {formatDate(r.createdAt)}</span>
+                {r.comment && <span className="block text-gray-600 truncate">“{r.comment}”</span>}
+                <span className={`block text-xs font-semibold ${r.adminReply ? 'text-emerald-600' : 'text-amber-600'}`}>{r.adminReply ? 'Đã trả lời' : 'Chưa trả lời'}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-gray-300 mt-1" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
 };
 
 const PetCard = ({ pet }) => {
@@ -137,6 +177,8 @@ const CustomerProfileTab = ({ customers, selectedId, onSelect, onBack }) => {
           ))}
         </div>
       </Card>
+
+      <CustomerReviewsCard customerId={customer.id} />
 
       {/* Hồ sơ mèo */}
       <Card className="p-6">

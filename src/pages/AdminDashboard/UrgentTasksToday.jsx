@@ -181,9 +181,11 @@ const UrgentTasksToday = ({
             ) : (
               <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                 {complaintsList.map((item) => (
-                  <div
+                  <Link
                     key={item.id}
-                    className="bg-white p-3 rounded-xl border border-rose-200/70 shadow-xs flex flex-col gap-1.5"
+                    to={`${reviewsPath}?tab=list&code=${encodeURIComponent(item.bookingCode || '')}`}
+                    title="Mở đánh giá này để trả lời"
+                    className="bg-white p-3 rounded-xl border border-rose-200/70 shadow-xs flex flex-col gap-1.5 hover:border-rose-400 hover:shadow-sm transition"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
@@ -198,7 +200,8 @@ const UrgentTasksToday = ({
                     <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">
                       "{item.comment}"
                     </p>
-                  </div>
+                    <span className="text-[11px] font-bold text-rose-600">Trả lời khách →</span>
+                  </Link>
                 ))}
               </div>
             )}
