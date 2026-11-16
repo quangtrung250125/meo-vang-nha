@@ -50,9 +50,11 @@ CREATE INDEX IF NOT EXISTS idx_seo_articles_slug ON seo_articles(slug);
 ALTER TABLE seo_articles ENABLE ROW LEVEL SECURITY;
 
 -- Cho phép đọc bài viết đã publish (public)
+DROP POLICY IF EXISTS "Public read published articles" ON seo_articles;
 CREATE POLICY "Public read published articles" ON seo_articles
   FOR SELECT USING (status = 'published');
 
 -- Cho phép admin CRUD tất cả (dùng service_role hoặc anon key cho demo)
+DROP POLICY IF EXISTS "Admin full access" ON seo_articles;
 CREATE POLICY "Admin full access" ON seo_articles
   FOR ALL USING (TRUE);

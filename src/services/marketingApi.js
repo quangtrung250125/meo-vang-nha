@@ -25,6 +25,12 @@ export const sendMarketingMessages = (messages, source = 'manual') => call('send
 export const runMarketingNow = () => call('run', { method: 'POST' });
 export const fetchMarketingInbox = () => call('inbox');
 
+// Hộp thư tập trung — Messenger
+export const fetchMessengerConversations = () => call('messenger-inbox');
+export const fetchMessengerThread = (psid) => call(`messenger-inbox?psid=${encodeURIComponent(psid)}`);
+export const sendMessengerMessage = (psid, text) => call('messenger-send', { method: 'POST', body: { psid, text } });
+export const linkMessengerConversation = (psid, customerId) => call('messenger-link', { method: 'POST', body: { psid, customerId } });
+
 // Khách bấm vào tin trong chuông thông báo: ghi nhận đã bấm (giống bấm thông báo đẩy)
 export function trackInboxClick(messageId) {
   fetch('/api/marketing/track', {

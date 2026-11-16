@@ -2,6 +2,7 @@ import { handleMarketing } from '../_lib/marketingService.js';
 
 // Một hàm cho mọi API Marketing tự động (gói Vercel Hobby giới hạn số hàm):
 // /api/marketing/settings | send | messages | audience | track | run
+// Hộp thư tập trung (Messenger): messenger (webhook Facebook) | messenger-inbox | messenger-send | messenger-link | messenger-ref
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');

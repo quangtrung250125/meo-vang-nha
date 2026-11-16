@@ -8,6 +8,8 @@ import { stayEntriesForRoom, validateStayPlan, getStaySegments } from '../../src
 import { MAX_STAY_CHANGES, REQUEST_STATUS, isRoomOrPackageChange, stayChangeQuota, stayChangeRequestsOf } from '../../src/utils/stayChangeRules.js';
 import { withSharedBookingLock, LockBusyError } from './bookingLock.js';
 import { CONFIRM_DEADLINE_HOURS } from '../../src/utils/assistedBooking.js';
+import { sanitizeOrderSource } from '../../src/utils/orderSource.js';
+import { linkConversationByRef } from './messengerService.js';
 
 const CONFIRM_BOOKING = 'CONFIRM_BOOKING';
 
@@ -686,6 +688,8 @@ export async function handleAddBooking(req, res) {
     payload = { ...payload, pending_changes: null };
     delete payload.bookedByStaff;
   }
+  // Nguồn đơn (vd. khách bấm link nhân viên gửi qua Messenger): chỉ nhận giá trị hợp lệ
+  payload = sanitizeOrderSource(payload);
   const assisted = Boolean(user?.isAdmin && payload.bookedByStaff && payload.customerId);
   if (assisted && payload.pending_changes?.type === CONFIRM_BOOKING) {
     // Hạn xác nhận tính theo giờ server
@@ -725,6 +729,10 @@ export async function handleAddBooking(req, res) {
   // Lỗi hệ thống / chờ khoá quá lâu: đơn CHƯA được ghi, khách bấm gửi lại
   if (!result.success) {
     return res.status(result.retryable ? 503 : 400).json(result);
+  }
+  // Đơn đặt từ link Messenger: gắn cuộc trò chuyện với tài khoản khách (nếu chưa gắn)
+  if (payload.orderSourceRef && payload.customerId && !payload.bookedByStaff) {
+    await linkConversationByRef(payload.orderSourceRef, payload.customerId, 'booking').catch(() => {});
   }
   return res.status(200).json(result);
 }

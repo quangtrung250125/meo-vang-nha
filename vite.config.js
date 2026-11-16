@@ -18,6 +18,8 @@ function apiDevPlugin() {
               data += chunk;
             });
             req.on('end', () => {
+              // Webhook Messenger cần nguyên văn thân request để kiểm tra chữ ký
+              req.rawBody = data;
               try {
                 resolve(data ? JSON.parse(data) : {});
               } catch {

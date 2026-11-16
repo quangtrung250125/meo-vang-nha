@@ -149,7 +149,7 @@ const RevenueSection = ({ r }) => {
           />
         </Card>
         <Card className="p-6 break-inside-avoid">
-          <SectionTitle icon={Share2} title="Theo kênh" subtitle="Tin marketing: khách đặt trong 7 ngày sau khi nhận tin" />
+          <SectionTitle icon={Share2} title="Theo kênh" subtitle="Messenger: khách bấm link nhân viên gửi qua Messenger rồi đặt. Tin marketing: khách đặt trong 7 ngày sau khi nhận tin" />
           <Table
             rows={r.byChannel}
             empty="Chưa có đơn đã chốt trong khoảng này."

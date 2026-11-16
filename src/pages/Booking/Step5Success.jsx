@@ -9,6 +9,7 @@ import { paymentAccount } from '../../config/payment';
 import { buildVietQrPayload, isPaymentAccountReady } from '../../utils/vietqr';
 import { isClosedStatus } from '../../utils/bookingStatus';
 import { isAwaitingCustomerConfirm } from '../../utils/assistedBooking';
+import { orderSourceFields, clearOrderSource, browserStorage } from '../../utils/orderSource';
 import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, getDepositDueAt, formatVietnamDateTime } from '../../utils/bookingDeposit';
 
 const Step5Success = ({ data, onBackToStep1 }) => {
@@ -80,6 +81,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
       paymentStatus: 'Chưa thanh toán',
       pending_changes: null,
       previous_status: null,
+      ...orderSourceFields(browserStorage()),
       createdAt: new Date().toISOString(),
     };
 
@@ -101,6 +103,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
 
       // Chỉ lưu vào booking history khi phòng không bị xung đột
       upsertBooking(bookingPayload);
+      if (bookingPayload.orderSource) clearOrderSource(browserStorage());
     };
 
     executeFallbackBooking();

@@ -77,6 +77,22 @@ describe('Trang Báo cáo admin', () => {
     expect(channelOf(a2, { id: 'A' }, messages)).toMatchObject({ channel: 'marketing', scenarioId: 'sc-quay-lai' });
   });
 
+  it('đơn khách đặt từ link Messenger tính vào kênh "Đặt qua Messenger" (doanh thu và marketing)', () => {
+    const mess = buildCustomers({
+      bookings: [
+        done({ code: 'M1', customerId: 'M', customerName: 'Khách Mess', roomId: 'VIP-02', createdAt: '2026-10-10T03:00:00Z', checkIn: '2026-10-11', checkOut: '2026-10-13',
+          totalPrice: 300000, checkedOutAt: '2026-10-13T03:00:00Z', orderSource: 'messenger', orderSourceRef: 'abcdef123' }),
+        { code: 'M2', customerId: 'M', status: 'Chờ nhận', roomId: 'VIP-03', createdAt: '2026-10-25T03:00:00Z', checkIn: '2026-11-20', checkOut: '2026-11-22', totalPrice: 200000, orderSource: 'messenger' },
+      ],
+    });
+    const r = computeRevenueReport({ customers: mess, range: RANGE });
+    expect(r.byChannel.find((x) => x.key === 'messenger')).toMatchObject({ label: 'Đặt qua Messenger', bookings: 1, revenue: 300000 });
+    const m = computeMarketingReport({ customers: mess, range: RANGE, messages: [], scenarios: [] });
+    // Cả đơn chưa hoàn tất cũng được đếm là đơn từ Messenger
+    expect(m.byChannel.find((x) => x.key === 'messenger')).toMatchObject({ bookings: 2, customers: 1, revenue: 300000 });
+    expect(m.byChannel.find((x) => x.key === 'direct').bookings).toBe(0);
+  });
+
   it('dự báo: dịp cao điểm sắp tới và gợi ý phòng', () => {
     const peaks = upcomingPeaks(TODAY, 365);
     expect(peaks[0].label).toMatch(/Giáng sinh/);

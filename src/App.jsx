@@ -32,6 +32,7 @@ import { ServiceCatalogProvider } from './contexts/ServiceCatalogContext';
 import { Toaster } from 'react-hot-toast';
 import CustomerSyncBridge from './components/CustomerSyncBridge';
 import PushBridge from './components/PushBridge';
+import OrderSourceBridge from './components/OrderSourceBridge';
 
 // Chỉ tài khoản admin đã xác thực mới vào được trang quản trị
 function RequireAdmin({ children }) {
@@ -116,6 +117,7 @@ function App() {
                   <Toaster position="top-center" reverseOrder={false} />
                   <CustomerSyncBridge />
                   <PushBridge />
+                  <OrderSourceBridge />
                   <BrowserRouter>
                     <AppRoutes />
                   </BrowserRouter>

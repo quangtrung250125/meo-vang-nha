@@ -10,6 +10,7 @@ import { getDepositPolicy, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMEN
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 import { buildConfirmRequest, assistedOwnerFields } from '../../utils/assistedBooking';
 import { sendNotification } from '../../services/notificationTriggers';
+import { orderSourceFields, clearOrderSource, browserStorage } from '../../utils/orderSource';
 
 const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
   const [couponCode, setCouponCode] = useState(promotionInfo.code);
@@ -150,6 +151,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
       paymentStatus: deposit.paymentStatus,
       pending_changes: null,
       previous_status: null,
+      // Khách mở web từ link nhân viên gửi qua Messenger: đơn được ghi nguồn "Đặt qua Messenger"
+      ...(assisted ? {} : orderSourceFields(browserStorage())),
       createdAt: new Date().toISOString(),
     };
 
@@ -190,6 +193,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
 
     // Lưu vào lịch sử đặt phòng khi phòng không bị xung đột
     upsertBooking(confirmedBooking);
+    if (!assisted && bookingPayload.orderSource) clearOrderSource(browserStorage());
 
     // Cập nhật bookingData để Step 5 hiển thị
     if (updateData) {

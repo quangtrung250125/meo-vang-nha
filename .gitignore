@@ -11,3 +11,4 @@ repomix-output.*
 test-results
 playwright-report
 api/_lib/marketing_store.json
+api/_lib/messenger_store.json

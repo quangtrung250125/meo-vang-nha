@@ -13,6 +13,7 @@ const DAY_MS = 86400000;
 const WEEKDAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 export const ROOM_TYPE_LABEL = { VIP: 'Phòng VIP', VVIP: 'Phòng VVIP', DELUXE: 'Phòng Deluxe' };
 export const CHANNEL_LABEL = {
+  messenger: 'Đặt qua Messenger',
   marketing: 'Tin marketing (Web Push)',
   direct: 'Khách tự đặt trên web',
 };
@@ -41,8 +42,10 @@ const stayDaysOf = (b) => {
   return Array.from({ length: Math.min(n, 366) }, (_, i) => addDays(from, i));
 };
 
-// Kênh của đơn: khách đặt trong 7 ngày sau khi nhận tin marketing thì tính cho tin đó, còn lại là tự đặt
+// Kênh của đơn: khách mở web từ link nhân viên gửi qua Messenger rồi đặt -> Messenger;
+// khách đặt trong 7 ngày sau khi nhận tin marketing thì tính cho tin đó; còn lại là tự đặt
 export function channelOf(booking, customer, messages = []) {
+  if (booking?.orderSource === 'messenger') return { channel: 'messenger' };
   const placed = toTime(booking.createdAt || booking.created_at);
   if (!placed) return { channel: 'direct' };
   const hit = messages

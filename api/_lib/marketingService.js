@@ -30,6 +30,7 @@ import {
   pushIdsOf,
 } from '../../src/utils/marketingEngine.js';
 import { fromPetRow } from '../../src/utils/petRows.js';
+import { handleWebhook, handleInboxList, handleInboxSend, handleInboxLink, handleMessengerRef } from './messengerService.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_RECIPIENTS = 500;
@@ -407,6 +408,12 @@ export async function handleMarketing(req, res, action) {
     case 'inbox': return handleInbox(req, res);
     case 'track': return handleTrack(req, res);
     case 'run': return handleRun(req, res);
+    // Hộp thư tập trung — Messenger
+    case 'messenger': return handleWebhook(req, res);
+    case 'messenger-inbox': return handleInboxList(req, res);
+    case 'messenger-send': return handleInboxSend(req, res);
+    case 'messenger-link': return handleInboxLink(req, res);
+    case 'messenger-ref': return handleMessengerRef(req, res);
     default: return res.status(404).json({ error: 'Không có API này.' });
   }
 }
