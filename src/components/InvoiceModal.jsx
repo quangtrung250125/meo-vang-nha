@@ -33,7 +33,7 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
             </span>
             <div>
               <h3 className="font-bold text-text-dark text-base">Hóa đơn điện tử</h3>
-              <p className="text-xs text-gray-500">Mã giao dịch: {invoice.code || invoice.id || '#HD-202609-01'}</p>
+              <p className="text-xs text-gray-500">Mã giao dịch: {invoice.code || invoice.id || '—'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -80,8 +80,8 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">PHIẾU THANH TOÁN DỊCH VỤ</span>
-              <h2 className="text-xl font-extrabold text-text-dark mt-0.5">{invoice.code || '#MVN-2026-8891'}</h2>
-              <p className="text-xs text-gray-500 mt-1">Ngày lập: {invoice.date || '20/09/2026 14:30'}</p>
+              <h2 className="text-xl font-extrabold text-text-dark mt-0.5">{invoice.code || '—'}</h2>
+              <p className="text-xs text-gray-500 mt-1">Ngày lập: {invoice.date || new Date().toLocaleString('vi-VN')}</p>
             </div>
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-full border border-emerald-200 text-emerald-600 font-bold text-xs shadow-sm">
               <CheckCircle className="w-4 h-4 text-emerald-500" />
@@ -93,18 +93,18 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/70 p-4 rounded-2xl border border-gray-100 text-xs">
             <div>
               <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1.5">THÔNG TIN KHÁCH HÀNG</p>
-              <p className="font-bold text-text-dark text-sm">{invoice.customerName || 'Nguyễn Đức An'}</p>
-              <p className="text-gray-600 mt-0.5">SĐT: {invoice.customerPhone || '0912 345 678'}</p>
-              <p className="text-gray-600">Email: {invoice.customerEmail || 'ducan070@gmail.com'}</p>
-              <p className="text-gray-500 mt-1">Hạng thành viên: <span className="text-amber-600 font-bold">👑 {invoice.customerTier || 'Thành viên Vàng'}</span></p>
+              <p className="font-bold text-text-dark text-sm">{invoice.customerName || '—'}</p>
+              <p className="text-gray-600 mt-0.5">SĐT: {invoice.customerPhone || '—'}</p>
+              <p className="text-gray-600">Email: {invoice.customerEmail || '—'}</p>
+              <p className="text-gray-500 mt-1">Hạng thành viên: <span className="text-amber-600 font-bold">👑 {invoice.customerTier || 'Thành viên'}</span></p>
             </div>
 
             <div>
               <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1.5">THÔNG TIN BÉ MÈO & DỊCH VỤ</p>
-              <p className="font-bold text-text-dark text-sm">{invoice.petNames || 'Bé Miu Miu & Bánh Bao'}</p>
-              <p className="text-gray-600 mt-0.5">Phòng: <span className="font-semibold">{invoice.roomName || 'Phòng VIP Hoàng Gia'}</span></p>
-              <p className="text-gray-600">Thời gian: {invoice.stayPeriod || '15/09/2026 - 19/09/2026 (4 ngày)'}</p>
-              <p className="text-gray-500 mt-1">Phương thức: <span className="font-semibold text-text-dark">{invoice.paymentMethod || 'Chuyển khoản VietQR'}</span></p>
+              <p className="font-bold text-text-dark text-sm">{invoice.petNames || '—'}</p>
+              <p className="text-gray-600 mt-0.5">Phòng: <span className="font-semibold">{invoice.roomName || '—'}</span></p>
+              <p className="text-gray-600">Thời gian: {invoice.stayPeriod || '—'}</p>
+              <p className="text-gray-500 mt-1">Phương thức: <span className="font-semibold text-text-dark">{invoice.paymentMethod || '—'}</span></p>
             </div>
           </div>
 
@@ -121,12 +121,7 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
-                {(invoice.items && invoice.items.length > 0 ? invoice.items : [
-                  { name: 'Lưu trú phòng VIP Hoàng Gia', note: 'Phòng máy lạnh, view kính, cào móng', qty: '4 ngày', price: 250000, total: 1000000 },
-                  { name: 'Combo Spa Tắm & Tỉa lông dưỡng lông', note: 'Sữa tắm thảo mộc hữu cơ cho mèo', qty: '1 bé', price: 200000, total: 200000 },
-                  { name: 'Camera AI Quan sát 24/7', note: 'Truy cập không giới hạn qua app', qty: '4 ngày', price: 0, total: 0 },
-                  { name: 'Thực đơn Hạt Cao Cấp & Pate Me-O', note: 'Ăn 3 bữa/ngày theo khẩu phần', qty: '4 ngày', price: 50000, total: 200000 },
-                ]).map((item, index) => (
+                {(invoice.items && invoice.items.length > 0 ? invoice.items : []).map((item, index) => (
                   <tr key={index} className="hover:bg-gray-50/50">
                     <td className="py-3 px-4 text-gray-400 font-medium">{index + 1}</td>
                     <td className="py-3 px-4">
@@ -166,7 +161,7 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
             <div className="w-full sm:w-64 space-y-2 text-xs">
               <div className="flex justify-between text-gray-600">
                 <span>Tổng tiền dịch vụ:</span>
-                <span className="font-bold">{formatVND(invoice.subTotal ?? 1400000)}</span>
+                <span className="font-bold">{formatVND(invoice.subTotal ?? invoice.total)}</span>
               </div>
               {Array.isArray(invoice.discountLines) ? (
                 // Hóa đơn thật: mã giảm giá, điểm thưởng khách đã dùng
@@ -176,22 +171,22 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
                     <span className="font-semibold">- {formatVND(d.amount)}</span>
                   </div>
                 ))
-              ) : (
+              ) : invoice.discount > 0 ? (
                 <div className="flex justify-between text-amber-600">
-                  <span>Ưu đãi VIP Vàng (-10%):</span>
-                  <span className="font-semibold">- {formatVND(invoice.discount ?? 140000)}</span>
+                  <span>{invoice.discountLabel || 'Giảm giá'}:</span>
+                  <span className="font-semibold">- {formatVND(invoice.discount)}</span>
                 </div>
-              )}
-              {(invoice.deposit ?? 200000) > 0 && (
+              ) : null}
+              {invoice.deposit > 0 && (
                 <div className="flex justify-between text-gray-500">
                   <span>{invoice.depositLabel || 'Đã đặt cọc'}:</span>
-                  <span>{formatVND(invoice.deposit ?? 200000)}</span>
+                  <span>{formatVND(invoice.deposit)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm font-extrabold text-primary pt-2 border-t border-gray-200">
                 <span>{invoice.totalLabel || 'Tổng đã thanh toán'}:</span>
                 <span className="text-base text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg" data-testid="invoice-total">
-                  {formatVND(invoice.total ?? 1060000)}
+                  {formatVND(invoice.total)}
                 </span>
               </div>
             </div>

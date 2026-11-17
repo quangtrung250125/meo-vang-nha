@@ -21,6 +21,8 @@ const AuthModal = ({ isOpen, onClose }) => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [registeredName, setRegisteredName] = useState('');
+  const [referralFeedback, setReferralFeedback] = useState({ checking: false, valid: null, message: '' });
+  const checkRefTimeout = React.useRef(null);
 
   const [formData, setFormData] = useState({
     identifier: '', // Email hoặc Số điện thoại khi đăng nhập
@@ -32,6 +34,20 @@ const AuthModal = ({ isOpen, onClose }) => {
     referralCode: getRememberedReferral(),
   });
 
+  React.useEffect(() => {
+    if (isOpen) {
+      const ref = getRememberedReferral();
+      if (ref && !formData.referralCode) {
+        setFormData((prev) => ({ ...prev, referralCode: ref }));
+        checkReferralCode(ref).then((res) => {
+          if (res?.exists) {
+            setReferralFeedback({ valid: true, message: `Mã hợp lệ${res.referrerName ? ` (từ ${res.referrerName})` : ''}` });
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleChange = (e) => {
@@ -42,11 +58,44 @@ const AuthModal = ({ isOpen, onClose }) => {
     setErrorMessage('');
   };
 
+  const handleReferralChange = (e) => {
+    const val = e.target.value.toUpperCase().replace(/\s+/g, '');
+    setFormData((prev) => ({ ...prev, referralCode: val }));
+    setErrorMessage('');
+    if (!val) {
+      setReferralFeedback({ checking: false, valid: null, message: '' });
+      return;
+    }
+    setReferralFeedback({ checking: true, valid: null, message: 'Đang kiểm tra mã...' });
+    clearTimeout(checkRefTimeout.current);
+    checkRefTimeout.current = setTimeout(async () => {
+      try {
+        const res = await checkReferralCode(val);
+        if (res?.exists) {
+          setReferralFeedback({
+            checking: false,
+            valid: true,
+            message: `Mã hợp lệ${res.referrerName ? ` (từ ${res.referrerName})` : ''}`,
+          });
+        } else {
+          setReferralFeedback({
+            checking: false,
+            valid: false,
+            message: `Mã giới thiệu "${val}" không tồn tại.`,
+          });
+        }
+      } catch {
+        setReferralFeedback({ checking: false, valid: null, message: '' });
+      }
+    }, 400);
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setErrorMessage('');
     setSuccessMessage('');
     setShowNotifPrompt(false);
+    setReferralFeedback({ checking: false, valid: null, message: '' });
     setFormData({
       identifier: '',
       fullName: '',
@@ -435,16 +484,38 @@ const AuthModal = ({ isOpen, onClose }) => {
 
                 {activeTab === 'register' && (
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Mã giới thiệu <span className="font-normal text-gray-400">(không bắt buộc)</span></label>
-                    <input
-                      type="text"
-                      name="referralCode"
-                      value={formData.referralCode}
-                      onChange={handleChange}
-                      placeholder="VD: MEOAB12C (mã bạn bè gửi cho bạn)"
-                      data-testid="register-referral"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider focus:outline-none focus:border-primary transition-colors"
-                    />
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                      <span>Mã giới thiệu <span className="font-normal text-gray-400">(không bắt buộc)</span></span>
+                      {referralFeedback.checking && <span className="text-[11px] text-gray-400 font-normal">Đang kiểm tra...</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="referralCode"
+                        value={formData.referralCode}
+                        onChange={handleReferralChange}
+                        placeholder="VD: MEOAB12C (mã bạn bè gửi cho bạn)"
+                        data-testid="register-referral"
+                        className={`w-full border rounded-xl px-4 py-2.5 text-sm uppercase tracking-wider focus:outline-none transition-colors ${
+                          referralFeedback.valid === true
+                            ? 'border-emerald-500 bg-emerald-50/20'
+                            : referralFeedback.valid === false
+                            ? 'border-red-400 bg-red-50/20'
+                            : 'border-gray-200 focus:border-primary'
+                        }`}
+                      />
+                      {referralFeedback.valid === true && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                      {referralFeedback.valid === false && (
+                        <AlertCircle className="w-4 h-4 text-red-500 absolute right-3 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
+                    {referralFeedback.message && (
+                      <p className={`text-[11px] mt-1 font-semibold ${referralFeedback.valid === true ? 'text-emerald-600' : referralFeedback.valid === false ? 'text-red-500' : 'text-gray-400'}`}>
+                        {referralFeedback.message}
+                      </p>
+                    )}
                   </div>
                 )}
 

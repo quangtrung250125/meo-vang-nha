@@ -314,11 +314,11 @@ export const payableAtBooking = (booking) => Math.max(0, toNum(booking?.totalPri
 
 // Dòng nhật ký điểm hiển thị cho khách / Admin
 export const LEDGER_TYPES = {
-  earn: { label: 'Tích điểm', cls: 'text-emerald-600' },
-  redeem: { label: 'Dùng điểm', cls: 'text-rose-600' },
+  earn: { label: 'Tích điểm từ đơn', cls: 'text-emerald-600' },
+  redeem: { label: 'Dùng điểm giảm hóa đơn', cls: 'text-rose-600' },
   refund: { label: 'Hoàn điểm', cls: 'text-emerald-600' },
   referral: { label: 'Thưởng giới thiệu', cls: 'text-emerald-600' },
-  adjust: { label: 'Điều chỉnh', cls: 'text-sky-600' },
+  adjust: { label: 'Admin điều chỉnh', cls: 'text-sky-600' },
 };
 
 // ---------- Trang Admin: ghép cài đặt với số liệu thật ----------
@@ -393,6 +393,7 @@ export function buildAdminLoyaltyView(overview = {}, origin = 'https://meovangnh
     customerName: e.customerName || 'Khách hàng',
     action: Number(e.delta) >= 0 ? 'add' : 'subtract',
     amount: Math.abs(Number(e.delta) || 0),
+    balanceAfter: e.balanceAfter !== undefined ? e.balanceAfter : null,
     reason: e.reason || LEDGER_TYPES[e.type]?.label || '',
     actor: e.actor || '',
     type: e.type,

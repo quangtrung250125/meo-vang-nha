@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class {};
+}
+
 const rawSupabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseUrl = (rawSupabaseUrl && rawSupabaseUrl.startsWith('http') && rawSupabaseUrl !== 'REPLACE_ME')
   ? rawSupabaseUrl
