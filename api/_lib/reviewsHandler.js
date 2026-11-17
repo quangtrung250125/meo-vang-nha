@@ -1,9 +1,8 @@
-import { getRequestUser } from '../_lib/auth.js';
-import { createReviewService } from '../_lib/reviewsService.js';
-import { reviewsStore, findReviewBooking } from '../_lib/reviewsDb.js';
+import { getRequestUser } from './auth.js';
+import { createReviewService } from './reviewsService.js';
+import { reviewsStore, findReviewBooking } from './reviewsDb.js';
 const service=createReviewService({store:reviewsStore,findBooking:findReviewBooking});
-export default async function handler(req,res) {
- const action=new URL(req.url,'http://localhost').pathname.split('/').pop();
+export async function handleReviews(req,res,action = new URL(req.url || '/', 'http://localhost').pathname.split('/').pop()) {
  res.setHeader('Cache-Control','no-store');
  try {
   if(action==='public' && req.method==='GET')return res.status(200).json({reviews:await service.published()});

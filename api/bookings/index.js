@@ -4,6 +4,7 @@ import {
   handleUpdateBooking,
   handleRemoveBooking,
 } from '../_lib/bookingsService.js';
+import { handleReviews } from '../_lib/reviewsHandler.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,6 +13,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  const url = new URL(req.url || '/api/bookings', 'http://localhost');
+  const reviewAction = req.query?.reviewAction ?? url.searchParams.get('reviewAction')
+    ?? (url.pathname.startsWith('/api/reviews/') ? url.pathname.split('/').pop() : null);
+  if (reviewAction !== null) {
+    return handleReviews(req, res, reviewAction);
   }
 
   if (req.method === 'GET') {
