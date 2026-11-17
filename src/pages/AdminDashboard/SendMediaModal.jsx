@@ -42,21 +42,20 @@ const SendMediaModal = ({ isOpen, onClose, cat, onSendMedia }) => {
 
   const activePhoto = customUrl.trim() || selectedPhoto;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault();
     if (!activePhoto) {
       toast.error('Vui lòng chọn hoặc nhập link ảnh/video!');
       return;
     }
 
-    onSendMedia(cat, {
+    // Trang Tổng quan báo kết quả; chỉ đóng khi máy chủ đã lưu
+    const saved = await onSendMedia(cat, {
       imageUrl: activePhoto,
       caption: caption.trim() || `Hình ảnh mới nhất của bé ${cat.catName}`,
       tag: mediaTag,
     });
-
-    toast.success(`Đã gửi ảnh khoảnh khắc của bé ${cat.catName} tới chủ nuôi! 📸`);
-    onClose();
+    if (saved) onClose();
   };
 
   return (

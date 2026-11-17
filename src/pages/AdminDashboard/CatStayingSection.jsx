@@ -1,27 +1,52 @@
-import React from 'react';
-import { 
-  Zap, Utensils, Smile, Droplets, HeartPulse, 
-  CheckCircle2, Clock, Plus, Sparkles, RefreshCw, Send, Check, 
+import React, { useEffect, useState } from 'react';
+import {
+  Zap, Utensils, Smile, Droplets,
+  CheckCircle2, Clock, Sparkles, Undo2,
   Camera, FileText, Smartphone, ExternalLink
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { DAILY_TASKS, UNDO_WINDOW_MS, vnTime } from '../../utils/careTasks';
+
+// Màu và biểu tượng của 3 tác vụ hằng ngày
+const TASK_STYLE = {
+  fed: { Icon: Utensils, doneText: 'Đã cho ăn', todoText: 'Cho ăn', allText: 'Cho ăn tất cả', done: 'bg-emerald-50 text-emerald-700 border-emerald-200', todo: 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200' },
+  played: { Icon: Smile, doneText: 'Đã chơi', todoText: 'Vận động', allText: 'Vận động tất cả', done: 'bg-purple-50 text-purple-700 border-purple-200', todo: 'bg-gray-100 hover:bg-purple-50 text-gray-700 hover:text-purple-700 border-gray-200' },
+  hygiene: { Icon: Droplets, doneText: 'Đã dọn', todoText: 'Dọn vệ sinh', allText: 'Dọn vệ sinh tất cả', done: 'bg-blue-50 text-blue-700 border-blue-200', todo: 'bg-gray-100 hover:bg-blue-50 text-gray-700 hover:text-blue-700 border-gray-200' },
+};
 
 const CatStayingSection = ({
   catsInHotel = [],
-  isDemoMode = false,
   onOpenDiaryModal,
   onOpenBulkModal,
   onOpenMediaModal,
   onOpenReportModal,
-  onQuickFeedOne,
-  onQuickPlayOne,
-  onQuickFeedAll,
-  onQuickPlayAll,
+  onQuickTask,
+  onQuickAll,
+  onUndoTask,
 }) => {
   const location = useLocation();
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const trackingPath = isDirectAdminRoute ? '/admin/tracking' : '/tracking';
-  const bookingPath = isDirectAdminRoute ? '/admin/booking' : '/booking';
+  const roomStatusPath = isDirectAdminRoute ? '/admin/room-status' : '/room-status';
+
+  // Nút đang chờ máy chủ lưu (tránh bấm 2 lần)
+  const [busy, setBusy] = useState({});
+  const runBusy = async (key, fn) => {
+    if (busy[key]) return;
+    setBusy((prev) => ({ ...prev, [key]: true }));
+    try {
+      await fn();
+    } finally {
+      setBusy((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  // Cập nhật mỗi 30 giây để nút "Hoàn tác" tự ẩn sau 5 phút
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const totalCats = catsInHotel.length;
   const fedCats = catsInHotel.filter((c) => c.fed).length;
@@ -75,19 +100,14 @@ const CatStayingSection = ({
         </div>
       </div>
 
-      {/* Thông báo Demo nếu chưa có đơn thực tế đang check-in */}
-      {isDemoMode && (
-        <div className="bg-amber-50 text-amber-900 px-4 py-3 rounded-2xl border border-amber-200 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold bg-amber-200/80 text-amber-900 text-xs px-2 py-0.5 rounded-md">
-              Dữ liệu mẫu
-            </span>
-            <span>
-              Đang hiển thị 3 bé mẫu (Mimi, Bông, Lu). Khi admin bấm Check-in đơn thực tế ở mục <b>Cần xử lý hôm nay</b>, các bé mèo thật sẽ lập tức đồng bộ tại đây!
-            </span>
-          </div>
-          <Link to={bookingPath} className="underline font-bold text-amber-800 hover:text-amber-950 shrink-0">
-            + Tạo đơn mới
+      {/* Chưa có bé nào đang lưu trú */}
+      {totalCats === 0 && (
+        <div className="bg-gray-50 text-gray-600 px-4 py-3 rounded-2xl border border-gray-200 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <span>
+            Chưa có bé nào đang lưu trú. Bé sẽ hiện ở đây ngay khi Admin bấm <b>Check-in</b> ở trang Tình trạng phòng hoặc mục <b>Cần xử lý hôm nay</b>.
+          </span>
+          <Link to={roomStatusPath} className="underline font-bold text-gray-700 hover:text-gray-900 shrink-0">
+            Mở Tình trạng phòng
           </Link>
         </div>
       )}
@@ -169,20 +189,21 @@ const CatStayingSection = ({
           <span>Thao tác nhanh 1 chạm cho toàn bộ mèo:</span>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={onQuickFeedAll}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white hover:bg-orange-100/60 text-orange-800 border border-orange-200 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Utensils className="w-3.5 h-3.5 text-orange-600" />
-            Cho ăn tất cả (50g)
-          </button>
-          <button
-            onClick={onQuickPlayAll}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white hover:bg-purple-100/60 text-purple-800 border border-purple-200 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Smile className="w-3.5 h-3.5 text-purple-600" />
-            Vận động tất cả
-          </button>
+          {DAILY_TASKS.map(({ key }) => {
+            const { Icon, allText } = TASK_STYLE[key];
+            const busyKey = `all:${key}`;
+            return (
+              <button
+                key={key}
+                onClick={() => runBusy(busyKey, () => onQuickAll(key))}
+                disabled={totalCats === 0 || busy[busyKey]}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-white hover:bg-orange-100/60 text-orange-800 border border-orange-200 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors shadow-xs active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Icon className="w-3.5 h-3.5 text-orange-600" />
+                {busy[busyKey] ? 'Đang lưu...' : allText}
+              </button>
+            );
+          })}
           <button
             onClick={onOpenBulkModal}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-xs active:scale-95 cursor-pointer"
@@ -249,49 +270,53 @@ const CatStayingSection = ({
                     </div>
                   </div>
 
-                  {/* Trạng thái 3 tác vụ hôm nay */}
+                  {/* Trạng thái 3 tác vụ hôm nay (giờ Việt Nam lúc Admin bấm) */}
                   <div className="grid grid-cols-3 gap-2 py-2 border-y border-gray-100 text-center">
-                    <div className={`p-2 rounded-xl text-xs font-bold ${cat.fed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-400'}`}>
-                      <Utensils className="w-3.5 h-3.5 mx-auto mb-0.5" />
-                      <span>{cat.fed ? 'Đã ăn' : 'Chưa ăn'}</span>
-                    </div>
-                    <div className={`p-2 rounded-xl text-xs font-bold ${cat.played ? 'bg-purple-50 text-purple-700' : 'bg-gray-50 text-gray-400'}`}>
-                      <Smile className="w-3.5 h-3.5 mx-auto mb-0.5" />
-                      <span>{cat.played ? 'Đã chơi' : 'Chưa chơi'}</span>
-                    </div>
-                    <div className={`p-2 rounded-xl text-xs font-bold ${cat.hygiene ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}`}>
-                      <Droplets className="w-3.5 h-3.5 mx-auto mb-0.5" />
-                      <span>{cat.hygiene ? 'Đã dọn' : 'Chưa dọn'}</span>
-                    </div>
+                    {DAILY_TASKS.map(({ key }) => {
+                      const { Icon, doneText, todoText } = TASK_STYLE[key];
+                      const doneAt = cat.done?.[key]?.at;
+                      return (
+                        <div key={key} className={`p-2 rounded-xl text-xs font-bold ${doneAt ? TASK_STYLE[key].done.split(' border')[0] : 'bg-gray-50 text-gray-400'}`}>
+                          <Icon className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                          <span className="block">{doneAt ? doneText : `Chưa ${todoText.toLowerCase()}`}</span>
+                          {doneAt && <span className="block text-[10px] font-semibold opacity-80">{vnTime(doneAt)}</span>}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Cụm 4 nút thao tác trực tiếp */}
                   <div className="space-y-2 pt-1">
-                    {/* Hàng 1: Nút 1 chạm Ăn & Chơi */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={(e) => onQuickFeedOne(e, cat)}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          cat.fed
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 active:scale-95'
-                        }`}
-                      >
-                        <Utensils className="w-3.5 h-3.5" />
-                        {cat.fed ? 'Đã cho ăn ✓' : 'Cho ăn (50g)'}
-                      </button>
-
-                      <button
-                        onClick={(e) => onQuickPlayOne(e, cat)}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          cat.played
-                            ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                            : 'bg-gray-100 hover:bg-purple-50 text-gray-700 hover:text-purple-700 border border-gray-200 active:scale-95'
-                        }`}
-                      >
-                        <Smile className="w-3.5 h-3.5" />
-                        {cat.played ? 'Đã chơi ✓' : 'Vận động'}
-                      </button>
+                    {/* Hàng 1: Tác vụ 1 chạm — Cho ăn / Vận động / Dọn vệ sinh */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {DAILY_TASKS.map(({ key }) => {
+                        const style = TASK_STYLE[key];
+                        const done = cat.done?.[key];
+                        const busyKey = `${cat.bookingId}:${cat.id}:${key}`;
+                        const canUndo = done && now - new Date(done.at).getTime() <= UNDO_WINDOW_MS;
+                        return (
+                          <div key={key} className="flex flex-col gap-1">
+                            <button
+                              onClick={(e) => runBusy(busyKey, () => onQuickTask(e, cat, key))}
+                              disabled={Boolean(done) || busy[busyKey]}
+                              className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-[11px] font-bold border transition-all ${done ? style.done : `${style.todo} active:scale-95 cursor-pointer`} disabled:cursor-default`}
+                            >
+                              <style.Icon className="w-3.5 h-3.5 shrink-0" />
+                              {busy[busyKey] ? 'Đang lưu...' : done ? `${style.doneText} ✓` : style.todoText}
+                            </button>
+                            {canUndo && (
+                              <button
+                                onClick={() => runBusy(`undo:${busyKey}`, () => onUndoTask(cat, key))}
+                                disabled={busy[`undo:${busyKey}`]}
+                                className="flex items-center justify-center gap-1 text-[10px] font-semibold text-gray-400 hover:text-rose-600 cursor-pointer"
+                                title="Bấm nhầm? Hoàn tác trong 5 phút"
+                              >
+                                <Undo2 className="w-3 h-3" /> Hoàn tác
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Hàng 2: Gửi ảnh/video & Báo cáo cuối ngày */}

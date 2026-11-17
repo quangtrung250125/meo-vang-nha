@@ -50,6 +50,13 @@ function apiDevPlugin() {
             return handleSync(req, res);
           }
           if (urlPath === '/api/bookings') {
+            const { isCareLogsRequest, handleCareLogs } = await import('./api/_lib/careLogsService.js');
+            if (isCareLogsRequest(req)) {
+              if (req.method === 'POST' || req.method === 'DELETE') {
+                req.body = await parseBody();
+              }
+              return handleCareLogs(req, res);
+            }
             if (req.method === 'GET') {
               const { handleGetBookings } = await import('./api/_lib/bookingsService.js');
               return handleGetBookings(req, res);

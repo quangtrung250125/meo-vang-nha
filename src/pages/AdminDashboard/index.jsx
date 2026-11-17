@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
-import { BOOKING_STATUS, normalizeStatusValue, STORED_STATUS } from '../../utils/bookingStatus';
 import { usePetProfile } from '../../contexts/PetContext';
 import { useCareLog } from '../../contexts/CareLogContext';
 import { useRoomState, ROOM_CONFIG } from '../../../Chi/RoomStateContext';
 import useCustomerData from '../AdminCustomers/useCustomerData';
-import { activeBookings as mockActiveBookings } from '../../mockData/activeBookings';
-import { triggerCareLogUpdateNotification } from '../../services/notificationTriggers';
+import { getStayingCats, getTodayCheckIns, getTodayCheckOuts } from '../../utils/stayingCats';
+import { getDailyTask, getTodayTaskStatus, vnTime } from '../../utils/careTasks';
 import { mockReviews } from '../AdminReviews';
 import { computeDashboardKpis, computeRevenueSeries, computeRoomHeatmap } from '../../utils/dashboardReport';
 import { todayInVietnam } from '../../utils/bookingDeposit';
@@ -36,10 +35,10 @@ const AdminDashboard = () => {
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const basePrefix = isDirectAdminRoute ? '/admin' : '';
 
-  const { globalBookingList, adminCheckIn, adminCheckOut, updateBooking } = useBookingHistory();
+  const { adminCheckIn, adminCheckOut } = useBookingHistory();
   const { bookings: roomBookings, maintenanceRooms = {}, checkInBooking, checkOutBooking } = useRoomState();
   const { petList } = usePetProfile();
-  const { getLogs, addCareLog, addBulkCareLog } = useCareLog();
+  const { getLogs, addCareLog, addBulkCareLog, completeTask, undoLog } = useCareLog();
   const { customers = [] } = useCustomerData();
 
   // 1. STATE BỘ LỌC THỜI GIAN
@@ -63,96 +62,16 @@ const AdminDashboard = () => {
   const [reportCat, setReportCat] = useState(null);
 
   // ─────────────────────────────────────────────────────────────
-  // 3. TÍNH TOÁN DỮ LIỆU ĐANG LƯU TRÚ HÔM NAY (Đồng bộ số mèo thực tế)
+  // 3. MÈO ĐANG LƯU TRÚ — cùng nguồn kho phòng với trang Tình trạng phòng,
+  //    trạng thái tác vụ hôm nay tính từ nhật ký chăm sóc trên server
   // ─────────────────────────────────────────────────────────────
-  const activeRealBookings = useMemo(() => {
-    return globalBookingList.filter(
-      (b) => normalizeStatusValue(b.status) === BOOKING_STATUS.IN_HOUSE || b.status === STORED_STATUS.IN_HOUSE
-    );
-  }, [globalBookingList]);
-
-  let isDemoMode = false;
-  let catsInHotel = useMemo(() => {
-    const list = activeRealBookings.flatMap((booking) => {
-      const pets = [];
-      if (booking.petIds) {
-        booking.petIds.forEach((id) => {
-          const p = petList.find((x) => x.id === id);
-          if (p) pets.push(p);
-        });
-      }
-      if (booking.petProfiles) {
-        booking.petProfiles.forEach((p) => {
-          if (!pets.find((x) => x.id === p.id)) {
-            pets.push(p);
-          }
-        });
-      }
-
-      // Nếu booking không có hồ sơ riêng, tạo đại diện từ thông tin đặt
-      if (pets.length === 0) {
-        pets.push({
-          id: `pet_${booking.id}`,
-          name: booking.catNames || 'Bé cưng',
-          imagePreview: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
-        });
-      }
-
-      return pets.map((pet) => {
-        const logs = getLogs(booking.id, pet.id) || [];
-        const todayString = new Date().toLocaleDateString('vi-VN');
-        const logsToday = logs.filter((l) => l.rawDate === todayString);
-        const fed = logsToday.some((l) => l.type === 'eating');
-        const played = logsToday.some((l) => l.type === 'mood' || l.type === 'play');
-        const hygiene = logsToday.some((l) => l.type === 'hygiene');
-        const hasWarning = logsToday.some((l) => l.status === 'watch');
-
-        return {
-          id: pet.id,
-          bookingId: booking.id,
-          booking: booking,
-          catName: pet.name,
-          ownerName: booking.customerInfo?.fullName || booking.ownerName || 'Khách hàng',
-          ownerPhone: booking.customerInfo?.phone || booking.customerPhone || booking.ownerPhone,
-          room: booking.selectedRoom?.name || booking.roomId || 'Tiêu chuẩn',
-          image: pet.imagePreview || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80',
-          fed,
-          played,
-          hygiene,
-          hasWarning,
-          logsToday,
-          rawPet: pet,
-        };
-      });
-    });
-
-    return list;
-  }, [activeRealBookings, petList, getLogs]);
-
-  // Fallback sang dữ liệu mẫu nếu chưa có đơn đang lưu trú
-  if (catsInHotel.length === 0) {
-    isDemoMode = true;
-    catsInHotel = mockActiveBookings.map((mockCat) => {
-      const logs = getLogs('mockBooking', mockCat.id) || [];
-      const todayString = new Date().toLocaleDateString('vi-VN');
-      const logsToday = logs.filter((l) => l.rawDate === todayString);
-      const fed = logsToday.some((l) => l.type === 'eating');
-      const played = logsToday.some((l) => l.type === 'mood' || l.type === 'play');
-      const hygiene = logsToday.some((l) => l.type === 'hygiene');
-      const hasWarning = logsToday.some((l) => l.status === 'watch');
-
-      return {
-        ...mockCat,
-        bookingId: 'mockBooking',
-        id: mockCat.id,
-        fed,
-        played,
-        hygiene,
-        hasWarning,
-        logsToday,
-      };
-    });
-  }
+  const catsInHotel = useMemo(
+    () => getStayingCats(roomBookings, petList).map((cat) => ({
+      ...cat,
+      ...getTodayTaskStatus(getLogs(cat.bookingId, cat.id)),
+    })),
+    [roomBookings, petList, getLogs]
+  );
 
   // ─────────────────────────────────────────────────────────────
   // 4. TÍNH TOÁN CÁC CHỈ SỐ DOANH NGHIỆP KPI (Đồng bộ từ Khách hàng & Lịch đặt)
@@ -180,18 +99,9 @@ const AdminDashboard = () => {
   // ─────────────────────────────────────────────────────────────
   const todayDateStr = todayInVietnam();
 
-  // Danh sách cần Check-in hôm nay (chỉ đơn có ngày gửi là hôm nay)
-  const todayCheckInList = useMemo(() => {
-    return globalBookingList.filter((b) => {
-      const status = normalizeStatusValue(b.status);
-      return status === BOOKING_STATUS.UPCOMING && b.checkIn === todayDateStr;
-    });
-  }, [globalBookingList, todayDateStr]);
-
-  // Danh sách cần Check-out hôm nay
-  const todayCheckOutList = useMemo(() => {
-    return activeRealBookings.filter((b) => b.checkOut === todayDateStr || !b.checkOut);
-  }, [activeRealBookings, todayDateStr]);
+  // Danh sách cần Check-in / Check-out hôm nay (từ kho phòng, giống trang Tình trạng phòng)
+  const todayCheckInList = useMemo(() => getTodayCheckIns(roomBookings, todayDateStr), [roomBookings, todayDateStr]);
+  const todayCheckOutList = useMemo(() => getTodayCheckOuts(roomBookings, todayDateStr), [roomBookings, todayDateStr]);
 
   // Đồng bộ khiếu nại thực tế từ module Đánh giá & Phản hồi (AdminReviews)
   const complaintsList = useMemo(() => {
@@ -240,98 +150,80 @@ const AdminDashboard = () => {
     setIsReportModalOpen(true);
   };
 
+  // Báo kết quả ghi nhật ký (thành công / đã làm rồi / lỗi máy chủ)
+  const reportSaveResult = (result, successMessage) => {
+    if (result.ok) {
+      toast.success(successMessage);
+    } else {
+      toast.error(result.message || 'Chưa lưu được nhật ký, vui lòng thử lại.');
+    }
+    return result.ok;
+  };
+
   // Lưu nhật ký từ CatDiaryModal
-  const handleSaveDiary = (petId, formData) => {
+  const handleSaveDiary = async (petId, formData) => {
     if (!selectedCat) return;
-    const bookingId = selectedCat.bookingId || 'mockBooking';
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
+    const bookingId = selectedCat.bookingId;
+    const petName = selectedCat.catName;
+    const entries = [];
 
     if (formData.foodAmount) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'eating',
-        label: 'Cho ăn',
+      entries.push({
+        type: 'eating', label: 'Cho ăn', icon: 'Utensils', status: 'normal', tag: 'Bình thường',
         detail: `Đã cho ăn ${formData.foodAmount}g thức ăn. Bé ăn ngoan miệng.`,
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils',
       });
     }
-
     if (formData.played) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'mood',
-        label: 'Vui chơi & Vận động',
+      entries.push({
+        type: 'mood', label: 'Vui chơi & Vận động', icon: 'Smile', status: 'normal', tag: 'Bình thường',
         detail: 'Bé đã chơi đùa và vận động tích cực cùng nhân viên.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Smile',
       });
     }
-
     if (formData.stool) {
       const isBad = formData.stool === 'Tiêu chảy' || formData.stool === 'Táo bón';
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'hygiene',
-        label: 'Vệ sinh khay cát',
+      entries.push({
+        type: 'hygiene', label: 'Vệ sinh khay cát', icon: 'Droplets',
+        status: isBad ? 'watch' : 'normal', tag: isBad ? 'Cần theo dõi' : 'Bình thường',
         detail: `Khay cát sạch sẽ. Tình trạng: ${formData.stool}.`,
-        status: isBad ? 'watch' : 'normal',
-        tag: isBad ? 'Cần theo dõi' : 'Bình thường',
-        icon: 'Droplets',
       });
     }
-
     if (formData.health) {
-      addCareLog(bookingId, petId, {
-        rawDate,
-        date: dateLabel,
-        time,
-        type: 'health',
-        label: 'Sức khỏe & Tâm trạng',
+      entries.push({
+        type: 'health', label: 'Sức khỏe & Tâm trạng', icon: 'HeartPulse', status: 'watch', tag: 'Cần theo dõi',
         detail: formData.health,
-        status: 'watch',
-        tag: 'Cần theo dõi',
-        icon: 'HeartPulse',
       });
     }
+    if (entries.length === 0) {
+      setIsDiaryModalOpen(false);
+      return;
+    }
 
-    toast.success('Đã cập nhật nhật ký & đồng bộ ngay sang ứng dụng khách hàng! 🐾');
+    const results = await Promise.all(entries.map((entry) => addCareLog(bookingId, petId, { ...entry, petName })));
+    const failed = results.find((r) => !r.ok);
+    if (failed) {
+      toast.error(failed.message || 'Chưa lưu được nhật ký, vui lòng thử lại.');
+      return;
+    }
+    toast.success('Đã cập nhật nhật ký & đồng bộ sang ứng dụng khách hàng! 🐾');
     setIsDiaryModalOpen(false);
   };
 
   // Lưu hàng loạt từ BulkCareLogModal
-  const handleSaveBulk = (selectedCats, payload) => {
-    const updatedCount = addBulkCareLog(selectedCats, payload);
+  const handleSaveBulk = async (selectedCats, payload) => {
+    const updatedCount = await addBulkCareLog(selectedCats, payload);
     if (updatedCount > 0) {
-      toast.success(`⚡ Đã cập nhật nhật ký cho ${updatedCount} bé mèo & đồng bộ realtime sang khách hàng!`, {
+      toast.success(`⚡ Đã cập nhật nhật ký cho ${updatedCount} bé mèo & đồng bộ sang khách hàng!`, {
         icon: '🐾',
         duration: 4000,
       });
+    } else {
+      toast.error('Chưa lưu được nhật ký, vui lòng thử lại.');
     }
   };
 
   // Gửi ảnh/video cho khách
-  const handleSendMedia = (cat, mediaData) => {
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    addCareLog(cat.bookingId, cat.id, {
-      rawDate,
-      date: dateLabel,
-      time,
+  const handleSendMedia = async (cat, mediaData) => {
+    const result = await addCareLog(cat.bookingId, cat.id, {
       type: 'media',
       label: 'Khoảnh khắc của bé',
       detail: mediaData.caption,
@@ -339,119 +231,61 @@ const AdminDashboard = () => {
       tag: mediaData.tag || 'Ảnh mới',
       icon: 'Camera',
       status: 'normal',
+      petName: cat.catName,
     });
-
-    try {
-      triggerCareLogUpdateNotification({
-        userId: cat.ownerPhone || 'ducan',
-        petName: cat.catName || 'Bé cưng',
-        actionTitle: 'Nhân viên vừa gửi ảnh mới của bé!',
-        detail: mediaData.caption,
-      });
-    } catch (e) {}
+    return reportSaveResult(result, `Đã gửi ảnh của bé ${cat.catName} cho khách! 📸`);
   };
 
   // Gửi báo cáo cuối ngày cho khách
-  const handleSendReport = (cat, reportData) => {
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    addCareLog(cat.bookingId, cat.id, {
-      rawDate,
-      date: dateLabel,
-      time,
+  const handleSendReport = async (cat, reportData) => {
+    const result = await addCareLog(cat.bookingId, cat.id, {
       type: 'report',
       label: 'Báo cáo tổng kết ngày',
       detail: reportData.note,
       reportData,
-      isDailyReport: true,
       tag: 'Báo cáo ngày',
       icon: 'FileText',
       status: 'normal',
+      petName: cat.catName,
     });
-
-    try {
-      triggerCareLogUpdateNotification({
-        userId: cat.ownerPhone || 'ducan',
-        petName: cat.catName || 'Bé cưng',
-        actionTitle: 'Báo cáo chăm sóc cuối ngày đã sẵn sàng',
-        detail: reportData.note,
-      });
-    } catch (e) {}
+    return reportSaveResult(result, `Đã gửi báo cáo ngày của bé ${cat.catName}! 📝`);
   };
 
-  // Phím tắt 1 chạm cho ăn 1 bé
-  const handleQuickFeedOne = (e, cat) => {
-    e.stopPropagation();
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    addCareLog(cat.bookingId, cat.id, {
-      rawDate,
-      date: dateLabel,
-      time,
-      type: 'eating',
-      label: 'Cho ăn nhanh',
-      detail: 'Đã cho ăn 50g hạt dinh dưỡng Royal Canin. Bé ăn ngoan, sạch đĩa.',
-      status: 'normal',
-      tag: 'Bình thường',
-      icon: 'Utensils',
-    });
-    toast.success(`Đã ghi nhận bé ${cat.catName} ăn xong 50g hạt!`);
+  // Tác vụ 1 chạm cho 1 bé: Cho ăn / Vận động / Dọn vệ sinh
+  const handleQuickTask = async (e, cat, taskKey) => {
+    e?.stopPropagation();
+    const task = getDailyTask(taskKey);
+    const result = await completeTask(cat, taskKey);
+    if (result.ok) {
+      toast.success(`${task.label}: bé ${cat.catName} (lúc ${vnTime(result.logs[0].createdAt)})`);
+    } else {
+      toast.error(result.message || 'Chưa lưu được tác vụ, vui lòng thử lại.');
+    }
   };
 
-  // Phím tắt 1 chạm cho chơi 1 bé
-  const handleQuickPlayOne = (e, cat) => {
-    e.stopPropagation();
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    addCareLog(cat.bookingId, cat.id, {
-      rawDate,
-      date: dateLabel,
-      time,
-      type: 'mood',
-      label: 'Vui chơi & Vận động',
-      detail: 'Bé đã ra khu vui chơi chung, leo trèo và đuổi cần câu lông vũ 30 phút.',
-      status: 'normal',
-      tag: 'Bình thường',
-      icon: 'Smile',
-    });
-    toast.success(`Đã ghi nhận giờ chơi của bé ${cat.catName}!`);
+  // Tác vụ 1 chạm cho TẤT CẢ các bé đang lưu trú (bé đã làm hôm nay được bỏ qua)
+  const handleQuickAll = async (taskKey) => {
+    const task = getDailyTask(taskKey);
+    const pending = catsInHotel.filter((cat) => !cat[taskKey]);
+    if (pending.length === 0) {
+      toast(`Tất cả các bé đã xong "${task.label}" hôm nay.`, { icon: '✅' });
+      return;
+    }
+    const result = await completeTask(pending, taskKey);
+    if (result.logs.length > 0) {
+      toast.success(`${task.label}: đã ghi nhận cho ${result.logs.length} bé.`);
+    } else {
+      toast.error(result.message || 'Chưa lưu được tác vụ, vui lòng thử lại.');
+    }
   };
 
-  // Phím tắt cho ăn TẤT CẢ các bé
-  const handleQuickFeedAll = () => {
-    const payload = {
-      food: {
-        mealType: 'Bữa ăn tiêu chuẩn',
-        amount: '50',
-        foodType: 'Hạt Royal Canin + Pate tươi',
-        note: 'Các bé ăn ngoan, sạch đĩa và rất hợp tác',
-      },
-    };
-    const count = addBulkCareLog(catsInHotel, payload);
-    toast.success(`🍱 Đã ghi nhận bữa ăn cho toàn bộ ${count} bé mèo và đồng bộ realtime!`);
-  };
-
-  // Phím tắt vận động TẤT CẢ các bé
-  const handleQuickPlayAll = () => {
-    const payload = {
-      play: {
-        enabled: true,
-        activity: 'Vận động tại phòng chơi chung & chải lông',
-        mood: 'Vui vẻ, năng động, quấn người',
-        note: 'Các bé hòa đồng và leo trèo thoải mái',
-      },
-    };
-    const count = addBulkCareLog(catsInHotel, payload);
-    toast.success(`🎾 Đã ghi nhận giờ vận động cho ${count} bé mèo và đồng bộ realtime!`);
+  // Hoàn tác một tác vụ bấm nhầm (trong 5 phút)
+  const handleUndoTask = async (cat, taskKey) => {
+    const logId = cat.done?.[taskKey]?.logId;
+    if (!logId) return;
+    const result = await undoLog(logId);
+    if (result.ok) toast.success(`Đã hoàn tác "${getDailyTask(taskKey).label}" của bé ${cat.catName}.`);
+    else toast.error(result.message || 'Không hoàn tác được, vui lòng thử lại.');
   };
 
   return (
@@ -529,15 +363,13 @@ const AdminDashboard = () => {
       {/* 5. THEO DÕI LƯU TRÚ & TÁC VỤ HÔM NAY (ĐỒNG BỘ SỐ MÈO VÀ NHẬT KÝ SANG KHÁCH HÀNG) */}
       <CatStayingSection
         catsInHotel={catsInHotel}
-        isDemoMode={isDemoMode}
         onOpenDiaryModal={openDiaryModal}
         onOpenBulkModal={() => setIsBulkModalOpen(true)}
         onOpenMediaModal={openMediaModal}
         onOpenReportModal={openReportModal}
-        onQuickFeedOne={handleQuickFeedOne}
-        onQuickPlayOne={handleQuickPlayOne}
-        onQuickFeedAll={handleQuickFeedAll}
-        onQuickPlayAll={handleQuickPlayAll}
+        onQuickTask={handleQuickTask}
+        onQuickAll={handleQuickAll}
+        onUndoTask={handleUndoTask}
       />
 
       {/* 6. CÁC MODAL CẬP NHẬT */}

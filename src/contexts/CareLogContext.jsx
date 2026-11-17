@@ -1,419 +1,292 @@
-import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
+import { supabase } from '../supabaseClient';
 import { triggerCareLogUpdateNotification } from '../services/notificationTriggers';
-import { broadcastEvent, subscribeSyncEvents } from '../services/crossDeviceSync';
+import { broadcastEvent, subscribeSyncEvents, getAuthHeaders } from '../services/crossDeviceSync';
+import {
+  DAILY_TASKS,
+  getDailyTask,
+  getTodayTaskStatus,
+  vnDateKey,
+  vnDateLabel,
+  vnTime,
+} from '../utils/careTasks';
+
+// Nhật ký chăm sóc lưu trên server (bảng care_logs) qua /api/bookings?resource=care-logs.
+// Admin bấm "Cho ăn / Vận động / Dọn vệ sinh", gửi ảnh hay báo cáo ngày -> server ghi thời điểm thật ->
+// các tab khác (Tổng quan, Tình trạng phòng, Theo dõi lưu trú & Hồ sơ mèo của khách) tự tải lại, không cần F5.
 
 const CareLogContext = createContext();
 
-// Dữ liệu mẫu ban đầu nếu máy chưa có nhật ký
-const getInitialSampleLogs = () => {
-  const today = new Date();
-  const rawDate = today.toLocaleDateString('vi-VN');
-  const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
+const API_URL = '/api/bookings?resource=care-logs';
+const CHANNEL_NAME = 'mvn_carelog_channel';
+const CHANGED_EVENT = 'CARE_LOGS_CHANGED';
+const POLL_MS = 15000;
 
-  return {
-    'mockBooking_1': [
-      {
-        id: 'sample_1_3',
-        rawDate,
-        date: dateLabel,
-        time: '10:30',
-        type: 'mood',
-        label: 'Vui chơi & Vận động',
-        detail: 'Bé Mimi đã ra phòng chơi chung, đuổi bóng và leo trèo rất tích cực, tinh thần vui vẻ.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Smile',
-        createdAt: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 'sample_1_2',
-        rawDate,
-        date: dateLabel,
-        time: '09:00',
-        type: 'hygiene',
-        label: 'Vệ sinh khay cát',
-        detail: 'Đã dọn khay cát sáng. Phân khuôn bình thường, nước tiểu tốt.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Droplets',
-        createdAt: new Date(Date.now() - 7200000).toISOString()
-      },
-      {
-        id: 'sample_1_1',
-        rawDate,
-        date: dateLabel,
-        time: '08:00',
-        type: 'eating',
-        label: 'Cho ăn bữa sáng',
-        detail: 'Đã cho ăn 50g hạt Royal Canin + 20g pate cá hồi. Bé ăn hết sạch phần ăn.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils',
-        createdAt: new Date(Date.now() - 10800000).toISOString()
-      }
-    ],
-    'mockBooking_2': [
-      {
-        id: 'sample_2_1',
-        rawDate,
-        date: dateLabel,
-        time: '08:15',
-        type: 'eating',
-        label: 'Cho ăn bữa sáng',
-        detail: 'Đã cho ăn 45g hạt dinh dưỡng. Bé Bông ăn gần hết.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils',
-        createdAt: new Date(Date.now() - 10000000).toISOString()
-      }
-    ],
-    'mockBooking_3': [
-      {
-        id: 'sample_3_2',
-        rawDate,
-        date: dateLabel,
-        time: '10:00',
-        type: 'mood',
-        label: 'Vui chơi',
-        detail: 'Bé Lu hơi nhút nhát, thích nằm nghỉ ngơi và được nhân viên vuốt ve.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Smile',
-        createdAt: new Date(Date.now() - 5400000).toISOString()
-      },
-      {
-        id: 'sample_3_1',
-        rawDate,
-        date: dateLabel,
-        time: '08:30',
-        type: 'eating',
-        label: 'Cho ăn bữa sáng',
-        detail: 'Đã cho ăn 40g hạt và bổ sung súp thưởng súp cá ngừ.',
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils',
-        createdAt: new Date(Date.now() - 9500000).toISOString()
-      }
-    ]
-  };
+const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+const byNewest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+
+// Gộp danh sách mới vào danh sách đang có theo id
+const mergeLogs = (prev, incoming) => {
+  const map = new Map(prev.map((l) => [l.id, l]));
+  incoming.forEach((l) => map.set(l.id, l));
+  return [...map.values()].sort(byNewest);
 };
 
+// Thêm các trường hiển thị (ngày / giờ theo giờ Việt Nam) cho giao diện
+const withDisplayFields = (log, todayKey) => ({
+  ...log,
+  rawDate: vnDateKey(log.createdAt),
+  date: vnDateLabel(log.createdAt, todayKey),
+  time: vnTime(log.createdAt),
+});
+
+async function requestApi(method, body) {
+  const headers = { 'Content-Type': 'application/json', ...(await getAuthHeaders()) };
+  if (!headers.Authorization) return { ok: false, status: 401, json: { message: 'Vui lòng đăng nhập.' } };
+  const res = await fetch(API_URL, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const json = await res.json().catch(() => ({}));
+  return { ok: res.ok && json.success !== false, status: res.status, json };
+}
+
 export const CareLogProvider = ({ children }) => {
-  const [careLogs, setCareLogs] = useState(() => {
-    if (typeof window === 'undefined') return {};
-    const saved = localStorage.getItem('careLogs');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.warn('Lỗi parse careLogs từ localStorage:', e);
-      }
-    }
-    // Khởi tạo logs mẫu ban đầu để demo mượt mà
-    const initial = getInitialSampleLogs();
+  const [logs, setLogs] = useState([]);
+  const channelRef = useRef(null);
+
+  // Tải nhật ký theo tài khoản đang đăng nhập (Admin: 45 ngày gần đây, khách: các đơn của mình)
+  const refresh = useCallback(async () => {
     try {
-      localStorage.setItem('careLogs', JSON.stringify(initial));
-    } catch (e) {}
-    return initial;
-  });
-
-  const careLogsRef = useRef(careLogs);
-  careLogsRef.current = careLogs;
-
-  // Lắng nghe thay đổi careLogs giữa các tab và BroadcastChannel
-  useEffect(() => {
-    const handleSync = () => {
-      try {
-        const saved = localStorage.getItem('careLogs');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
-            setCareLogs(parsed);
-          }
-        }
-      } catch (e) {}
-    };
-
-    const handleStorage = (e) => {
-      if (e.key === 'careLogs') {
-        handleSync();
+      const headers = await getAuthHeaders();
+      if (!headers.Authorization) {
+        setLogs([]);
+        return;
       }
-    };
+      const res = await fetch(API_URL, { headers });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (Array.isArray(json.logs)) setLogs([...json.logs].sort(byNewest));
+    } catch (e) {
+      console.warn('Không tải được nhật ký chăm sóc:', e);
+    }
+  }, []);
 
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('mvn_carelog_sync', handleSync);
+  // Báo các tab / thiết bị khác tải lại (chỉ gửi mã đơn, không gửi nội dung nhật ký)
+  const notifyChanged = useCallback((bookingCodes = []) => {
+    try {
+      channelRef.current?.postMessage({ type: CHANGED_EVENT });
+    } catch (e) {}
+    broadcastEvent(CHANGED_EVENT, { bookingCodes });
+  }, []);
 
-    let channel = null;
+  useEffect(() => {
+    // Nhật ký cũ chỉ nằm trong trình duyệt (phần lớn là dữ liệu mẫu) không còn dùng
+    try {
+      localStorage.removeItem('careLogs');
+    } catch (e) {}
+    refresh();
+
     if (typeof window !== 'undefined' && window.BroadcastChannel) {
       try {
-        channel = new BroadcastChannel('mvn_carelog_channel');
-        channel.onmessage = (event) => {
-          if (event.data?.type === 'CARE_LOGS_UPDATED') {
-            handleSync();
-          }
+        channelRef.current = new BroadcastChannel(CHANNEL_NAME);
+        channelRef.current.onmessage = (event) => {
+          if (event.data?.type === CHANGED_EVENT) refresh();
         };
       } catch (e) {}
     }
 
-    // Đăng ký đồng bộ real-time qua Supabase Cloud WebSockets (nếu có)
-    const unsub = subscribeSyncEvents(({ type, payload }) => {
-      if (type === 'CARE_LOGS_UPDATED' && payload?.careLogs) {
-        setCareLogs(payload.careLogs);
-        try {
-          localStorage.setItem('careLogs', JSON.stringify(payload.careLogs));
-        } catch (e) {}
-      }
+    const unsubscribeSync = subscribeSyncEvents(({ type }) => {
+      if (type === CHANGED_EVENT) refresh();
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') refresh();
+    });
+
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    // Dự phòng khi kênh realtime bị gián đoạn
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, POLL_MS);
 
     return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('mvn_carelog_sync', handleSync);
-      if (channel) channel.close();
-      if (unsub) unsub();
+      channelRef.current?.close();
+      channelRef.current = null;
+      if (unsubscribeSync) unsubscribeSync();
+      subscription?.unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      clearInterval(timer);
     };
-  }, []);
+  }, [refresh]);
 
-  // Lưu state vào localStorage khi careLogs thay đổi
-  const saveLogsToStorage = useCallback((newLogs) => {
+  /**
+   * Ghi nhiều dòng nhật ký một lần.
+   * @returns {Promise<{ ok: boolean, logs: object[], skipped: object[], message?: string }>}
+   */
+  const saveEntries = useCallback(async (entries) => {
     try {
-      localStorage.setItem('careLogs', JSON.stringify(newLogs));
-    } catch (e) {}
+      const { ok, json } = await requestApi('POST', { entries });
+      const saved = Array.isArray(json.logs) ? json.logs : [];
+      if (saved.length > 0) {
+        setLogs((prev) => mergeLogs(prev, saved));
+        notifyChanged([...new Set(saved.map((l) => l.bookingCode))]);
 
-    // Kích hoạt event cho cùng tab
-    window.dispatchEvent(new Event('mvn_carelog_sync'));
-
-    // Broadcast cho các tab khác
-    if (typeof window !== 'undefined' && window.BroadcastChannel) {
-      try {
-        const ch = new BroadcastChannel('mvn_carelog_channel');
-        ch.postMessage({ type: 'CARE_LOGS_UPDATED' });
-        ch.close();
-      } catch (e) {}
+        // Báo khách qua Web Push (mỗi bé 1 thông báo)
+        const seen = new Set();
+        saved.forEach((log) => {
+          const key = `${log.bookingCode}|${log.petId}`;
+          if (seen.has(key) || !log.customerId) return;
+          seen.add(key);
+          triggerCareLogUpdateNotification({
+            userId: log.customerId,
+            petName: log.petName || 'Bé cưng',
+            actionTitle: log.label || 'Nhật ký chăm sóc mới',
+            detail: log.detail || 'Nhân viên vừa cập nhật tình hình của bé.',
+          });
+        });
+      }
+      return { ok: ok && saved.length > 0, logs: saved, skipped: json.skipped || [], message: json.message };
+    } catch (e) {
+      return { ok: false, logs: [], skipped: [], message: 'Không kết nối được máy chủ, vui lòng thử lại.' };
     }
+  }, [notifyChanged]);
 
-    // Broadcast tới các thiết bị khác (Desktop <-> Mobile)
-    broadcastEvent('CARE_LOGS_UPDATED', { careLogs: newLogs });
-  }, []);
+  // Thêm 1 dòng nhật ký cho 1 bé (ghi chú chi tiết, ảnh, báo cáo ngày...)
+  const addCareLog = useCallback((bookingId, petId, log) =>
+    saveEntries([{ ...log, bookingCode: bookingId, petId }]), [saveEntries]);
 
-  // Thêm 1 dòng nhật ký cho 1 bé mèo
-  const addCareLog = useCallback((bookingId, petId, newLog) => {
-    if (!bookingId || !petId || !newLog) return;
-    const key = `${bookingId}_${petId}`;
+  // Tác vụ hằng ngày 1 chạm (Cho ăn / Vận động / Dọn vệ sinh) cho 1 hoặc nhiều bé, bé đã làm hôm nay được bỏ qua
+  const completeTask = useCallback((cats, taskKey, overrides = {}) => {
+    const task = getDailyTask(taskKey);
+    const list = Array.isArray(cats) ? cats : [cats];
+    if (!task || list.length === 0) return Promise.resolve({ ok: false, logs: [], skipped: [] });
+    return saveEntries(list.map((cat) => ({
+      bookingCode: cat.bookingId,
+      petId: cat.id,
+      petName: cat.catName,
+      type: task.type,
+      label: task.label,
+      detail: task.detail,
+      icon: task.icon,
+      status: 'normal',
+      tag: 'Bình thường',
+      task: true,
+      ...overrides,
+    })));
+  }, [saveEntries]);
 
-    const logEntry = {
-      id: newLog.id || `log_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      createdAt: new Date().toISOString(),
-      ...newLog
-    };
-
-    setCareLogs(prev => {
-      const existing = prev[key] || [];
-      const updated = {
-        ...prev,
-        [key]: [logEntry, ...existing]
-      };
-      saveLogsToStorage(updated);
-      return updated;
-    });
-
-    // Thông báo Web Push
-    try {
-      const targetUser = newLog.userId || newLog.customerId || 'ducan';
-      triggerCareLogUpdateNotification({
-        userId: targetUser,
-        petName: newLog.petName || 'Bé cưng',
-        actionTitle: newLog.label || newLog.title || 'Nhật ký chăm sóc mới',
-        detail: newLog.detail || newLog.notes || 'Bé đang sinh hoạt và chăm sóc rất tốt.',
-      });
-    } catch (e) {}
-  }, [saveLogsToStorage]);
-
-  // CẬP NHẬT HÀNG LOẠT (BULK UPDATE) CHO NHIỀU MÈO
-  const addBulkCareLog = useCallback((selectedCats, logPayload) => {
+  // Cập nhật hàng loạt (form chi tiết) cho nhiều bé
+  const addBulkCareLog = useCallback(async (selectedCats, logPayload) => {
     if (!Array.isArray(selectedCats) || selectedCats.length === 0 || !logPayload) return 0;
+    const entries = [];
 
-    const today = new Date();
-    const time = today.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const rawDate = today.toLocaleDateString('vi-VN');
-    const dateLabel = `Hôm nay, ${today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
-
-    const entriesToAdd = [];
-
-    // 1. Nhật ký ăn uống
-    if (logPayload.food && (logPayload.food.amount || logPayload.food.type)) {
+    if (logPayload.food && (logPayload.food.amount || logPayload.food.type || logPayload.food.foodType)) {
       const amountStr = logPayload.food.amount ? `${logPayload.food.amount}g ` : '';
       const foodTypeStr = logPayload.food.foodType || 'thức ăn';
       const mealTypeStr = logPayload.food.mealType ? ` (${logPayload.food.mealType})` : '';
       const noteStr = logPayload.food.note ? `. Ghi chú: ${logPayload.food.note}` : '';
-
-      entriesToAdd.push({
-        type: 'eating',
-        label: `Cho ăn${mealTypeStr}`,
+      entries.push({
+        type: 'eating', label: `Cho ăn${mealTypeStr}`, icon: 'Utensils', status: 'normal', tag: 'Bình thường',
         detail: `Đã cho ăn ${amountStr}${foodTypeStr}${noteStr}. Bé ăn ngoan.`,
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Utensils'
       });
     }
-
-    // 2. Nhật ký vui chơi / vận động
     if (logPayload.play && logPayload.play.enabled) {
       const activityStr = logPayload.play.activity || 'Vận động & chơi đùa tự do';
       const moodStr = logPayload.play.mood ? ` | Tâm trạng: ${logPayload.play.mood}` : '';
       const noteStr = logPayload.play.note ? `. ${logPayload.play.note}` : '';
-
-      entriesToAdd.push({
-        type: 'mood',
-        label: 'Vui chơi & Vận động',
+      entries.push({
+        type: 'mood', label: 'Vui chơi & Vận động', icon: 'Smile', status: 'normal', tag: 'Bình thường',
         detail: `${activityStr}${moodStr}${noteStr}.`,
-        status: 'normal',
-        tag: 'Bình thường',
-        icon: 'Smile'
       });
     }
-
-    // 3. Nhật ký vệ sinh
     if (logPayload.hygiene && logPayload.hygiene.enabled) {
       const stool = logPayload.hygiene.stool || 'Bình thường';
       const isBad = stool === 'Tiêu chảy' || stool === 'Táo bón';
       const noteStr = logPayload.hygiene.note ? `. ${logPayload.hygiene.note}` : '';
-
-      entriesToAdd.push({
-        type: 'hygiene',
-        label: 'Vệ sinh khay cát',
+      entries.push({
+        type: 'hygiene', label: 'Vệ sinh khay cát', icon: 'Droplets',
+        status: isBad ? 'watch' : 'normal', tag: isBad ? 'Cần theo dõi' : 'Bình thường',
         detail: `Khay cát đã dọn sạch sẽ. Tình trạng phân: ${stool}${noteStr}.`,
-        status: isBad ? 'watch' : 'normal',
-        tag: isBad ? 'Cần theo dõi' : 'Bình thường',
-        icon: 'Droplets'
       });
     }
-
-    // 4. Nhật ký sức khỏe
     if (logPayload.health && (logPayload.health.status || logPayload.health.note)) {
       const cond = logPayload.health.status || 'Khỏe mạnh';
       const isWatch = cond.toLowerCase().includes('theo dõi') || cond.toLowerCase().includes('mệt');
       const noteStr = logPayload.health.note ? `: ${logPayload.health.note}` : '';
-
-      entriesToAdd.push({
-        type: 'health',
-        label: 'Kiểm tra sức khỏe',
+      entries.push({
+        type: 'health', label: 'Kiểm tra sức khỏe', icon: 'HeartPulse',
+        status: isWatch ? 'watch' : 'normal', tag: isWatch ? 'Cần theo dõi' : 'Khỏe mạnh',
         detail: `Tình trạng: ${cond}${noteStr}.`,
-        status: isWatch ? 'watch' : 'normal',
-        tag: isWatch ? 'Cần theo dõi' : 'Khỏe mạnh',
-        icon: 'HeartPulse'
       });
     }
+    if (entries.length === 0) return 0;
 
-    if (entriesToAdd.length === 0) return 0;
+    const result = await saveEntries(selectedCats.flatMap((cat) => entries.map((e) => ({
+      ...e,
+      bookingCode: cat.bookingId,
+      petId: cat.id || cat.rawPet?.id || cat.petId,
+      petName: cat.catName || cat.name || 'Bé cưng',
+    }))));
+    return new Set(result.logs.map((l) => `${l.bookingCode}|${l.petId}`)).size;
+  }, [saveEntries]);
 
-    setCareLogs(prev => {
-      const updated = { ...prev };
-
-      selectedCats.forEach(cat => {
-        const bId = cat.bookingId || 'mockBooking';
-        const pId = cat.id || cat.rawPet?.id || cat.petId;
-        const key = `${bId}_${pId}`;
-        const existing = updated[key] || [];
-
-        const newCatLogs = entriesToAdd.map(e => ({
-          ...e,
-          id: `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-          rawDate,
-          date: dateLabel,
-          time,
-          petName: cat.catName || cat.name || 'Bé cưng',
-          createdAt: new Date().toISOString()
-        }));
-
-        updated[key] = [...newCatLogs, ...existing];
-      });
-
-      saveLogsToStorage(updated);
-      return updated;
-    });
-
-    // Bắn thông báo demo cho các bé
+  // Hoàn tác một dòng nhật ký (trong 5 phút sau khi bấm)
+  const undoLog = useCallback(async (logId) => {
     try {
-      selectedCats.forEach(cat => {
-        triggerCareLogUpdateNotification({
-          userId: cat.ownerPhone || 'ducan',
-          petName: cat.catName || 'Bé cưng',
-          actionTitle: 'Cập nhật nhật ký chăm sóc hôm nay',
-          detail: 'Nhân viên vừa cập nhật tình hình ăn uống và sinh hoạt của bé!',
-        });
-      });
-    } catch (e) {}
-
-    return selectedCats.length;
-  }, [saveLogsToStorage]);
-
-  // Lấy nhật ký của 1 booking và 1 pet
-  const getLogs = useCallback((bookingId, petId) => {
-    if (!bookingId || !petId) return [];
-    const key = `${bookingId}_${petId}`;
-    return careLogs[key] || [];
-  }, [careLogs]);
-
-  // Nhóm nhật ký theo ngày cho giao diện khách hàng (Tracking / Timeline)
-  const getGroupedLogs = useCallback((bookingId, petId) => {
-    const logs = getLogs(bookingId, petId);
-    if (!logs || logs.length === 0) return [];
-
-    const groups = {};
-    logs.forEach(log => {
-      const dateKey = log.date || log.rawDate || 'Hôm nay';
-      if (!groups[dateKey]) {
-        groups[dateKey] = {
-          date: dateKey,
-          logs: []
-        };
+      const { ok, json } = await requestApi('DELETE', { id: logId });
+      if (ok) {
+        setLogs((prev) => prev.filter((l) => l.id !== logId));
+        notifyChanged(json.bookingCode ? [json.bookingCode] : []);
       }
-      groups[dateKey].logs.push(log);
-    });
+      return { ok, message: json.message };
+    } catch (e) {
+      return { ok: false, message: 'Không kết nối được máy chủ, vui lòng thử lại.' };
+    }
+  }, [notifyChanged]);
 
-    return Object.values(groups);
+  // Nhật ký của 1 bé trong 1 đơn, mới nhất trước, kèm ngày / giờ hiển thị theo giờ Việt Nam
+  const getLogs = useCallback((bookingId, petId) => {
+    if (!bookingId || petId == null) return [];
+    const todayKey = vnDateKey();
+    return logs
+      .filter((l) => l.bookingCode === bookingId && sameId(l.petId, petId))
+      .map((l) => withDisplayFields(l, todayKey));
+  }, [logs]);
+
+  // Nhóm nhật ký theo ngày cho giao diện khách hàng (Theo dõi lưu trú / Hồ sơ mèo)
+  const getGroupedLogs = useCallback((bookingId, petId) => {
+    const groups = [];
+    getLogs(bookingId, petId).forEach((log) => {
+      const last = groups[groups.length - 1];
+      if (last && last.dateKey === log.rawDate) last.logs.push(log);
+      else groups.push({ dateKey: log.rawDate, date: log.date, logs: [log] });
+    });
+    return groups;
   }, [getLogs]);
 
-  // Lấy tóm tắt trạng thái mới nhất hôm nay của bé
+  // Tình trạng 3 tác vụ hôm nay của 1 bé
   const getLatestStatus = useCallback((bookingId, petId) => {
-    const logs = getLogs(bookingId, petId);
-    const todayString = new Date().toLocaleDateString('vi-VN');
-    const logsToday = logs.filter(l => l.rawDate === todayString);
-
-    const fed = logsToday.some(l => l.type === 'eating');
-    const played = logsToday.some(l => l.type === 'mood' || l.type === 'play');
-    const hygiene = logsToday.some(l => l.type === 'hygiene');
-    const hasWarning = logsToday.some(l => l.status === 'watch');
-
-    const lastLog = logs[0] || null;
-
+    const petLogs = getLogs(bookingId, petId);
     return {
-      fed,
-      played,
-      hygiene,
-      hasWarning,
-      logsToday,
-      lastLog,
-      totalLogs: logs.length
+      ...getTodayTaskStatus(petLogs),
+      lastLog: petLogs[0] || null,
+      totalLogs: petLogs.length,
     };
   }, [getLogs]);
 
-  return (
-    <CareLogContext.Provider value={{
-      careLogs,
-      addCareLog,
-      addBulkCareLog,
-      getLogs,
-      getGroupedLogs,
-      getLatestStatus
-    }}>
-      {children}
-    </CareLogContext.Provider>
-  );
+  const value = useMemo(() => ({
+    careLogs: logs,
+    dailyTasks: DAILY_TASKS,
+    refresh,
+    addCareLog,
+    addBulkCareLog,
+    completeTask,
+    undoLog,
+    getLogs,
+    getGroupedLogs,
+    getLatestStatus,
+  }), [logs, refresh, addCareLog, addBulkCareLog, completeTask, undoLog, getLogs, getGroupedLogs, getLatestStatus]);
+
+  return <CareLogContext.Provider value={value}>{children}</CareLogContext.Provider>;
 };
 
 export const useCareLog = () => useContext(CareLogContext);
-

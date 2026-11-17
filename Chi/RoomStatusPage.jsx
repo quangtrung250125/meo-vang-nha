@@ -20,6 +20,31 @@ import {
 import { useRoomState, ROOM_CONFIG, getRoomStatus, displayCheckOut } from './RoomStateContext';
 import BookingDetailModal from './BookingDetailModal';
 import { PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS, isDepositOverdue, getDepositDueAt, formatVietnamDateTime } from '../src/utils/bookingDeposit';
+import { useCareLog } from '../src/contexts/CareLogContext';
+import { DAILY_TASKS } from '../src/utils/careTasks';
+import { getBookingPets } from '../src/utils/stayingCats';
+import { BOOKING_STATUS, normalizeStatusValue } from '../src/utils/bookingStatus';
+
+// Tiến độ tác vụ hôm nay của một đơn đang ở (cùng nhật ký với trang Tổng quan): số bé đã xong / tổng số bé
+const TASK_EMOJI = { fed: '🍽', played: '🎾', hygiene: '🧹' };
+const CareTaskProgress = ({ booking }) => {
+  const { getLatestStatus } = useCareLog();
+  const pets = getBookingPets(booking);
+  const list = pets.length > 0 ? pets : [{ id: `pet_${booking.code}` }];
+  const statuses = list.map((pet) => getLatestStatus(booking.code, pet.id));
+  return (
+    <div className="flex items-center gap-2 px-2.5 text-[10px] font-semibold text-gray-500" title="Tác vụ hôm nay: Cho ăn · Vận động · Dọn vệ sinh">
+      {DAILY_TASKS.map(({ key, label }) => {
+        const doneCount = statuses.filter((st) => st[key]).length;
+        return (
+          <span key={key} className={doneCount === list.length ? 'text-emerald-600' : ''} title={label}>
+            {TASK_EMOJI[key]} {doneCount}/{list.length}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
 /**
  * RoomStatusPage - Trang "Tình trạng phòng" dành riêng cho Admin
@@ -386,6 +411,9 @@ const RoomCard = ({ room, bookings, isMaintenance, onToggleMaintenance, newBooki
                       </span>
                     </div>
                   </div>
+                  {normalizeStatusValue(bk.status) === BOOKING_STATUS.IN_HOUSE && (
+                    <CareTaskProgress booking={bk._booking || bk} />
+                  )}
                   {/* Quá 24 giờ chưa nhận cọc: nhân viên gọi nhắc khách hoặc hủy đơn luôn */}
                   {overdue && (
                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] text-rose-700">
