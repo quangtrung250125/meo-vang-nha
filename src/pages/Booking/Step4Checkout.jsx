@@ -156,6 +156,21 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     applyPromo({ ...promoRequest, pointsToUse: pts }, 'points');
   };
 
+  const handleUseMaxPoints = (e) => {
+    if (e) e.preventDefault();
+    const maxPercent = Number(loyalty?.rules?.maxRedeemPercentPerOrder) || 50;
+    const vDiscount = Number(promo?.voucherDiscount) || 0;
+    const maxCapByOrder = Math.floor(((total - vDiscount) * maxPercent) / 100 / valuePerPoint);
+    const maxAllowed = Math.max(0, Math.min(pointBalance, maxCapByOrder));
+    if (maxAllowed <= 0) {
+      setPointsError('Không có điểm khả dụng hoặc đơn hàng không thể giảm thêm bằng điểm.');
+      return;
+    }
+    setPointsInput(String(maxAllowed));
+    setPointsError('');
+    applyPromo({ ...promoRequest, pointsToUse: maxAllowed }, 'points');
+  };
+
   const handleRemovePoints = () => {
     setPointsInput('');
     applyPromo({ ...promoRequest, pointsToUse: 0 }, 'points');
@@ -352,7 +367,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     }
 
     setIsSubmitting(false);
-    onNext();
+    onNext(confirmedCode, confirmedBooking);
   };
 
   return (
@@ -444,7 +459,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             <label className="block text-xs font-bold uppercase text-gray-700 mb-2 flex items-center justify-between gap-1.5">
               <span className="flex items-center gap-1.5">
                 <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                <span>Dùng điểm thưởng</span>
+                <span>Dùng điểm tích lũy</span>
               </span>
               {isLoggedIn && (
                 <span className="normal-case font-semibold text-gray-500">
@@ -456,9 +471,9 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
               <div className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-xl px-4 py-2.5">
                 <div className="text-sm">
                   <span className="font-black text-amber-700">{promo.pointsUsed.toLocaleString()} điểm</span>
-                  <p className="text-xs font-bold text-emerald-700">Giảm {pointsDiscount.toLocaleString()}đ</p>
+                  <p className="text-xs font-bold text-emerald-700">Giảm {pointsDiscount.toLocaleString()}đ (áp dụng vào hóa đơn)</p>
                 </div>
-                <button type="button" onClick={handleRemovePoints} className="text-gray-400 hover:text-red-500 p-1" title="Không dùng điểm">
+                <button type="button" onClick={handleRemovePoints} className="text-gray-400 hover:text-red-500 p-1 cursor-pointer" title="Không dùng điểm">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -467,19 +482,30 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
                 <input
                   type="number"
                   min="0"
+                  max={pointBalance}
                   value={pointsInput}
                   onChange={(e) => { setPointsInput(e.target.value); setPointsError(''); }}
-                  placeholder={isLoggedIn ? 'Số điểm muốn dùng' : 'Đăng nhập để dùng điểm thưởng'}
+                  placeholder={isLoggedIn ? (pointBalance > 0 ? 'Nhập số điểm muốn dùng' : 'Bạn chưa có điểm tích lũy') : 'Đăng nhập để dùng điểm tích lũy'}
                   disabled={!isLoggedIn || isQuoting || pointBalance <= 0}
                   data-testid="points-input"
                   className="flex-1 min-w-0 border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-semibold focus:outline-none focus:border-accent bg-white disabled:bg-gray-100"
                 />
                 <button
+                  type="button"
+                  onClick={handleUseMaxPoints}
+                  disabled={!isLoggedIn || isQuoting || pointBalance <= 0}
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold px-3 py-2.5 rounded-xl transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  data-testid="use-max-points-btn"
+                  title="Dùng tối đa số điểm (tối đa 50% giá trị hóa đơn)"
+                >
+                  Dùng tối đa
+                </button>
+                <button
                   type="submit"
                   disabled={!isLoggedIn || isQuoting || pointBalance <= 0}
-                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-60"
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm disabled:opacity-60 cursor-pointer whitespace-nowrap"
                 >
-                  Dùng điểm
+                  Áp dụng
                 </button>
               </form>
             )}
@@ -487,8 +513,8 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
             {isLoggedIn && !pointsError && !(promo?.pointsUsed > 0) && (
               <p className="text-[11px] mt-1.5 text-gray-500">
                 {pointBalance > 0
-                  ? `Tối thiểu ${Number(loyalty?.rules?.minPointsToRedeem) || 0} điểm, trừ tối đa ${Number(loyalty?.rules?.maxRedeemPercentPerOrder) || 0}% giá trị đơn.`
-                  : 'Bạn chưa có điểm. Mỗi đơn hoàn tất (check-out) sẽ được cộng điểm.'}
+                  ? `Giảm tối đa ${Number(loyalty?.rules?.maxRedeemPercentPerOrder) || 50}% giá trị đơn hàng (1 điểm = ${valuePerPoint.toLocaleString()}đ).`
+                  : 'Bạn chưa có điểm. Mỗi đơn hoàn tất (check-out) sẽ được cộng điểm theo tỷ lệ 10.000đ = 1 điểm.'}
               </p>
             )}
           </div>

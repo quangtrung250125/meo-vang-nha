@@ -608,11 +608,11 @@ export const initialLoyaltyTiers = [
 ];
 
 export const initialLoyaltyRules = {
-  spendForOnePoint: 10000, // 10.000đ = 1 điểm
+  spendForOnePoint: 10000, // 10.000đ = 1 điểm (cứ 10.000đ thực trả = 1 điểm)
   valuePerPoint: 1000, // 1 điểm = 1.000đ khi đổi
   pointExpiryMonths: 12, // Điểm có hạn 12 tháng
-  minPointsToRedeem: 50, // Tối thiểu 50 điểm mới được đổi
-  maxRedeemPercentPerOrder: 30, // Tối đa đổi 30% giá trị đơn hàng
+  minPointsToRedeem: 0, // Không giới hạn tối thiểu (có điểm là dùng được)
+  maxRedeemPercentPerOrder: 50, // Tối đa giảm 50% giá trị hóa đơn
   reviewPeriodMonths: 6, // Chu kỳ xét lại hạng
   downgradeMonths: 6, // Hạ hạng nếu không đặt phòng sau 6 tháng
   autoUpgradeOnOrderCompleted: true,

@@ -27,13 +27,13 @@ const Header = () => {
   const loyaltyPoints = Number(loyalty?.points) || 0;
   const { openAuth, openSearch } = useUI();
 
-  // Current active user details (fallback to ducan demo if not set)
+  // Current active user details (fallback to anonymous if not set)
   const currentUser = authenticatedCustomer || {
-    fullName: 'ducan',
-    email: 'ducan12345atm@gmail.com',
-    phone: '0901234567',
-    tier: 'gold',
-    points: 850,
+    fullName: 'Khách hàng',
+    email: '',
+    phone: '',
+    tier: 'bronze',
+    points: 0,
     avatar: DEFAULT_AVATAR
   };
 

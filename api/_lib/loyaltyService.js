@@ -142,6 +142,14 @@ export async function claimReferral(user, rawCode, { bookings = null, now = Date
   if (config.referralSettings?.enabled === false) return { ok: false, message: 'Chương trình giới thiệu bạn bè đang tạm dừng.' };
 
   const referrer = (await getRow(`account:${owner.userId}`)) || { userId: owner.userId };
+  // Chống gian lận cơ bản: chặn tự giới thiệu bằng trùng số điện thoại hoặc email
+  const normPhone = (p) => String(p || '').replace(/\D/g, '').replace(/^84/, '0');
+  if (user.phone && referrer.phone && normPhone(user.phone) === normPhone(referrer.phone)) {
+    return { ok: false, message: 'Bạn không thể tự giới thiệu chính mình (trùng số điện thoại với người giới thiệu).' };
+  }
+  if (user.email && referrer.email && user.email.trim().toLowerCase() === referrer.email.trim().toLowerCase()) {
+    return { ok: false, message: 'Bạn không thể tự giới thiệu chính mình (trùng email với người giới thiệu).' };
+  }
   const nextAccount = { ...account, referredByCode: code, referredByUserId: owner.userId };
   await putRow(`account:${user.id}`, 'account', user.id, nextAccount);
   await putRow(`referral:${user.id}`, 'referral', owner.userId, {
@@ -211,6 +219,25 @@ export async function reconcileCustomer(userId, { bookings = null, config = null
     changed = true;
   }
 
+  // Đơn bị hủy / hoàn tiền sau khi đã cộng điểm: tự động trừ lại đúng số điểm đã cộng
+  const cancelledBookings = mine.filter(isCancelledBooking);
+  const currentLedger = await listRows('ledger', userId);
+  for (const b of cancelledBookings) {
+    const code = codeOf(b);
+    const earnEntry = currentLedger.find((e) => e.id === `earn:${code}`);
+    if (earnEntry && !ledgerIds.has(`revert_earn:${code}`)) {
+      const added = await insertRowOnce(`revert_earn:${code}`, 'ledger', userId, {
+        delta: -Math.abs(Number(earnEntry.delta) || 0),
+        type: 'adjust',
+        bookingCode: code,
+        reason: `Thu hồi ${earnEntry.delta} điểm tích lũy do đơn ${code} bị hủy / hoàn tiền`,
+        actor: 'Hệ thống tự động',
+        at: new Date().toISOString(),
+      });
+      changed = changed || added;
+    }
+  }
+
   // 3. Giới thiệu bạn bè: khách B hoàn tất (check-out) đơn đầu tiên -> khách A được ghi nhận + thưởng điểm
   const referral = await getRow(`referral:${userId}`);
   if (referral && referral.status !== 'completed' && completed.length > 0) {
@@ -235,6 +262,31 @@ export async function reconcileCustomer(userId, { bookings = null, config = null
         actor: 'Hệ thống tự động',
         at: new Date().toISOString(),
       });
+    }
+    changed = true;
+  } else if (referral && referral.status === 'completed' && completed.length === 0) {
+    // Đơn đầu tiên của B bị hủy sau khi check-out: hoàn lại trạng thái chờ và thu hồi điểm thưởng của A
+    const revertDone = {
+      ...referral,
+      status: 'registered',
+      orderCode: null,
+      orderTotal: 0,
+      completedAt: null,
+      rewardPoints: 0,
+    };
+    await putRow(`referral:${userId}`, 'referral', referral.referrerUserId, revertDone);
+    if (referral.rewardPoints > 0) {
+      const aLedger = await listRows('ledger', referral.referrerUserId);
+      if (!aLedger.some((e) => e.id === `revert_refbonus:${userId}`)) {
+        await insertRowOnce(`revert_refbonus:${userId}`, 'ledger', referral.referrerUserId, {
+          delta: -Number(referral.rewardPoints),
+          type: 'adjust',
+          bookingCode: referral.orderCode || '',
+          reason: `Thu hồi ${referral.rewardPoints} điểm thưởng giới thiệu do đơn đầu của ${referral.refereeName || 'bạn mới'} bị hủy`,
+          actor: 'Hệ thống tự động',
+          at: new Date().toISOString(),
+        });
+      }
     }
     changed = true;
   }
@@ -266,7 +318,23 @@ async function customerSummary(user, { accessToken = null } = {}) {
   const { tier, next, progress } = tierFor(spending, config.tiers);
   const tierKey = tierKeyOf(tier);
   const group = customerGroupOf(spending, tierKey);
-  const sortedLedger = ledger.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  // Tính số dư sau mỗi giao dịch (sắp xếp tăng dần theo thời gian để cộng dồn, sau đó đảo ngược để hiển thị mới nhất trước)
+  const chrono = [...ledger].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+  let running = 0;
+  const ledgerWithBalance = chrono.map((e) => {
+    running += Number(e.delta) || 0;
+    return {
+      id: e.id,
+      delta: Number(e.delta) || 0,
+      type: e.type,
+      reason: e.reason,
+      actor: e.actor || '',
+      bookingCode: e.bookingCode || '',
+      at: e.at,
+      balanceAfter: running,
+    };
+  });
+  const sortedLedger = ledgerWithBalance.reverse();
   const myReferrals = referrals
     .filter((r) => r.referrerUserId === user.id)
     .map((r) => ({
@@ -278,7 +346,7 @@ async function customerSummary(user, { accessToken = null } = {}) {
     }));
   return {
     points: balanceOf(ledger),
-    ledger: sortedLedger.map((e) => ({ id: e.id, delta: e.delta, type: e.type, reason: e.reason, bookingCode: e.bookingCode || '', at: e.at })),
+    ledger: sortedLedger,
     tier,
     tierKey,
     nextTier: next,
@@ -337,7 +405,7 @@ export async function quotePromo({ user, booking, voucherCode = '', pointsToUse 
   const wantsVoucher = Boolean(normalizeCode(voucherCode));
   const wantsPoints = Number(pointsToUse) > 0;
   if (!wantsVoucher && !wantsPoints) return { ok: true, promo: null };
-  if (!user?.id || user.isAdmin) return { ok: false, message: 'Vui lòng đăng nhập tài khoản khách hàng để dùng mã giảm giá hoặc điểm thưởng.' };
+  if (!user?.id) return { ok: false, message: 'Vui lòng đăng nhập tài khoản để dùng mã giảm giá hoặc điểm thưởng.' };
 
   const config = await getLoyaltyConfig();
   const mine = bookingsOfUser(await allBookings(accessToken), user.id)
@@ -499,13 +567,32 @@ async function adminOverview(accessToken) {
 
   const bookingByCode = new Map(bookings.map((b) => [codeOf(b), b]));
   const nameOf = (id) => customers.find((c) => c.id === id)?.fullName || accountById.get(id)?.fullName || '';
+  // Tính số dư sau giao dịch cho từng khách trong sổ nhật ký
+  const customerRunningBalances = {};
+  const chronoAdminLedger = [...ledger].sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+  const ledgerWithBalances = chronoAdminLedger.map((e) => {
+    const cid = e.userId || 'anonymous';
+    customerRunningBalances[cid] = (customerRunningBalances[cid] || 0) + (Number(e.delta) || 0);
+    return {
+      id: e.id,
+      customerId: e.userId,
+      customerName: nameOf(e.userId),
+      delta: Number(e.delta) || 0,
+      balanceAfter: customerRunningBalances[cid],
+      type: e.type,
+      reason: e.reason,
+      actor: e.actor,
+      bookingCode: e.bookingCode || '',
+      at: e.at,
+    };
+  });
+  const adminSortedLedger = ledgerWithBalances.reverse();
+
   return {
     config,
     database: isUsingDatabase(),
     customers,
-    ledger: ledger
-      .map((e) => ({ id: e.id, customerId: e.userId, customerName: nameOf(e.userId), delta: e.delta, type: e.type, reason: e.reason, actor: e.actor, bookingCode: e.bookingCode || '', at: e.at }))
-      .sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))),
+    ledger: adminSortedLedger,
     redemptions: redemptions.map((r) => {
       const b = bookingByCode.get(r.bookingCode) || {};
       return {

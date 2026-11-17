@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../supabaseClient';
+import { isReviewEligible } from '../utils/bookingReview';
 import { triggerBookingConfirmedNotification, triggerBookingCompletedNotification, sendNotification } from '../services/notificationTriggers';
 import {
   fetchServerSync,
@@ -483,13 +484,14 @@ export const BookingHistoryProvider = ({ children }) => {
     if (!waitForServer) writeToSupabase();
 
     // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
-    if (updatedData?.status === 'Đã hoàn tất' || updatedData?.status === 'check-out') {
+    if (isReviewEligible(updatedData) && target && !isReviewEligible(target)) {
       triggerBookingCompletedNotification({
-        userId: target?.customerId || target?.customerPhone || 'ducan',
-        bookingCode: bookingId,
-        petNames: target?.catNames || target?.petName || 'Bé mèo',
+        userId: target.customerId || target.customer_id || target.customerPhone || target.ownerPhone,
+        bookingCode: target.code || target.id,
+        petNames: target.catNames || target.petProfiles?.map(p => p.name).join(', '),
       });
     }
+
     return serverResult;
   };
 
@@ -947,6 +949,7 @@ export const BookingHistoryProvider = ({ children }) => {
     return { ok: true, booking: findBooking(bookingId) };
   };
 
+
   return (
     <BookingHistoryContext.Provider
       value={{
@@ -975,6 +978,9 @@ export const BookingHistoryProvider = ({ children }) => {
   );
 };
 
+export const BookingHistoryPreviewProvider = ({ children, value }) => (
+  <BookingHistoryContext.Provider value={value}>{children}</BookingHistoryContext.Provider>
+);
 export const useBookingHistory = () => {
   const context = useContext(BookingHistoryContext);
   if (!context) {

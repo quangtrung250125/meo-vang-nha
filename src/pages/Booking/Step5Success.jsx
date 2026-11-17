@@ -21,7 +21,7 @@ const Step5Success = ({ data, onBackToStep1 }) => {
   const { upsertBooking, globalBookingList } = useBookingHistory();
   const { addNewBooking, bookings } = useRoomState();
   const { authenticatedCustomer, customerProfile } = useCustomerProfile();
-  const hasAdded = useRef(false);
+  const hasAdded = useRef(Boolean(initialBookingId));
   // Số tiền khách phải trả: tổng dịch vụ đã trừ mã giảm giá và điểm thưởng
   const paymentTotal = data.confirmedBooking ? payableAtBooking(data.confirmedBooking) : 0;
 

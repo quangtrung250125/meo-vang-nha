@@ -17,7 +17,7 @@ export const LoyaltyProvider = ({ children }) => {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!userId || isAdmin) {
+    if (!userId) {
       setLoyalty(null);
       return null;
     }
@@ -32,7 +32,7 @@ export const LoyaltyProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [userId, isAdmin]);
+  }, [userId]);
 
   useEffect(() => {
     refresh();

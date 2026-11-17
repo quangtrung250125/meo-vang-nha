@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, AlertCircle, AlertTriangle, Bell, BellOff, Search, Eye, MousePointerClick } from 'lucide-react';
+import { Send, AlertTriangle, Bell, BellOff, Search, Eye, MousePointerClick } from 'lucide-react';
 import { PUSH_DESTINATIONS, composeMessage, destinationLabel } from '../../utils/marketingEngine';
 import useMessengerInbox from './useMessengerInbox';
 import MessengerThread from './MessengerThread';
@@ -127,12 +127,7 @@ const Tab5Inbox = ({ messages = [], customers = [], deviceCountOf, send, status 
 
   return (
     <div className="space-y-4">
-      <div className="px-4 py-3 bg-sky-50 border border-sky-100 rounded-xl flex items-start gap-3">
-        <AlertCircle className="h-4 w-4 text-sky-600 shrink-0 mt-0.5" />
-        <p className="text-xs text-sky-700 font-medium">
-          Gom tin khách nhắn Fanpage qua <b>Messenger</b> và thông báo đã gửi cho khách trên <b>Web</b> (Web Push). Khách đã có tài khoản web hiện họ tên đầy đủ, SĐT và mèo; bấm “Hồ sơ khách hàng” để xem chi tiết.
-        </p>
-      </div>
+
       <MessengerSetup status={messenger.status} />
       {messenger.status && messenger.status.database === false && (
         <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-700">

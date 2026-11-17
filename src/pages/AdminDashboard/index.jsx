@@ -7,7 +7,7 @@ import { useRoomState, ROOM_CONFIG } from '../../../Chi/RoomStateContext';
 import useCustomerData from '../AdminCustomers/useCustomerData';
 import { getStayingCats, getTodayCheckIns, getTodayCheckOuts } from '../../utils/stayingCats';
 import { getDailyTask, getTodayTaskStatus, vnTime } from '../../utils/careTasks';
-import { mockReviews } from '../AdminReviews';
+import { useReviews } from '../../contexts/ReviewsContext';
 import { computeDashboardKpis, computeRevenueSeries, computeRoomHeatmap } from '../../utils/dashboardReport';
 import { todayInVietnam } from '../../utils/bookingDeposit';
 
@@ -31,6 +31,7 @@ import { BedDouble, Users, AlertTriangle, ShieldCheck, CheckCircle2, Flame } fro
 import { Link, useLocation } from 'react-router-dom';
 
 const AdminDashboard = () => {
+  const { reviews } = useReviews();
   const location = useLocation();
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const basePrefix = isDirectAdminRoute ? '/admin' : '';
@@ -104,11 +105,7 @@ const AdminDashboard = () => {
   const todayCheckOutList = useMemo(() => getTodayCheckOuts(roomBookings, todayDateStr), [roomBookings, todayDateStr]);
 
   // Đồng bộ khiếu nại thực tế từ module Đánh giá & Phản hồi (AdminReviews)
-  const complaintsList = useMemo(() => {
-    return mockReviews.filter(
-      (r) => r.status === 'complaint' || r.status === 'pending' || r.rating <= 3
-    );
-  }, []);
+  const complaintsList = useMemo(() => reviews.filter(r => r.rating < 3 && !r.reply).map(r => ({...r,id:r.bookingCode,author:r.authorName,petName:r.petNames,status:'pending'})), [reviews]);
 
   // Handler Check-in 1 chạm từ Tổng quan
   const handlePerformCheckIn = (roomId, bookingId) => {

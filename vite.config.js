@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing') && !req.url.startsWith('/api/camera')) {
+        if (!req.url.startsWith('/api/reviews') && !req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing') && !req.url.startsWith('/api/camera')) {
           return next();
         }
 
@@ -42,6 +42,11 @@ function apiDevPlugin() {
         const urlPath = req.url.split('?')[0];
 
         try {
+          if (urlPath.startsWith('/api/reviews/')) {
+            if (req.method === 'POST') req.body = await parseBody();
+            const { handleReviews: handler } = await import('./api/_lib/reviewsHandler.js');
+            return handler(req,res);
+          }
           if (urlPath === '/api/sync') {
             if (req.method === 'POST') {
               req.body = await parseBody();
@@ -50,32 +55,9 @@ function apiDevPlugin() {
             return handleSync(req, res);
           }
           if (urlPath === '/api/bookings') {
-            const { isCareLogsRequest, handleCareLogs } = await import('./api/_lib/careLogsService.js');
-            if (isCareLogsRequest(req)) {
-              if (req.method === 'POST' || req.method === 'DELETE') {
-                req.body = await parseBody();
-              }
-              return handleCareLogs(req, res);
-            }
-            if (req.method === 'GET') {
-              const { handleGetBookings } = await import('./api/_lib/bookingsService.js');
-              return handleGetBookings(req, res);
-            }
-            if (req.method === 'POST') {
-              req.body = await parseBody();
-              const { handleAddBooking } = await import('./api/_lib/bookingsService.js');
-              return handleAddBooking(req, res);
-            }
-            if (req.method === 'PUT' || req.method === 'PATCH') {
-              req.body = await parseBody();
-              const { handleUpdateBooking } = await import('./api/_lib/bookingsService.js');
-              return handleUpdateBooking(req, res);
-            }
-            if (req.method === 'DELETE') {
-              req.body = await parseBody();
-              const { handleRemoveBooking } = await import('./api/_lib/bookingsService.js');
-              return handleRemoveBooking(req, res);
-            }
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) req.body = await parseBody();
+            const { default: handler } = await import('./api/bookings/index.js');
+            return handler(req, res);
           }
           if (urlPath.startsWith('/api/marketing/')) {
             if (req.method === 'POST' || req.method === 'PUT') {
@@ -167,4 +149,3 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
-

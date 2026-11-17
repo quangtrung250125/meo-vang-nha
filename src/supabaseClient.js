@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class {};
+}
+
 const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) ? process.env : {};
 
 const rawUrl = env.VITE_SUPABASE_URL;

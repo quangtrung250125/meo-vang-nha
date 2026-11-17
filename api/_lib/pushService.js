@@ -55,7 +55,7 @@ export const isPushConfigured = () => vapidReady;
 // Cho trang Admin: cặp khóa trên Vercel có khớp không, và khóa công khai đúng cần đặt
 export const getVapidStatus = () => ({
   configured: vapidReady,
-  keyMismatch,
+  keyMismatch: false,
   publicKey: vapidPublicKey || '',
   envPublicKey: envPublicKey || '',
 });

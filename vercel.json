@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/reviews/:action",
+      "destination": "/api/bookings?reviewAction=:action"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

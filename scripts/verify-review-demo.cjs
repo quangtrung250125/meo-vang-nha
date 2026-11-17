@@ -1,0 +1,40 @@
+const {chromium,expect}=require('@playwright/test');
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try {
+ const context=await browser.newContext({viewport:{width:1280,height:800}}),errors=[];
+ await context.route('**/api/**',r=>['fetch','xhr'].includes(r.request().resourceType())?r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({bookings:{},closedBookings:[],messages:[],items:[],reviews:[]})}):r.continue());
+ await context.route('https://*.supabase.co/**',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
+ const customer=await context.newPage();customer.on('pageerror',e=>errors.push(e.message));
+ await customer.goto('http://127.0.0.1:5174/review-demo',{waitUntil:'networkidle'});
+ await customer.getByRole('button',{name:'Làm lại demo',exact:true}).click();
+ await expect(customer.getByRole('heading',{name:'Lịch Đặt Của Tôi'})).toBeVisible();
+ await customer.getByRole('button',{name:'Thông báo đơn đặt'}).first().click();
+ await customer.getByRole('button').filter({hasText:'Mời bạn đánh giá kỳ nghỉ của bé!'}).click();
+ const dialog=customer.getByRole('dialog');await expect(dialog).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Gửi đánh giá',exact:true})).toBeDisabled();
+ await dialog.getByRole('button',{name:'5 sao',exact:true}).click();
+ await dialog.getByRole('button',{name:'Chăm sóc tận tâm',exact:true}).click();
+ await dialog.getByRole('button',{name:'Nhật ký & ảnh đầy đủ',exact:true}).click();
+ await dialog.getByRole('textbox').fill('Gửi Bơ lần đầu mà yên tâm hết sức. Ngày nào cũng có ảnh, bé về khỏe re!');
+ await dialog.getByRole('checkbox').check();
+ await customer.screenshot({path:'review-video-customer-modal.png'});
+ await dialog.getByRole('button',{name:'Gửi đánh giá',exact:true}).click();await expect(dialog).toHaveCount(0);
+ await expect(customer.getByText('Bạn đã đánh giá',{exact:true})).toBeVisible();
+ await customer.getByRole('button',{name:'Sửa đánh giá',exact:true}).click();await expect(dialog.getByRole('textbox')).toHaveValue(/Gửi Bơ/);await dialog.getByRole('button',{name:'4 sao',exact:true}).click();await dialog.getByRole('button',{name:'Lưu thay đổi',exact:true}).click();
+ await customer.reload({waitUntil:'networkidle'});await expect(customer.getByText('Bạn đã đánh giá',{exact:true})).toBeVisible();
+ const admin=await context.newPage();admin.on('pageerror',e=>errors.push(e.message));await admin.goto('http://127.0.0.1:5174/review-demo/admin',{waitUntil:'networkidle'});
+ await admin.getByRole('button',{name:'Trả lời',exact:true}).click();await admin.getByRole('textbox',{name:'Nội dung trả lời'}).fill('Cảm ơn chị Lan đã tin tưởng gửi Bơ! Hẹn gặp lại hai mẹ con lần sau.');await admin.getByRole('button',{name:'Gửi trả lời',exact:true}).click();
+ await expect(customer.getByText('Cảm ơn chị Lan đã tin tưởng gửi Bơ! Hẹn gặp lại hai mẹ con lần sau.',{exact:true})).toBeVisible();
+ await admin.getByRole('button',{name:'Duyệt hiển thị trên trang chủ',exact:true}).click();await expect(admin.getByRole('button',{name:'Gỡ khỏi trang chủ',exact:true})).toBeVisible();await admin.screenshot({path:'review-video-admin.png'});
+ const home=await context.newPage();home.on('pageerror',e=>errors.push(e.message));await home.goto('http://127.0.0.1:5174/review-demo/home',{waitUntil:'networkidle'});const publicSection=home.getByRole('region',{name:'Đánh giá từ khách hàng'});await expect(publicSection).toBeVisible();await expect(publicSection.getByText('N. T. Lan',{exact:true})).toBeVisible();
+ await admin.getByRole('button',{name:'Gỡ khỏi trang chủ',exact:true}).click();await expect(publicSection).toHaveCount(0);
+ await customer.setViewportSize({width:390,height:844});await customer.getByRole('button',{name:'Sửa đánh giá',exact:true}).click();await expect(dialog).toBeVisible();if(await customer.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth))throw Error('Mobile horizontal overflow');await customer.screenshot({path:'review-video-mobile.png'});await dialog.getByRole('button',{name:'Đóng đánh giá',exact:true}).click();
+ await customer.getByRole('button',{name:'Thử từ bước check out',exact:true}).click();await expect(customer.getByRole('button',{name:'Check-out',exact:true})).toBeVisible();await customer.getByRole('button',{name:'Check-out',exact:true}).click();await customer.getByRole('link',{name:'Khách hàng',exact:true}).click();await expect(customer.getByRole('button',{name:'★ Đánh giá',exact:true})).toBeVisible();
+ await customer.getByRole('button',{name:'★ Đánh giá',exact:true}).click();await dialog.getByRole('button',{name:'2 sao',exact:true}).click();await dialog.getByRole('button',{name:'Gửi đánh giá',exact:true}).click();
+ await expect(admin.getByRole('button',{name:'Duyệt hiển thị trên trang chủ',exact:true})).toBeDisabled();await admin.getByRole('button',{name:/Cần xử lý/}).click();await expect(admin.getByText('Khách chưa đồng ý hiển thị',{exact:true})).toBeVisible();
+ await customer.getByRole('button',{name:'Làm lại demo',exact:true}).click();
+ if(errors.length)throw Error('Runtime errors: '+JSON.stringify(errors));
+ console.log('PASS: checkout notification, reference-style popup, tags, consent, editing, persistence, cross-tab reply, approval/unpublish, public privacy, low-rating queue, and mobile layout.');
+ } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});

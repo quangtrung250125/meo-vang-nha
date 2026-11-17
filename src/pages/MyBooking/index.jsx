@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { isReviewEligible, canEditReview } from '../../utils/bookingReview';
+import { useReviews } from '../../contexts/ReviewsContext';
+import ReviewModal from '../../components/ReviewModal';
+import BookingReviewSummary from '../../components/BookingReviewSummary';
 import { 
   PawPrint, 
   Calendar, 
@@ -127,7 +131,16 @@ const MyBooking = () => {
 
   const [activeTab, setActiveTab] = useState('ALL');
   // Mở từ thông báo đẩy (/my-booking?code=MVN-...): cuộn tới và tô sáng đúng đơn đó
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { reviews, saveReview, error: reviewsError } = useReviews();
+  const [reviewBooking, setReviewBooking] = useState(null);
+  const reviewCode = searchParams.get('review');
+  useEffect(() => {
+    if (!reviewCode || isAdmin) return;
+    const target = globalBookingList.find(b => (b.code === reviewCode || b.id === reviewCode) && isBookingOfCustomer(b, authenticatedCustomer) && isReviewEligible(b));
+    if (target) setReviewBooking(target);
+  }, [reviewCode, globalBookingList, authenticatedCustomer, isAdmin]);
+  const closeReview = () => { setReviewBooking(null); if(reviewCode){const next=new URLSearchParams(searchParams);next.delete('review');setSearchParams(next,{replace:true});} };
   const highlightCode = searchParams.get('code') || '';
   const [selectedBookingForApproval, setSelectedBookingForApproval] = useState(null);
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
@@ -242,6 +255,8 @@ const MyBooking = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#FAF8F5]/80 pb-20">
+      {reviewBooking && <ReviewModal key={reviewBooking.code || reviewBooking.id} bookingCode={reviewBooking.code || reviewBooking.id} petNames={reviewBooking.petProfiles?.map(p=>p.name).join(', ') || reviewBooking.catNames || 'mèo cưng'} review={reviews.find(r=>r.bookingCode===(reviewBooking.code || reviewBooking.id))} onClose={closeReview} onSubmit={async value=>{await saveReview(reviewBooking.code || reviewBooking.id,value);toast.success('Cảm ơn bạn đã đánh giá kỳ nghỉ của bé!');}}/>}
+      {reviewsError && !isAdmin && <p role="alert" className="max-w-5xl mx-auto px-4 pt-4 text-sm text-amber-700">Chưa tải được đánh giá: {reviewsError}</p>}
       {/* Modals */}
       <CustomerApprovalModal
         isOpen={Boolean(selectedBookingForApproval)}
@@ -383,6 +398,7 @@ const MyBooking = () => {
               const packageDesc = booking.packages?.length ? booking.packages.join(' + ') : (booking.selectedPackage?.name || 'Gói chăm sóc tiêu chuẩn');
               const roomLabel = booking.selectedRoom?.name || booking.roomId || booking.selectedRoom?.id;
               const firstPetImage = resolvedPets[0]?.imagePreview;
+              const savedReview = reviews.find(r => r.bookingCode === (booking.code || booking.id));
 
               const isUpcoming = booking.normalizedStatus === BOOKING_STATUS.UPCOMING;
               const isInHouse = booking.normalizedStatus === BOOKING_STATUS.IN_HOUSE;
@@ -533,6 +549,7 @@ const MyBooking = () => {
                         )}
                       </div>
 
+                      {!isAdmin && <BookingReviewSummary review={savedReview}/>}
                       {/* Thông báo nếu đơn đã hủy kèm lý do */}
                       {isCancelled && booking.cancelReason && (
                         <p className="mt-2 text-xs text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 inline-block">
@@ -561,6 +578,11 @@ const MyBooking = () => {
                     {/* VÙNG NÚT THAO TÁC CỦA KHÁCH HÀNG (ACTIONS) */}
                     <div className="flex flex-col sm:flex-row items-center gap-2.5 shrink-0 w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                       
+                      {!isAdmin && isBookingOfCustomer(booking, authenticatedCustomer) && isReviewEligible(booking) && canEditReview(savedReview) && (
+                        <button onClick={() => setReviewBooking(booking)} className="w-full sm:w-auto px-5 py-3 rounded-xl text-sm font-bold bg-orange-500 text-white hover:bg-orange-600 transition-colors">
+                          {savedReview ? 'Sửa đánh giá' : '★ Đánh giá'}
+                        </button>
+                      )}
                       {/* 1. Nếu đang IN_HOUSE: Nút theo dõi Camera */}
                       {isInHouse && (
                         <button 

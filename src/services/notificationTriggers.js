@@ -54,14 +54,8 @@ export async function triggerMediaUpdateNotification({ userId, petName }) {
 
 // 5. Khi hoàn tất kỳ lưu trú (Check-out)
 export async function triggerBookingCompletedNotification({ userId, bookingCode, petNames }) {
-  if (!userId) return null;
-  return sendServerPush({
-    userId,
-    title: '🏠 Bé mèo đã hoàn tất kỳ nghỉ dưỡng!',
-    body: `Cảm ơn bạn đã tin tưởng Mèo Vắng Nhà để chăm sóc cho bé ${petNames || 'mèo cưng'}. Hẹn sớm gặp lại bạn và bé!`,
-    url: '/customer-profile',
-    tag: `booking-completed-${bookingCode}`,
-  }).catch((err) => console.warn('[Trigger] Không thể gửi push hoàn tất đơn:', err));
+ if (!userId) return null;
+ return sendServerPush({userId, title:'Mời bạn đánh giá kỳ nghỉ của bé!', body:'Bé '+(petNames || 'mèo cưng')+' đã hoàn tất kỳ lưu trú. Cảm ơn bạn đã tin chọn Mèo Vắng Nhà. Nhấn để chia sẻ đánh giá nhé!', url:'/my-booking?review='+encodeURIComponent(bookingCode), tag:'booking-completed-'+bookingCode}).catch(err=>console.warn('[Review] Không gửi được thông báo:',err));
 }
 
 /**

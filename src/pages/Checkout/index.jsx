@@ -136,7 +136,7 @@ const Checkout = () => {
               Bé mèo đã được chăm sóc chu đáo với tiêu chuẩn tốt nhất và áp dụng ưu đãi chiết khấu 10%.
             </p>
             <button 
-              onClick={() => alert('Cảm ơn bạn đã gửi đánh giá 5 sao!')}
+              onClick={() => navigate('/my-booking')}
               className="w-full bg-accent text-white font-bold py-3.5 rounded-xl hover:bg-accent-hover transition-colors shadow-md shadow-accent/20 mb-3"
             >
               Đánh giá dịch vụ ⭐⭐⭐⭐⭐
