@@ -49,8 +49,15 @@ const Booking = () => {
     setBookingData(prev => ({ ...prev, ...newData }));
   };
 
-  const handleNext = () => {
-    if (currentStep < 5) setCurrentStep(prev => prev + 1);
+  const handleNext = (bookingId, confirmedBooking) => {
+    if (currentStep < 5) {
+      // Nếu có payload từ Step4, ghi vào state trước khi chuyển bước
+      // (dùng setBookingData functional để gom 2 update vào 1 render)
+      if (bookingId && confirmedBooking) {
+        setBookingData(prev => ({ ...prev, bookingId, confirmedBooking }));
+      }
+      setCurrentStep(prev => prev + 1);
+    }
   };
 
   // Báo server khách đang đặt phòng dở (kịch bản "Bỏ dở đặt phòng" của Marketing tự động), đặt xong thì xóa

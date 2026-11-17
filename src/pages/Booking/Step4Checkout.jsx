@@ -367,7 +367,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     }
 
     setIsSubmitting(false);
-    onNext();
+    onNext(confirmedCode, confirmedBooking);
   };
 
   return (

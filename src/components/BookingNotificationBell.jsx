@@ -9,6 +9,8 @@ import { PROPOSAL_LABEL, formatDateRange, isClosedStatus } from '../utils/bookin
 import { PAYMENT_STATUS, depositToTransferOf } from '../utils/bookingDeposit';
 import useMarketingInbox from '../hooks/useMarketingInbox';
 import { trackInboxClick } from '../services/marketingApi';
+import { isReviewEligible, reviewUrl } from '../utils/bookingReview';
+import { useReviews } from '../contexts/ReviewsContext';
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_MS;
@@ -24,10 +26,11 @@ const BookingNotificationBell = ({ className = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { globalBookingList } = useBookingHistory();
+  const { reviews } = useReviews();
   const { authenticatedCustomer, customerProfile, isAdmin } = useCustomerProfile();
   const { openApprovalModal } = useUI();
   // Tin Admin gửi qua Marketing tự động (Web Push) cũng được lưu ở đây cho khách xem lại
-  const inbox = useMarketingInbox(!isAdmin ? authenticatedCustomer?.id : null);
+  const inbox = useMarketingInbox(!isAdmin && !authenticatedCustomer?.isDemo ? authenticatedCustomer?.id : null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -45,6 +48,16 @@ const BookingNotificationBell = ({ className = '' }) => {
 
     const list = [];
     mine.forEach((b) => {
+      if (!isAdmin && authenticatedCustomer && isReviewEligible(b) && !reviews.some(r=>r.bookingCode===(b.code || b.id))) {
+        list.push({
+          key: 'review-' + b.id, bookingId: b.id, icon: MessageSquare, reminder: true,
+          tone: 'bg-orange-100 text-orange-600',
+          title: 'Mời bạn đánh giá kỳ nghỉ của bé!',
+          desc: 'Đơn #' + (b.code || b.id) + ' đã check out. Chia sẻ trải nghiệm của bạn nhé.',
+          time: b.checkedOutAt || b.updatedAt || b.createdAt,
+          path: reviewUrl(b),
+        });
+      }
       const changes = b.pending_changes;
       if (changes) {
         const label = PROPOSAL_LABEL[changes.type] || 'Thay đổi';
@@ -171,7 +184,7 @@ const BookingNotificationBell = ({ className = '' }) => {
       });
     }
     return list.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
-  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread]);
+  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread, reviews]);
 
   // Mở chuông thì tin Marketing đang hiện được tính là đã xem (lần sau không đếm trên chấm đỏ nữa)
   useEffect(() => {

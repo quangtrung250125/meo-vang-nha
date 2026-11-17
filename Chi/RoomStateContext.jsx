@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../src/supabaseClient';
+import { triggerBookingCompletedNotification } from '../src/services/notificationTriggers';
 import { useBookingHistory } from '../src/contexts/BookingHistoryContext';
 import { isClosedStatus, STORED_STATUS, BOOKING_STATUS, normalizeStatusValue } from '../src/utils/bookingStatus';
 import { latestPendingChanges } from '../src/utils/liveBookings';
@@ -944,6 +945,18 @@ export const RoomStateProvider = ({ children }) => {
       ? { paymentStatus: 'Đã thanh toán', paidAt: checkedOutAt, paidAmount: Number(extra.paidAmount) }
       : {};
     const serverUpdates = { status: 'check-out', checkedOutAt, checkOutNote, ...payment };
+    let completedBooking;
+    try {
+      const history = JSON.parse(localStorage.getItem('bookingHistory') || '[]');
+      if (Array.isArray(history)) completedBooking = history.find(b => b.code === code || b.id === code);
+    } catch { /* A damaged local cache must not block checkout. */ }
+    if (completedBooking && completedBooking.status !== 'check-out') {
+      triggerBookingCompletedNotification({
+        userId: completedBooking.customerId || completedBooking.customer_id || completedBooking.customerPhone || completedBooking.ownerPhone,
+        bookingCode: completedBooking.code || completedBooking.id,
+        petNames: completedBooking.catNames || completedBooking.petProfiles?.map(p => p.name).join(', '),
+      });
+    }
     notifyBookingPatched(code, serverUpdates);
     mirrorToHistory(code, { status: STORED_STATUS.COMPLETED, checkedOutAt, checkOutNote, ...payment, pending_changes: null });
     setBookings((prev) => {

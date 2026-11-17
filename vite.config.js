@@ -7,7 +7,7 @@ function apiDevPlugin() {
     name: 'api-dev-server',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing') && !req.url.startsWith('/api/camera')) {
+        if (!req.url.startsWith('/api/reviews') && !req.url.startsWith('/api/notifications') && !req.url.startsWith('/api/bookings') && !req.url.startsWith('/api/sync') && !req.url.startsWith('/api/auth') && !req.url.startsWith('/api/payments') && !req.url.startsWith('/api/marketing') && !req.url.startsWith('/api/camera')) {
           return next();
         }
 
@@ -42,6 +42,11 @@ function apiDevPlugin() {
         const urlPath = req.url.split('?')[0];
 
         try {
+          if (urlPath.startsWith('/api/reviews/')) {
+            if (req.method === 'POST') req.body = await parseBody();
+            const { default: handler } = await import('./api/reviews/[action].js');
+            return handler(req,res);
+          }
           if (urlPath === '/api/sync') {
             if (req.method === 'POST') {
               req.body = await parseBody();

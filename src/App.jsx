@@ -14,6 +14,9 @@ import CustomerProfile from './pages/CustomerProfile';
 import MyBooking from './pages/MyBooking';
 import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
+import Review from './pages/Review';
+import { ReviewsProvider } from './contexts/ReviewsContext';
+import ReviewDemo from './pages/Review/Demo';
 import Admin from './pages/Admin';
 import Promotions from './pages/Promotions';
 import AdminPromotions from './pages/AdminPromotions';
@@ -76,6 +79,7 @@ function AppRoutes() {
       <Route path="my-booking" element={<MyBooking />} />
       <Route path="tracking" element={<Tracking />} />
       <Route path="checkout" element={<Checkout />} />
+      <Route path="review" element={<Review />} />
       <Route path="room-status" element={adminOnly(<RoomStatusPage />)} />
       <Route path="customers" element={adminOnly(<AdminCustomers />)} />
       <Route path="reviews" element={adminOnly(<AdminReviews />)} />
@@ -88,6 +92,15 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {import.meta.env.DEV && (
+        <Route path="/review-demo" element={<ReviewDemo />}>
+          <Route index element={<MyBooking />} />
+          <Route path="review" element={<Review />} />
+          <Route path="admin" element={<AdminReviews />} />
+          <Route path="admin/bookings" element={<MyBooking />} />
+          <Route path="home" element={<Home />} />
+        </Route>
+      )}
       {/* Trang duyệt đơn & quy trình phê duyệt (toàn màn hình) */}
       <Route path="/admin/approvals" element={<Admin />} />
 
@@ -112,6 +125,7 @@ function App() {
       <UIProvider>
         <PetProvider>
           <BookingHistoryProvider>
+          <ReviewsProvider>
             <CareLogProvider>
               <RoomStateProvider>
                 <ServiceCatalogProvider>
@@ -127,6 +141,7 @@ function App() {
                 </ServiceCatalogProvider>
               </RoomStateProvider>
             </CareLogProvider>
+          </ReviewsProvider>
           </BookingHistoryProvider>
         </PetProvider>
       </UIProvider>

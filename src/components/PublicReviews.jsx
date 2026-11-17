@@ -1,0 +1,9 @@
+import React,{useEffect,useState} from 'react';
+import {Star} from 'lucide-react';
+import {publicReviews} from '../services/reviewsApi';
+import {useReviews} from '../contexts/ReviewsContext';
+import {publicReview} from '../utils/bookingReview';
+export default function PublicReviews(){const context=useReviews();const [items,setItems]=useState([]);useEffect(()=>{if(context?.isDemo)return;let active=true;publicReviews().then(data=>{if(active)setItems(data.reviews || []);}).catch(()=>{});return()=>{active=false;};},[context?.isDemo]);const reviews=context?.isDemo?context.reviews.filter(r=>r.published && r.publicConsent).map(publicReview):items;if(!reviews.length)return null;
+ const avg=(reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1);
+ return <section className="bg-bg-cream/70 py-16" aria-label="Đánh giá từ khách hàng"><div className="max-w-6xl mx-auto px-4"><div className="text-center mb-10"><p className="text-xs font-bold text-amber-600 uppercase">Đánh giá từ khách hàng</p><h2 className="text-3xl font-extrabold mt-3">Khách Hàng Nói Gì Về Chúng Tôi?</h2><p className="mt-3 text-gray-500"><strong className="text-amber-500 text-xl">{avg}/5</strong> · {reviews.length} đánh giá gần đây đã được duyệt</p></div><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">{reviews.map((r,i)=><article key={i} className="bg-white rounded-3xl border border-gray-100 p-6"><div className="flex text-amber-400 mb-4">{[1,2,3,4,5].map(v=><Star key={v} className={'w-4 h-4 '+(v<=r.rating?'fill-current':'text-gray-200')}/>)}</div><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{r.comment || 'Đánh giá ' + r.rating + '/5 sao.'}</p><p className="font-bold mt-5 text-sm">{r.authorName}</p><p className="text-xs text-gray-400 mt-1">Bé {r.petNames} · {new Date(r.createdAt).toLocaleDateString('vi-VN')}</p></article>)}</div></div></section>;
+}

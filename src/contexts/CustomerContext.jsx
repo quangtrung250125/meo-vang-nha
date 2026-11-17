@@ -632,4 +632,7 @@ export const CustomerProvider = ({ children }) => {
     );
 };
 
+export const CustomerPreviewProvider = ({ children, value }) => (
+  <CustomerContext.Provider value={value}>{children}</CustomerContext.Provider>
+);
 export const useCustomerProfile = () => useContext(CustomerContext);
