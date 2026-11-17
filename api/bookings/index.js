@@ -4,6 +4,7 @@ import {
   handleUpdateBooking,
   handleRemoveBooking,
 } from '../_lib/bookingsService.js';
+import { handleCareLogs, isCareLogsRequest } from '../_lib/careLogsService.js';
 import { handleReviews } from '../_lib/reviewsHandler.js';
 
 export default async function handler(req, res) {
@@ -13,6 +14,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // Nhật ký chăm sóc dùng chung function này (Vercel Hobby giới hạn 12 function)
+  if (isCareLogsRequest(req)) {
+    return handleCareLogs(req, res);
   }
 
   const url = new URL(req.url || '/api/bookings', 'http://localhost');

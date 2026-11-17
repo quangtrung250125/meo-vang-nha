@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Info, Plus, Lock, PawPrint, BookOpen, History,
-  ChevronDown, ChevronUp, CalendarDays, Utensils,
-  Heart, Star, CheckCircle2, Clock, Sparkles, User2,
+  ChevronDown, ChevronUp, CalendarDays,
+  CheckCircle2, Clock, User2,
   Camera, Cat, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -14,44 +14,8 @@ import PetForm from '../../components/PetForm';
 import PetDashboardNav from '../../components/PetDashboardNav';
 import { BOOKING_STATUS, getBookingStatus, BOOKING_STATUS_CONFIG } from '../../utils/bookingStatus';
 import AuthModal from '../../components/AuthModal';
-
-// ─────────────────────────────────────────────
-// Tạo nhật ký lưu trú mock theo ngày
-// ─────────────────────────────────────────────
-const MOODS = ['😸 Vui vẻ, ham chơi', '😴 Ngủ ngon, thư giãn', '🐱 Khỏe mạnh, bình thường', '😺 Tò mò, khám phá phòng', '🥰 Cưng xỉu, ngoan ngoãn'];
-const FOODS = ['Ăn hết sạch 3 bữa 🍽️', 'Ăn tốt, còn dư ít pate', 'Ăn ngon miệng, thích súp thưởng', 'Ăn đủ 2 bữa chính + 1 bữa phụ'];
-const ACTIVITIES = ['Chơi với đồ chơi lông vũ', 'Leo cây cào móng, tập thể dục', 'Nhìn ra cửa sổ ngắm chim', 'Ngủ cuộn tròn trong ổ ấm', 'Khám phá góc phòng mới'];
-const NOTES = [
-  'Bé ngoan, không quấy phá. Sức khỏe ổn định.',
-  'Bé tự chải lông, dấu hiệu thư giãn tốt.',
-  'Bé đến gần nhân viên, có vẻ quen môi trường rồi!',
-  'Bé vui vẻ, hay phát ra tiếng purr dễ thương.',
-  'Bé ổn định, không có dấu hiệu bất thường.'
-];
-
-const generateJournalEntries = (checkIn, checkOut, petName) => {
-  if (!checkIn || !checkOut) return [];
-  const start = new Date(checkIn);
-  const end = new Date(checkOut);
-  const entries = [];
-  const current = new Date(start);
-  let day = 1;
-
-  while (current <= end && entries.length < 30) {
-    const idx = (day - 1) % 5;
-    entries.push({
-      day,
-      dateStr: current.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' }),
-      mood: MOODS[idx],
-      food: FOODS[idx % FOODS.length],
-      activity: ACTIVITIES[idx % ACTIVITIES.length],
-      note: `${petName || 'Bé'}: ${NOTES[idx]}`,
-    });
-    current.setDate(current.getDate() + 1);
-    day++;
-  }
-  return entries;
-};
+import CareLogTimeline from '../../components/CareLogTimeline';
+import { useCareLog } from '../../contexts/CareLogContext';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -94,7 +58,11 @@ const BookingCard = ({ booking, petList }) => {
   const firstPetImage = resolvedPets[0]?.imagePreview;
   const normalizedStatus = getBookingStatus(booking);
   const statusConfig = BOOKING_STATUS_CONFIG[normalizedStatus] || { label: normalizedStatus, badgeClass: 'bg-gray-100 text-gray-500' };
-  const journalEntries = generateJournalEntries(booking.checkIn, booking.checkOut, petsName);
+  // Nhật ký chăm sóc thật Admin ghi trong lúc bé lưu trú (Cho ăn, Vận động, Dọn vệ sinh, ảnh, báo cáo ngày)
+  const { getLogs } = useCareLog();
+  const bookingCode = booking.code || booking.id;
+  const journalPets = resolvedPets.length > 0 ? resolvedPets : [{ id: `pet_${bookingCode}`, name: petsName }];
+  const journalCount = journalPets.reduce((sum, pet) => sum + getLogs(bookingCode, pet.id).length, 0);
 
   // Lấy danh sách các giai đoạn lưu trú (để hiện hóa đơn chi tiết)
   const stayPeriods = booking.stayPeriods || [];
@@ -140,7 +108,7 @@ const BookingCard = ({ booking, petList }) => {
         </div>
 
         {/* Journal Toggle Button */}
-        {journalEntries.length > 0 && (
+        {journalCount > 0 && (
           <button
             onClick={() => setShowJournal(!showJournal)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border-2 cursor-pointer shrink-0 ${
@@ -156,51 +124,17 @@ const BookingCard = ({ booking, petList }) => {
         )}
       </div>
 
-      {/* Journal Entries */}
-      {showJournal && journalEntries.length > 0 && (
-        <div className="border-t border-gray-100 bg-[#FAFAF8] p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-4 h-4 text-accent" />
-            <h4 className="text-sm font-bold text-text-dark uppercase tracking-wider">Nhật Ký Lưu Trú</h4>
-          </div>
-
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
-            {journalEntries.map((entry) => (
-              <div key={entry.day} className="flex gap-3">
-                {/* Timeline dot */}
-                <div className="flex flex-col items-center shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-primary-light border-2 border-primary/30 flex items-center justify-center text-xs font-black text-primary">
-                    {entry.day}
-                  </div>
-                  {entry.day < journalEntries.length && (
-                    <div className="w-0.5 flex-1 bg-gray-200 mt-1 min-h-[12px]" />
-                  )}
-                </div>
-
-                {/* Entry content */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-3.5 flex-1 mb-2 shadow-xs">
-                  <p className="text-xs font-bold text-gray-400 mb-2">{entry.dateStr}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2.5 text-xs">
-                    <div className="flex items-center gap-1.5 text-gray-600">
-                      <Heart className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                      <span>{entry.mood}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-gray-600">
-                      <Utensils className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      <span>{entry.food}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-gray-600">
-                      <Star className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <span>{entry.activity}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 italic border-t border-gray-50 pt-2">
-                    📝 {entry.note}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Nhật ký lưu trú thật của từng bé */}
+      {showJournal && journalCount > 0 && (
+        <div className="border-t border-gray-100 bg-[#FAFAF8] p-5 space-y-4">
+          {journalPets.map((pet) => (
+            <div key={pet.id}>
+              {journalPets.length > 1 && (
+                <p className="text-sm font-bold text-text-dark mb-2">🐾 {pet.name || 'Bé cưng'}</p>
+              )}
+              <CareLogTimeline bookingId={bookingCode} petId={pet.id} />
+            </div>
+          ))}
         </div>
       )}
     </div>

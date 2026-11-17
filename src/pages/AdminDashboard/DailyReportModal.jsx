@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FileText, Send, X, CheckCircle2, Utensils, Smile, Droplets, HeartPulse } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 const DailyReportModal = ({ isOpen, onClose, cat, onSendReport }) => {
   const [reportNote, setReportNote] = useState(
@@ -13,7 +12,7 @@ const DailyReportModal = ({ isOpen, onClose, cat, onSendReport }) => {
 
   if (!isOpen || !cat) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault();
 
     const reportData = {
@@ -24,9 +23,9 @@ const DailyReportModal = ({ isOpen, onClose, cat, onSendReport }) => {
       note: reportNote.trim(),
     };
 
-    onSendReport(cat, reportData);
-    toast.success(`Đã gửi Báo Cáo Cuối Ngày của bé ${cat.catName} tới khách hàng! 📋✨`);
-    onClose();
+    // Trang Tổng quan báo kết quả; chỉ đóng khi máy chủ đã lưu
+    const saved = await onSendReport(cat, reportData);
+    if (saved) onClose();
   };
 
   return (
