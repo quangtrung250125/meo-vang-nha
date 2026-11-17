@@ -27,119 +27,6 @@ import {
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
-// Mock sample transactions with full invoice data
-const SAMPLE_TRANSACTIONS = [
-  {
-    id: 'MVN-2026-8891',
-    code: '#MVN-2026-8891',
-    date: '19/09/2026 14:30',
-    service: 'Lưu trú phòng VIP Hoàng Gia (4 ngày) + Combo Spa',
-    roomName: 'Phòng VIP Hoàng Gia',
-    stayPeriod: '15/09/2026 - 19/09/2026',
-    petNames: 'Bé Miu Miu & Bánh Bao',
-    customerName: 'ducan',
-    customerPhone: '0376131531',
-    customerEmail: 'ducan12345atm@gmail.com',
-    customerTier: 'Thành viên Vàng',
-    amount: 1060000,
-    subTotal: 1400000,
-    discount: 140000,
-    deposit: 200000,
-    total: 1060000,
-    paymentMethod: 'Chuyển khoản VietQR',
-    status: 'Đã thanh toán',
-    items: [
-      { name: 'Lưu trú phòng VIP Hoàng Gia', note: 'Phòng máy lạnh, view ban công kính, trụ cào móng', qty: '4 ngày', price: 250000, total: 1000000 },
-      { name: 'Combo Spa Tắm & Cắt tỉa dưỡng lông', note: 'Sữa tắm thảo mộc hữu cơ cho mèo', qty: '1 bé', price: 200000, total: 200000 },
-      { name: 'Camera AI Quan sát 24/7', note: 'Đặc quyền miễn phí theo gói VIP', qty: '4 ngày', price: 0, total: 0 },
-      { name: 'Thực đơn Hạt Cao Cấp & Pate Me-O', note: 'Khẩu phần 3 bữa/ngày', qty: '4 ngày', price: 50000, total: 200000 },
-    ]
-  },
-  {
-    id: 'MVN-2026-8420',
-    code: '#MVN-2026-8420',
-    date: '02/09/2026 10:15',
-    service: 'Combo Spa Tắm & Cắt móng vệ sinh tai',
-    roomName: 'Dịch vụ Spa tại khách sạn',
-    stayPeriod: '02/09/2026',
-    petNames: 'Bé Miu Miu',
-    customerName: 'ducan',
-    customerPhone: '0376131531',
-    customerEmail: 'ducan12345atm@gmail.com',
-    customerTier: 'Thành viên Vàng',
-    amount: 315000,
-    subTotal: 350000,
-    discount: 35000,
-    deposit: 0,
-    total: 315000,
-    paymentMethod: 'Ví MoMo',
-    status: 'Đã thanh toán',
-    items: [
-      { name: 'Gói Spa Chăm sóc toàn diện', note: 'Tắm thơm thảo dược, sấy lông, vệ sinh tai kẽ chân', qty: '1 lần', price: 250000, total: 250000 },
-      { name: 'Cắt móng & Đeo vòng bảo vệ', note: 'Cắt tỉa an toàn không đau', qty: '1 lần', price: 100000, total: 100000 },
-    ]
-  },
-  {
-    id: 'MVN-2026-7734',
-    code: '#MVN-2026-7734',
-    date: '25/07/2026 17:00',
-    service: 'Lưu trú phòng Deluxe Sen Đá (3 ngày)',
-    roomName: 'Phòng Deluxe Sen Đá',
-    stayPeriod: '22/07/2026 - 25/07/2026',
-    petNames: 'Bé Bánh Bao',
-    customerName: 'ducan',
-    customerPhone: '0376131531',
-    customerEmail: 'ducan12345atm@gmail.com',
-    customerTier: 'Thành viên Vàng',
-    amount: 540000,
-    subTotal: 600000,
-    discount: 60000,
-    deposit: 0,
-    total: 540000,
-    paymentMethod: 'Tiền mặt tại quầy',
-    status: 'Đã thanh toán',
-    items: [
-      { name: 'Lưu trú phòng Deluxe Sen Đá', note: 'Không gian ấm cúng có đệm nhung', qty: '3 ngày', price: 200000, total: 600000 },
-    ]
-  }
-];
-
-const DEFAULT_BOARDING_HISTORY = [
-  {
-    id: 'MVN-2026-8891',
-    petNames: 'Bé Miu Miu & Bánh Bao',
-    roomName: 'Phòng VIP Hoàng Gia',
-    packageDesc: 'Gói Chăm Sóc VIP Toàn Diện',
-    checkIn: '2026-09-15',
-    checkOut: '2026-09-19',
-    status: 'Đã hoàn tất',
-    image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80',
-    invoiceId: 'MVN-2026-8891'
-  },
-  {
-    id: 'MVN-2026-9012',
-    petNames: 'Bé Miu Miu',
-    roomName: 'Phòng Sunshine View',
-    packageDesc: 'Gói Tiêu Chuẩn Nghỉ Dưỡng',
-    checkIn: '2026-09-20',
-    checkOut: '2026-09-24',
-    status: 'Đang lưu trú',
-    image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
-    invoiceId: 'MVN-2026-8891'
-  },
-  {
-    id: 'MVN-2026-7734',
-    petNames: 'Bé Bánh Bao',
-    roomName: 'Phòng Deluxe Sen Đá',
-    packageDesc: 'Gói Tiêu Chuẩn',
-    checkIn: '2026-07-22',
-    checkOut: '2026-07-25',
-    status: 'Đã hoàn tất',
-    image: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=200&auto=format&fit=crop&q=80',
-    invoiceId: 'MVN-2026-7734'
-  }
-];
-
 const CustomerProfile = () => {
   const navigate = useNavigate();
   const { customerProfile, authenticatedCustomer, isAdmin, saveCustomerProfile } = useCustomerProfile();
@@ -147,15 +34,15 @@ const CustomerProfile = () => {
   const { petList = [] } = usePetProfile() || {};
 
   const activeCustomer = authenticatedCustomer || customerProfile || {
-    fullName: 'ducan',
-    phone: '0376131531',
-    email: 'ducan12345atm@gmail.com',
-    tier: 'gold',
-    points: 850,
-    address: 'Số 45, Phố Đặng Văn Ngữ, Đống Đa, Hà Nội',
-    birthday: '1995-08-15',
-    memberSince: '15/01/2025',
-    activeCatsCount: 2,
+    fullName: 'Khách hàng',
+    phone: '',
+    email: '',
+    tier: 'bronze',
+    points: 0,
+    address: '',
+    birthday: '',
+    memberSince: '—',
+    activeCatsCount: 0,
     avatar: DEFAULT_AVATAR
   };
 
@@ -364,9 +251,7 @@ const CustomerProfile = () => {
       };
     })
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  const transactionList = realTransactions.length > 0
-    ? realTransactions
-    : (activeCustomer?.phone === '0376131531' ? SAMPLE_TRANSACTIONS : []);
+  const transactionList = realTransactions;
 
   // Số bé đang gửi và ngày tham gia lấy từ dữ liệu thật thay vì số mẫu
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -377,20 +262,27 @@ const CustomerProfile = () => {
   const memberSince = activeCustomer.memberSince
     || (activeCustomer.createdAt ? new Date(activeCustomer.createdAt).toLocaleDateString('vi-VN') : '—');
 
-  const combinedBoardingList = [
-    ...(myBookings.map(b => ({
-      id: b.id || 'MVN-NEW',
-      petNames: b.catNames || b.petName || 'Bé Miu Miu',
-      roomName: b.selectedRoom?.name || b.roomType || 'Phòng Deluxe',
-      packageDesc: b.selectedPackage?.name || b.serviceType || 'Lưu trú Khách Sạn',
-      checkIn: b.checkIn || b.checkInDate || '2026-09-20',
-      checkOut: b.checkOut || b.checkOutDate || '2026-09-24',
-      status: BOOKING_STATUS_CONFIG[getBookingStatus(b)]?.label || 'Sắp tới',
-      image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
-      invoiceId: b.code || b.id || 'MVN-2026-8891'
-    }))),
-    ...(activeCustomer?.phone === '0376131531' ? DEFAULT_BOARDING_HISTORY : [])
-  ];
+  const combinedBoardingList = myBookings.map(b => ({
+    id: b.id || 'MVN-NEW',
+    petNames: b.catNames || b.petName || 'Bé Miu Miu',
+    roomName: b.selectedRoom?.name || b.roomType || 'Phòng Deluxe',
+    packageDesc: b.selectedPackage?.name || b.serviceType || 'Lưu trú Khách Sạn',
+    checkIn: b.checkIn || b.checkInDate || '',
+    checkOut: b.checkOut || b.checkOutDate || '',
+    status: BOOKING_STATUS_CONFIG[getBookingStatus(b)]?.label || 'Sắp tới',
+    image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&auto=format&fit=crop&q=80',
+    invoiceId: b.code || b.id || ''
+  }));
+
+  // Rút gọn tên bạn bè để bảo mật thông tin cá nhân (VD: "Nguyễn Văn A" -> "Nguyễn A.")
+  const maskRefereeName = (name) => {
+    if (!name) return 'Bạn mới';
+    const parts = String(name).trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    return `${first} ${last[0]}.`;
+  };
 
   // Thẻ mã giới thiệu: khách A chia sẻ mã cho bạn (khách B) nhập khi tạo tài khoản
   const referralCard = (
@@ -401,24 +293,25 @@ const CustomerProfile = () => {
       </div>
       {referralCode ? (
         <>
-          <div className="flex items-center justify-between gap-2 bg-white border-2 border-dashed border-orange-300 rounded-xl px-3 py-2">
-            <span className="font-mono text-lg font-black tracking-widest text-orange-600" data-testid="referral-code">{referralCode}</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="flex-1 flex items-center justify-between gap-2 bg-white border-2 border-dashed border-orange-300 rounded-xl px-3 py-2">
+              <span className="font-mono text-base font-black tracking-widest text-orange-600" data-testid="referral-code">{referralCode}</span>
+              <button
+                type="button"
+                onClick={() => copyText(referralCode, 'mã giới thiệu')}
+                className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold cursor-pointer transition shadow-xs"
+              >
+                Sao chép mã
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => copyText(referralCode, 'mã giới thiệu')}
-              className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold cursor-pointer"
+              onClick={() => copyText(referralLink, 'đường link giới thiệu')}
+              className="px-3 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-800 text-xs font-bold cursor-pointer transition flex items-center justify-center gap-1.5 whitespace-nowrap"
             >
-              Sao chép
+              <span>🔗 Sao chép link</span>
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => copyText(referralLink, 'đường link giới thiệu')}
-            className="w-full text-xs font-semibold text-orange-700 hover:underline truncate text-left cursor-pointer"
-            title={referralLink}
-          >
-            🔗 {referralLink}
-          </button>
           <p className="text-[11px] text-gray-600 leading-relaxed">
             Gửi mã này cho bạn bè. Bạn bè nhập mã khi tạo tài khoản và hoàn tất (check-out) đơn đầu tiên thì bạn được ghi nhận
             đã giới thiệu 1 người{Number(referralSettings.referrerRewardPoints) > 0 && referralSettings.enabled !== false ? ` và nhận ${referralSettings.referrerRewardPoints} điểm thưởng` : ''}.
@@ -428,12 +321,12 @@ const CustomerProfile = () => {
             <span className="font-black text-emerald-600" data-testid="referred-count">{referredCount} người</span>
           </div>
           {referrals.length > 0 && (
-            <ul className="space-y-1 text-[11px]">
+            <ul className="space-y-1.5 text-[11px]">
               {referrals.map((r, i) => (
-                <li key={i} className="flex justify-between gap-2">
-                  <span className="font-semibold text-gray-700 truncate">{r.refereeName}</span>
+                <li key={i} className="flex justify-between items-center gap-2 py-1 border-b border-orange-100/50 last:border-b-0">
+                  <span className="font-semibold text-gray-700 truncate">{maskRefereeName(r.refereeName)}</span>
                   <span className={r.status === 'completed' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-semibold'}>
-                    {r.status === 'completed' ? `Đã hoàn tất đơn đầu${r.rewardPoints ? ` · +${r.rewardPoints} điểm` : ''}` : 'Đã đăng ký, chờ hoàn tất đơn đầu'}
+                    {r.status === 'completed' ? `Đã hoàn thành đơn đầu tiên${r.rewardPoints ? ` (+${r.rewardPoints} điểm)` : ''}` : 'Đang chờ đơn đầu tiên'}
                   </span>
                 </li>
               ))}
@@ -844,13 +737,34 @@ const CustomerProfile = () => {
                     <div key={item.id} className="py-3 flex items-center justify-between gap-3 text-sm">
                       <div>
                         <p className="font-bold text-gray-800">{item.reason}</p>
-                        <p className="text-xs text-gray-400">
-                          {item.at ? new Date(item.at).toLocaleString('vi-VN') : ''} • {LEDGER_TYPES[item.type]?.label || item.type}{item.bookingCode ? ` • #${item.bookingCode}` : ''}
+                        <p className="text-xs text-gray-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span>{item.at ? new Date(item.at).toLocaleString('vi-VN') : ''}</span>
+                          <span>•</span>
+                          <span className="font-medium text-gray-600">{LEDGER_TYPES[item.type]?.label || item.type}</span>
+                          {item.bookingCode && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-semibold">#{item.bookingCode}</span>
+                            </>
+                          )}
+                          {item.balanceAfter !== undefined && (
+                            <>
+                              <span>•</span>
+                              <span className="text-gray-500 font-medium">Số dư: <strong className="text-gray-700">{Number(item.balanceAfter).toLocaleString('vi-VN')}</strong></span>
+                            </>
+                          )}
                         </p>
                       </div>
-                      <span className={`font-black shrink-0 ${item.delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {item.delta >= 0 ? '+' : ''}{item.delta} điểm
-                      </span>
+                      <div className="text-right shrink-0">
+                        <span className={`font-black text-sm block ${item.delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {item.delta >= 0 ? '+' : ''}{item.delta} điểm
+                        </span>
+                        {item.balanceAfter !== undefined && (
+                          <span className="text-[11px] text-gray-400 font-medium block">
+                            Số dư: {Number(item.balanceAfter).toLocaleString('vi-VN')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -906,8 +820,8 @@ const CustomerProfile = () => {
                   ) : (
                     <button
                       onClick={() => {
-                        const inv = transactionList.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS.find(t => t.id === stay.invoiceId) || SAMPLE_TRANSACTIONS[0];
-                        openInvoice(inv);
+                        const inv = transactionList.find(t => t.id === stay.invoiceId) || transactionList[0];
+                        if (inv) openInvoice(inv);
                       }}
                       className="px-4 py-2 bg-emerald-50 text-[#00B16A] hover:bg-[#00B16A] hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
