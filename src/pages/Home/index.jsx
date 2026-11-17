@@ -12,11 +12,12 @@ import { usePetProfile } from '../../contexts/PetContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { calculateMembership } from '../../utils/membership';
 import { useLoyalty } from '../../contexts/LoyaltyContext';
-import { promotionsList } from '../../mockData/promotionsData';
+import { fetchPublicPromotions } from '../../services/loyaltyApi';
 import { articlesList } from '../../mockData/newsData';
 
 const Home = () => {
   const [activeBanner, setActiveBanner] = useState(0);
+  const [promotions, setPromotions] = useState([]);
   const { customerProfile } = useCustomerProfile();
   const { petList } = usePetProfile();
   const { globalBookingList } = useBookingHistory();
@@ -83,6 +84,20 @@ const Home = () => {
     }, 4000);
     return () => window.clearInterval(timer);
   }, [banners.length]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchPublicPromotions()
+      .then((items) => {
+        if (mounted) setPromotions(items);
+      })
+      .catch((error) => {
+        if (mounted) console.error('[Home] Không tải được khuyến mãi:', error);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const goToBanner = (direction) => {
     setActiveBanner(current => (current + direction + banners.length) % banners.length);
@@ -215,12 +230,12 @@ const Home = () => {
               to="/promotions"
               className="inline-flex items-center gap-1 text-primary hover:text-secondary font-bold text-sm mt-3 sm:mt-0"
             >
-              Xem tất cả {promotionsList.length} ưu đãi & quay thưởng <ArrowRight className="w-4 h-4" />
+              Xem tất cả {promotions.length} ưu đãi & quay thưởng <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {promotionsList.slice(0, 3).map((promo) => (
+            {promotions.slice(0, 3).map((promo) => (
               <div 
                 key={promo.id}
                 className="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
@@ -239,7 +254,7 @@ const Home = () => {
                 </div>
 
                 <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">HSD: {promo.expiry || '31/12/2026'}</span>
+                  <span className="text-xs text-gray-400">HSD: {promo.validUntil}</span>
                   <Link
                     to="/promotions"
                     className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-accent"

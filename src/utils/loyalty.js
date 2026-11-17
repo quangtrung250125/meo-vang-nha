@@ -17,6 +17,44 @@ import { buildInvoice } from './bookingInvoice.js';
 // Các phần cài đặt Admin lưu trên máy chủ (mỗi phần là 1 tab trong trang Khuyến mãi & Điểm thưởng)
 export const CONFIG_KEYS = ['promotions', 'vouchers', 'gifts', 'minigameSettings', 'minigamePrizes', 'tiers', 'rules', 'referralSettings'];
 
+const promotionDateKey = (value) => {
+  if (!value) return '';
+  const text = String(value).trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const localized = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const parts = iso
+    ? [iso[1], iso[2], iso[3]]
+    : localized
+      ? [localized[3], localized[2].padStart(2, '0'), localized[1].padStart(2, '0')]
+      : null;
+  if (parts) {
+    const key = parts.join('-');
+    const date = new Date(`${key}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === key ? key : '';
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return '';
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(dateParts.map(({ type, value: part }) => [type, part]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+export function isPromotionCurrentlyActive(promotion, now = new Date()) {
+  if (promotion?.status !== 'active') return false;
+  const today = promotionDateKey(now);
+  const startValue = promotion.startDate;
+  const endValue = promotion.endDate || promotion.validUntil;
+  const start = promotionDateKey(startValue);
+  const end = promotionDateKey(endValue);
+  if ((startValue && !start) || (endValue && !end)) return false;
+  return (!start || today >= start) && (!end || today <= end);
+}
+
 // Mã dành cho khách được giới thiệu: giảm 15% đơn đầu tiên (Admin sửa được ở tab Mã giảm giá)
 const REFERRAL_VOUCHER = {
   id: 'vouch-ref',

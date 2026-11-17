@@ -9,6 +9,7 @@ import {
   redeemPoints,
   checkVoucher,
   isVoucherExpired,
+  isPromotionCurrentlyActive,
   buildAdminLoyaltyView as adminViewForExpiry,
   customerGroupOf,
   defaultLoyaltyConfig,
@@ -33,6 +34,7 @@ const USERS = {
 
 let api;
 let loyalty;
+let loyaltyDb;
 
 const call = async (handler, { method = 'GET', body, token, query = {} } = {}) => {
   const req = { method, body, query, headers: token ? { authorization: `Bearer ${token}` } : {}, url: `/api/marketing/loyalty?op=${query.op || ''}` };
@@ -72,6 +74,7 @@ beforeAll(async () => {
   auth.setTokenVerifier(async (token) => USERS[token] || null);
   api = await import('../../api/_lib/bookingsService.js');
   loyalty = await import('../../api/_lib/loyaltyService.js');
+  loyaltyDb = await import('../../api/_lib/loyaltyDb.js');
 });
 
 describe('Tính toán điểm, hạng, mã giảm giá', () => {
@@ -123,6 +126,66 @@ describe('Tính toán điểm, hạng, mã giảm giá', () => {
 });
 
 describe('Luồng thật qua API: mã giảm giá, điểm, giới thiệu bạn bè', () => {
+  it('di trú ưu đãi cũ vào nguồn dùng chung một lần và giữ nguyên dữ liệu Admin', async () => {
+    const existing = { id: 'existing-admin-promo', name: 'Ưu đãi hiện có', code: 'KEEPADMIN', status: 'paused' };
+    await loyaltyDb.putRow('config', 'config', null, { promotions: [existing] });
+
+    const migrated = await loyalty.getLoyaltyConfig();
+    const codes = migrated.promotions.map((promo) => promo.code);
+    expect(codes).toContain('KEEPADMIN');
+    expect(codes).toEqual(expect.arrayContaining(['MEOMEO50', 'TWINCATS', 'WEEKENDCAT', 'FREECIAO']));
+
+    await loyalty.saveLoyaltyConfig({
+      promotions: migrated.promotions.filter((promo) => promo.code !== 'MEOMEO50'),
+    });
+    const afterDelete = await loyalty.getLoyaltyConfig();
+    expect(afterDelete.promotions.some((promo) => promo.code === 'MEOMEO50')).toBe(false);
+
+    await loyalty.saveLoyaltyConfig({ promotions: defaultLoyaltyConfig().promotions });
+  });
+
+  it('trang khách đọc khuyến mãi đang bật từ cấu hình Admin và loại ưu đãi đã tắt, hết hạn hoặc xóa', async () => {
+    await loyaltyOp('config', {
+      method: 'PUT',
+      token: 'token-admin',
+      body: { promotions: defaultLoyaltyConfig().promotions },
+    });
+    await loyalty.getLoyaltyConfig();
+
+    const active = {
+      id: 'public-active',
+      name: 'Ưu đãi đang bật',
+      code: 'PUBLICACTIVE',
+      status: 'active',
+      startDate: '2026-01-01',
+      endDate: '2099-12-31',
+      type: 'percentage',
+      discountDisplay: 'GIẢM 10%',
+    };
+    const paused = { ...active, id: 'public-paused', code: 'PUBLICPAUSED', status: 'paused' };
+    const expired = { ...active, id: 'public-expired', code: 'PUBLICEXPIRED', endDate: '2020-01-01' };
+    await loyaltyOp('config', {
+      method: 'PUT',
+      token: 'token-admin',
+      body: { promotions: [active, paused, expired] },
+    });
+
+    const visible = await loyaltyOp('public-promotions');
+    expect(visible.statusCode).toBe(200);
+    expect(visible.headers['Cache-Control']).toBe('no-store');
+    expect(visible.payload.promotions.map((promo) => promo.code)).toEqual(['PUBLICACTIVE']);
+
+    await loyaltyOp('config', {
+      method: 'PUT',
+      token: 'token-admin',
+      body: { promotions: [{ ...active, status: 'paused' }] },
+    });
+    expect((await loyaltyOp('public-promotions')).payload.promotions).toEqual([]);
+
+    await loyaltyOp('config', { method: 'PUT', token: 'token-admin', body: { promotions: [] } });
+    expect((await loyaltyOp('public-promotions')).payload.promotions).toEqual([]);
+  });
+
   it('Admin tạo mã giảm giá, khách đặt phòng được trừ tiền thật', async () => {
     const cfg = defaultLoyaltyConfig();
     const vouchers = [...cfg.vouchers, { id: 'v-test', code: 'TEST100K', discountType: 'fixed', discountValue: 100000, maxUsage: 5, limitPerCustomer: 1, minBookingDays: 1, minOrderValue: 0, targetGroup: 'all', validUntil: '31/12/2099', status: 'active', displayValue: 'Giảm 100.000đ' }];
@@ -232,6 +295,14 @@ describe('Luồng thật qua API: mã giảm giá, điểm, giới thiệu bạn
 
 describe('Hạn dùng mã giảm giá', () => {
   const now = new Date(2026, 10, 16, 10, 0, 0);
+  it('chỉ coi chiến dịch đang bật và nằm trong khoảng ngày là công khai', () => {
+    const today = new Date('2026-11-18T12:00:00+07:00');
+    expect(isPromotionCurrentlyActive({ status: 'active', startDate: '2026-11-18', endDate: '18/11/2026' }, today)).toBe(true);
+    expect(isPromotionCurrentlyActive({ status: 'paused', startDate: '2026-11-01', endDate: '2026-12-01' }, today)).toBe(false);
+    expect(isPromotionCurrentlyActive({ status: 'active', startDate: '2026-11-19', endDate: '2026-12-01' }, today)).toBe(false);
+    expect(isPromotionCurrentlyActive({ status: 'active', startDate: '2026-11-01', endDate: '2026-11-17' }, today)).toBe(false);
+  });
+
   it('mã quá hạn hiện "Hết hạn" ở trang Admin, gia hạn thì dùng lại được', () => {
     expect(isVoucherExpired({ validUntil: '15/11/2026' }, now)).toBe(true);
     expect(isVoucherExpired({ validUntil: '16/11/2026' }, now)).toBe(false);

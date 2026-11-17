@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Gift, 
   Sparkles, 
@@ -17,22 +17,32 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { 
-  promotionCategories, 
-  featuredCampaign, 
-  promotionsList 
-} from '../../mockData/promotionsData';
+import { promotionCategories } from '../../mockData/promotionsData';
+import { fetchPublicPromotions } from '../../services/loyaltyApi';
 import LuckyWheel from './LuckyWheel';
 import PromoDetailModal from './PromoDetailModal';
 
 const Promotions = () => {
   const navigate = useNavigate();
+  const [promotions, setPromotions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [copiedCode, setCopiedCode] = useState(null);
   const [selectedPromo, setSelectedPromo] = useState(null);
-  const [claimedVouchers, setClaimedVouchers] = useState([
-    { code: featuredCampaign.code, name: 'Mã Giảm 25% Mùa Hè', discount: '25%' }
-  ]);
+  const [claimedVouchers, setClaimedVouchers] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchPublicPromotions()
+      .then((items) => {
+        if (mounted) setPromotions(items);
+      })
+      .catch((err) => {
+        if (mounted) toast.error(`Không tải được khuyến mãi: ${err.message}`);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
@@ -51,11 +61,18 @@ const Promotions = () => {
     });
   };
 
-  const filteredPromos = promotionsList.filter((item) => {
+  const filteredPromos = promotions.filter((item) => {
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'minigame') return false;
     return item.category === selectedCategory;
   });
+  const featuredCampaign = promotions.find((item) => item.isHot) || promotions[0];
+  const featuredHighlights = Array.isArray(featuredCampaign?.terms)
+    ? featuredCampaign.terms
+    : [featuredCampaign?.terms || featuredCampaign?.description].filter(Boolean);
+  const daysUntilEnd = featuredCampaign?.endDate
+    ? Math.max(0, Math.ceil((new Date(`${featuredCampaign.endDate}T23:59:59`).getTime() - Date.now()) / 86400000))
+    : 0;
 
   const scrollToMinigame = () => {
     const el = document.getElementById('minigame-section');
@@ -77,7 +94,7 @@ const Promotions = () => {
             Hoạt Động Khuyến Mãi & Minigame
           </h1>
           <p className="text-gray-600 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-            Săn voucher giảm giá phòng lên đến 30%, nhận quà tặng spa, pate cao cấp và tham gia vòng quay may mắn rinh quà ngay!
+            Khám phá các chương trình ưu đãi đang hoạt động, săn voucher và tham gia vòng quay may mắn rinh quà ngay!
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -105,16 +122,17 @@ const Promotions = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-10 space-y-12">
         
         {/* Featured Big Campaign Banner */}
+        {featuredCampaign && (
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-800 rounded-3xl p-6 sm:p-10 text-white shadow-xl overflow-hidden relative border border-emerald-500/30">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
             <div className="lg:col-span-7 space-y-4">
               <div className="flex flex-wrap items-center gap-2.5">
                 <span className="bg-amber-400 text-emerald-950 font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider">
-                  {featuredCampaign.badge}
+                  {featuredCampaign.isHot ? 'Chiến dịch nổi bật' : 'Ưu đãi đang hoạt động'}
                 </span>
                 <span className="bg-white/20 backdrop-blur-md text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-300" />
-                  Còn {featuredCampaign.daysLeft} ngày kết thúc
+                  Còn {daysUntilEnd} ngày kết thúc
                 </span>
               </div>
 
@@ -123,11 +141,11 @@ const Promotions = () => {
               </h2>
 
               <p className="text-emerald-50/90 text-sm sm:text-base leading-relaxed">
-                {featuredCampaign.subtitle}
+                {featuredCampaign.description}
               </p>
 
               <div className="space-y-2 pt-2">
-                {featuredCampaign.highlights.map((h, i) => (
+                {featuredHighlights.slice(0, 3).map((h, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs sm:text-sm text-emerald-100">
                     <CheckCircle2 className="w-4 h-4 text-amber-300 shrink-0" />
                     <span>{h}</span>
@@ -172,6 +190,7 @@ const Promotions = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Categories Bar */}
         <div className="flex justify-center">

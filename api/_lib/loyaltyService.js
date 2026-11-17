@@ -4,6 +4,8 @@ import { getSyncData } from './syncService.js';
 import { getRow, putRow, insertRowOnce, listRows, isUsingDatabase } from './loyaltyDb.js';
 import {
   CONFIG_KEYS,
+  defaultLoyaltyConfig,
+  isPromotionCurrentlyActive,
   mergeLoyaltyConfig,
   normalizeCode,
   referralCodeFor,
@@ -36,7 +38,32 @@ const bodyOf = (req) => {
 
 // ---------- Cài đặt ----------
 export async function getLoyaltyConfig() {
-  return mergeLoyaltyConfig(await getRow('config'));
+  const saved = await getRow('config');
+  if (!saved) return mergeLoyaltyConfig({});
+  if (saved.customerPromotionsMigratedV1) return mergeLoyaltyConfig(saved);
+
+  const defaultPromotions = defaultLoyaltyConfig().promotions;
+  const promotions = Array.isArray(saved.promotions)
+    ? [...saved.promotions]
+    : defaultPromotions;
+  const ids = new Set(promotions.map((promo) => promo.id));
+  const codes = new Set(promotions.map((promo) => normalizeCode(promo.code)).filter(Boolean));
+  const legacyPromotions = defaultPromotions.filter((promo) => promo.customerLegacy);
+  legacyPromotions.forEach((promo) => {
+    const code = normalizeCode(promo.code);
+    if (ids.has(promo.id) || (code && codes.has(code))) return;
+    promotions.push(promo);
+    ids.add(promo.id);
+    if (code) codes.add(code);
+  });
+
+  const migrated = {
+    ...saved,
+    promotions,
+    customerPromotionsMigratedV1: true,
+  };
+  await putRow('config', 'config', null, migrated);
+  return mergeLoyaltyConfig(migrated);
 }
 
 export async function saveLoyaltyConfig(partial = {}, actor = '') {
@@ -385,6 +412,27 @@ const publicVouchers = (config) => vouchersInEffect(config)
     validUntil: v.validUntil,
   }));
 
+const publicPromotions = (config) => config.promotions
+  .filter((promo) => isPromotionCurrentlyActive(promo))
+  .map((promo) => ({
+    id: promo.id,
+    category: promo.category || (
+      ['gift', 'combo'].includes(promo.type) ? 'gifts' : promo.type === 'fixed' ? 'vouchers' : 'campaigns'
+    ),
+    title: promo.name,
+    description: promo.description || '',
+    discount: promo.discountDisplay || '',
+    code: promo.code,
+    minBookingDays: promo.minBookingDays || 1,
+    badge: promo.targetGroupLabel || 'Ưu đãi',
+    badgeColor: promo.targetBadgeColor || 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    validUntil: promo.validUntil || promo.endDate || '',
+    endDate: promo.endDate || promo.validUntil || '',
+    image: promo.image || '',
+    terms: promo.terms || '',
+    isHot: Boolean(promo.isHot),
+  }));
+
 // ---------- Mã giảm giá & điểm khi đặt phòng ----------
 const voucherUsage = (redemptions) => {
   const usage = {};
@@ -622,6 +670,12 @@ async function adminOverview(accessToken) {
 export async function handleLoyalty(req, res) {
   const op = String(req.query?.op || new URL(req.url || '/', 'http://x').searchParams.get('op') || '');
   const accessToken = getBearerToken(req);
+
+  if (op === 'public-promotions') {
+    res.setHeader('Cache-Control', 'no-store');
+    const config = await getLoyaltyConfig();
+    return res.status(200).json({ promotions: publicPromotions(config) });
+  }
 
   if (op === 'public') {
     const config = await getLoyaltyConfig();

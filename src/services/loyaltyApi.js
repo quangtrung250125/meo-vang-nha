@@ -1,9 +1,10 @@
 // Gọi API Khuyến mãi & Điểm thưởng (/api/marketing/loyalty?op=...) kèm token đăng nhập
 import { pushAuthHeaders } from './pushNotificationService';
 
-async function call(op, { method = 'GET', body } = {}) {
+async function call(op, { method = 'GET', body, cache } = {}) {
   const res = await fetch(`/api/marketing/loyalty?op=${encodeURIComponent(op)}`, {
     method,
+    cache,
     headers: { 'Content-Type': 'application/json', ...(await pushAuthHeaders()) },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -18,6 +19,11 @@ async function call(op, { method = 'GET', body } = {}) {
 }
 
 export const fetchLoyaltyPublic = () => call('public');
+export const fetchPublicPromotions = async () => {
+  const data = await call('public-promotions', { cache: 'no-store' });
+  if (!Array.isArray(data.promotions)) throw new Error('Dữ liệu khuyến mãi trả về không hợp lệ.');
+  return data.promotions;
+};
 export const fetchMyLoyalty = () => call('me');
 export const quoteLoyaltyPromo = ({ booking, voucherCode, pointsToUse }) =>
   call('quote', { method: 'POST', body: { booking, voucherCode, pointsToUse } });
