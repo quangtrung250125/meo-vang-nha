@@ -6,7 +6,7 @@ import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
 import { sendWebNotification } from '../../utils/notificationService';
 import { calculateBookingPrice, countStayDays, CAMERA_PRICE_PER_DAY } from '../../utils/bookingPricing';
-import { getDepositPolicy, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
+import { getDepositPolicy, DEPOSIT_FREE_ADVANCE_DAYS, DEPOSIT_DEADLINE_HOURS, PAYMENT_STATUS } from '../../utils/bookingDeposit';
 import { useServiceCatalog } from '../../contexts/ServiceCatalogContext';
 import { buildConfirmRequest, assistedOwnerFields } from '../../utils/assistedBooking';
 import { sendNotification } from '../../services/notificationTriggers';
@@ -199,8 +199,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
-  // ── Đặt cọc: gửi bé từ 5 ngày trở lên thì cọc 50% mới nhận mã đặt phòng ──
-  const deposit = getDepositPolicy({ checkIn: data.checkIn, checkOut: data.checkOut, total: payable });
+  const deposit = getDepositPolicy({ checkIn: data.checkIn, total: payable });
 
   const handleSubmit = async () => {
     const roomId = data.selectedRoom?.id;
@@ -668,7 +667,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 text-sm text-amber-900 space-y-1.5">
           <p className="font-bold text-base">💰 Cần đặt cọc 50% để nhận mã đặt phòng</p>
           <p>
-            Bạn gửi bé {deposit.stayDays} ngày (từ {DEPOSIT_MIN_STAY_DAYS} ngày trở lên) nên cần chuyển khoản cọc{' '}
+            Bạn đặt phòng trước ngày gửi bé {deposit.advanceDays} ngày (hơn {DEPOSIT_FREE_ADVANCE_DAYS} ngày) nên cần chuyển khoản cọc{' '}
             <strong>{deposit.amount.toLocaleString()}đ</strong>. Mèo Vàng Nhà giữ phòng cho bạn và gửi mã đặt phòng ngay khi nhận được tiền cọc.
           </p>
           <p className="font-bold text-red-700">
@@ -680,7 +679,7 @@ const Step4Checkout = ({ data, updateData, onNext, onPrev, onBackToStep1 }) => {
         <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900 space-y-1.5">
           <p className="font-bold text-base">✅ Không cần đặt cọc trước</p>
           <p>
-            Bạn gửi bé {deposit.stayDays} ngày (dưới {DEPOSIT_MIN_STAY_DAYS} ngày) nên bạn nhận mã đặt phòng ngay và thanh toán khi hoàn thành dịch vụ.
+            Bạn đặt phòng trước ngày gửi bé tối đa {DEPOSIT_FREE_ADVANCE_DAYS} ngày nên nhận mã đặt phòng ngay và thanh toán khi hoàn thành dịch vụ.
           </p>
         </div>
       )}

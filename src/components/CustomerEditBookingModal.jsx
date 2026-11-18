@@ -17,7 +17,7 @@ import { buildInvoice } from '../utils/bookingInvoice';
 import { payableAtBooking } from '../utils/loyalty';
 import {
   getEditedDepositState, getDepositPolicy, depositReceivedOf, depositToTransferOf, todayInVietnam,
-  formatVietnamDateTime, getDepositDueAt, PAYMENT_STATUS, DEPOSIT_MIN_STAY_DAYS, DEPOSIT_DEADLINE_HOURS,
+  formatVietnamDateTime, getDepositDueAt, PAYMENT_STATUS, DEPOSIT_FREE_ADVANCE_DAYS, DEPOSIT_DEADLINE_HOURS,
 } from '../utils/bookingDeposit';
 import { formatDateSingle } from '../utils/bookingStatus';
 import { paymentAccount } from '../config/payment';
@@ -113,9 +113,8 @@ const PackageOption = ({ pkg, priceString, isSelected, isCurrent, onClick }) => 
   </button>
 );
 
-// Ghi chú thanh toán / đặt cọc theo quy định: gửi từ 5 ngày cọc 50%, dưới 5 ngày chỉ hiện giá
 const DepositNote = ({ booking, total }) => {
-  const policy = getDepositPolicy({ checkIn: booking.checkIn, checkOut: booking.checkOut, total: payableAtBooking(booking) });
+  const policy = getDepositPolicy({ checkIn: booking.checkIn, total: payableAtBooking(booking), bookedAt: booking.createdAt });
   const received = depositReceivedOf(booking);
   const toTransfer = depositToTransferOf(booking);
 
@@ -131,7 +130,7 @@ const DepositNote = ({ booking, total }) => {
     return (
       <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 space-y-1">
         <p className="font-bold">✅ Không bắt buộc đặt cọc</p>
-        <p>Bạn gửi bé {policy.stayDays} ngày (dưới {DEPOSIT_MIN_STAY_DAYS} ngày) nên chỉ cần thanh toán <strong>{money(total)}</strong> khi hoàn thành dịch vụ.</p>
+        <p>Từ ngày đặt phòng đến ngày gửi bé tối đa {DEPOSIT_FREE_ADVANCE_DAYS} ngày nên chỉ cần thanh toán <strong>{money(total)}</strong> khi hoàn thành dịch vụ.</p>
         {received > 0 && <p>Tiền cọc {money(received)} bạn đã chuyển sẽ được trừ khi thanh toán.</p>}
       </div>
     );
@@ -139,7 +138,7 @@ const DepositNote = ({ booking, total }) => {
   return (
     <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-1">
       <p className="font-bold">💰 Cần đặt cọc 50%: {money(policy.amount)}</p>
-      <p>Bạn gửi bé {policy.stayDays} ngày (từ {DEPOSIT_MIN_STAY_DAYS} ngày trở lên) nên cần cọc 50% tiền dịch vụ.</p>
+      <p>Từ ngày đặt phòng đến ngày gửi bé là {policy.advanceDays} ngày (hơn {DEPOSIT_FREE_ADVANCE_DAYS} ngày) nên cần cọc 50% tiền dịch vụ.</p>
       {booking.paymentStatus === PAYMENT_STATUS.DEPOSIT_PAID && (
         <p className="font-semibold text-emerald-700">Bạn đã cọc {money(received)}, đủ mức cọc. Số còn lại {money(Math.max(total - received, 0))} thanh toán khi hoàn thành dịch vụ.</p>
       )}
@@ -422,7 +421,7 @@ const EditBookingContent = ({ booking, onClose }) => {
     const spaAmount = coupon ? pricing.spaTotal : pricing.spaOriginalTotal;
     const extraAmount = pricing.total - pricing.ruleAdjustmentTotal - lodgingAmount - spaAmount - pricing.cameraTotal;
     const preview = { ...booking, ...changes };
-    Object.assign(preview, getEditedDepositState({ booking, checkIn: changes.checkIn, checkOut: changes.checkOut, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice }) }));
+    Object.assign(preview, getEditedDepositState({ booking, checkIn: changes.checkIn, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice }) }));
     const oldTotal = buildInvoice(booking, ADDONS)?.total ?? 0;
     const newTotal = buildInvoice({ ...preview, originalCheckIn: changes.checkIn, originalCheckOut: changes.checkOut }, ADDONS)?.total ?? pricing.total;
     const requestedExtras = newTotal - pricing.total;

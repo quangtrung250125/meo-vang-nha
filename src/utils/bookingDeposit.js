@@ -1,8 +1,8 @@
-// Quy định đặt cọc: gửi bé từ 5 ngày trở lên (tính theo số ngày gửi) thì phải cọc 50% mới nhận mã đặt phòng.
+// Đặt trước ngày gửi bé hơn 5 ngày thì phải cọc 50% mới nhận mã đặt phòng.
 // Dùng chung cho giao diện đặt phòng, chỉnh sửa đơn và server (api/_lib/bookingsService.js).
 
 export const DEPOSIT_RATE = 0.5;
-export const DEPOSIT_MIN_STAY_DAYS = 5;
+export const DEPOSIT_FREE_ADVANCE_DAYS = 5;
 
 export const PAYMENT_STATUS = {
   AWAITING_DEPOSIT: 'awaiting_deposit', // Chờ đặt cọc: giữ phòng, chưa cấp mã
@@ -29,11 +29,14 @@ export const stayDaysOf = (checkIn, checkOut) => {
   return Number.isFinite(diff) && diff > 0 ? diff : 1;
 };
 
-export function getDepositPolicy({ checkIn, checkOut, total }) {
-  const stayDays = stayDaysOf(checkIn, checkOut);
-  const required = stayDays >= DEPOSIT_MIN_STAY_DAYS;
+export function getDepositPolicy({ checkIn, total, bookedAt = new Date() }) {
+  const bookingDate = new Date(bookedAt || NaN);
+  const bookedOn = todayInVietnam(Number.isNaN(bookingDate.getTime()) ? undefined : bookingDate);
+  const diff = (toUtcDay(checkIn) - toUtcDay(bookedOn)) / 86400000;
+  const advanceDays = Number.isFinite(diff) ? Math.max(0, diff) : 0;
+  const required = advanceDays > DEPOSIT_FREE_ADVANCE_DAYS;
   return {
-    stayDays,
+    advanceDays,
     required,
     amount: required ? Math.round((Number(total) || 0) * DEPOSIT_RATE) : 0,
     paymentStatus: required ? PAYMENT_STATUS.AWAITING_DEPOSIT : PAYMENT_STATUS.PAY_AT_CHECKIN,
@@ -63,14 +66,14 @@ export const depositToTransferOf = (booking) =>
 
 /**
  * Tiền cọc sau khi khách chỉnh sửa đơn (đổi lịch, phòng, số mèo, gói dịch vụ).
- * - Gửi từ 5 ngày: cọc 50% tổng mới. Cọc đủ thì giữ "đã cọc". Chưa đủ thì đơn đã có mã vẫn giữ mã và
+ * - Đặt trước hơn 5 ngày: cọc 50% tổng mới. Cọc đủ thì giữ "đã cọc". Chưa đủ thì đơn đã có mã vẫn giữ mã và
  *   chờ cọc bổ sung phần chênh lệch, đơn chưa có mã tiếp tục chờ cọc (hạn 24 giờ như cũ).
- * - Dưới 5 ngày: không bắt buộc cọc, tiền cọc đã chuyển (nếu có) vẫn được trừ khi thanh toán.
+ * - Đặt trước tối đa 5 ngày: không bắt buộc cọc, tiền cọc đã chuyển (nếu có) vẫn được trừ khi thanh toán.
  * Đơn đã thanh toán đủ thì giữ nguyên, hóa đơn tự hiện phần còn thiếu.
  */
-export function getEditedDepositState({ booking, checkIn, checkOut, total }) {
+export function getEditedDepositState({ booking, checkIn, total }) {
   if (booking?.paymentStatus === 'Đã thanh toán') return {};
-  const policy = getDepositPolicy({ checkIn, checkOut, total });
+  const policy = getDepositPolicy({ checkIn, total, bookedAt: booking?.createdAt });
   const received = depositReceivedOf(booking);
   if (!policy.required) {
     return received > 0

@@ -1,4 +1,5 @@
 import React from 'react';
+import { FloatingLiveChat } from '../src/components/LiveChat';
 
 /**
  * FloatingContactButtons Component
@@ -6,7 +7,7 @@ import React from 'react';
  * 1. Zalo: Điều hướng đến số 090 495 75 55 (https://zalo.me/0904957555)
  * 2. Messenger: Điều hướng đến https://www.messenger.com/t/310542365485288
  */
-const FloatingContactButtons = () => {
+const FloatingContactButtons = ({ onChatOpenChange }) => {
   const zaloPhone = '090 495 75 55';
   const zaloUrl = 'https://zalo.me/0904957555';
   const messengerUrl = 'https://www.messenger.com/t/310542365485288';
@@ -16,6 +17,7 @@ const FloatingContactButtons = () => {
       aria-label="Liên hệ nhanh"
       className="fixed bottom-6 right-5 sm:right-6 z-50 flex flex-col items-end gap-3.5 pointer-events-none"
     >
+      <FloatingLiveChat onOpenChange={onChatOpenChange} />
       {/* 1. Nút Messenger */}
       <div className="relative group flex items-center justify-end pointer-events-auto">
         {/* Tooltip khi hover */}

@@ -11,6 +11,7 @@ import Tab2Templates from './Tab2Templates';
 import Tab3Schedule  from './Tab3Schedule';
 import Tab4Results   from './Tab4Results';
 import Tab5Inbox     from './Tab5Inbox';
+import { StaffLiveChat } from '../../components/LiveChat';
 import Tab6Frequency from './Tab6Frequency';
 
 const TAB_ICONS = {
@@ -61,7 +62,7 @@ const AdminMarketing = () => {
       case 'templates':  return <Tab2Templates templates={templates} saveConfig={saveConfig} customers={customers} openManual={openManual} />;
       case 'schedule':   return <Tab3Schedule {...shared} />;
       case 'results':    return <Tab4Results resultsFor={resultsFor} />;
-      case 'inbox':      return <Tab5Inbox {...shared} />;
+      case 'inbox':      return <InboxWithLiveChat {...shared} />;
       case 'frequency':  return <Tab6Frequency frequency={frequency} saveConfig={saveConfig} />;
       default:           return <Tab1Scenarios {...shared} />;
     }
@@ -199,3 +200,21 @@ const AdminMarketing = () => {
 };
 
 export default AdminMarketing;
+
+function InboxWithLiveChat(props) {
+  const [live, setLive] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2" aria-label="Kênh hộp thư">
+        {[['Messenger và thông báo', false], ['Live chat', true]].map(([label, isLive]) => (
+          <button key={label} type="button" aria-pressed={live === isLive} onClick={() => setLive(isLive)}
+            className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 aria-pressed:bg-emerald-700 aria-pressed:text-white aria-pressed:ring-emerald-700">
+            {label}
+          </button>
+        ))}
+      </div>
+      {live ? <StaffLiveChat /> : <Tab5Inbox {...props} />}
+    </div>
+  );
+}

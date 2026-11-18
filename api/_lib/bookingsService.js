@@ -776,18 +776,20 @@ export async function handleAddBooking(req, res) {
     }
   }
 
-  // Tiền cọc do server tính theo số ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được.
+  // Tiền cọc do server tính theo số ngày từ lúc đặt đến ngày gửi bé, khách không tự đặt trạng thái "đã cọc" được.
   // Đơn nhân viên đặt hộ cũng tính cọc như khách tự đặt.
   if (!user?.isAdmin || !payload.paymentStatus || assisted) {
-    const deposit = getDepositPolicy({ checkIn: payload.checkIn, checkOut: payload.checkOut, total: payableAtBooking(payload) });
+    const bookedAt = new Date();
+    const deposit = getDepositPolicy({ checkIn: payload.checkIn, total: payableAtBooking(payload), bookedAt });
     payload = {
       ...payload,
+      createdAt: bookedAt.toISOString(),
       depositRequired: deposit.required,
       depositAmount: deposit.amount,
       paymentStatus: deposit.paymentStatus,
       // Hạn chuyển cọc 24 giờ tính theo giờ server, khách không tự kéo dài được
       depositDueAt: deposit.required
-        ? new Date(Date.now() + DEPOSIT_DEADLINE_HOURS * 3600 * 1000).toISOString()
+        ? new Date(bookedAt.getTime() + DEPOSIT_DEADLINE_HOURS * 3600 * 1000).toISOString()
         : null,
     };
   }
@@ -1060,7 +1062,7 @@ export function checkCustomerEdit({ booking, roomId, updates }, bookingsByRoom, 
   allowed.roomId = targetRoomId;
   allowed.totalPrice = total;
   // Tiền cọc do server tính lại theo đơn mới, khách không tự đặt được
-  Object.assign(allowed, getEditedDepositState({ booking, checkIn: next.checkIn, checkOut: next.checkOut, total: payableAtBooking({ ...next, totalPrice: total }) }));
+  Object.assign(allowed, getEditedDepositState({ booking, checkIn: next.checkIn, total: payableAtBooking({ ...next, totalPrice: total }) }));
   // >>> FIX-DOI-PHONG (bắt đầu)
   // Dòng cũ: return { ok: true, updates: allowed };
   return { ok: true, updates: allowed, roomChange };
