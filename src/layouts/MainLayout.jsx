@@ -14,19 +14,20 @@ import { useUI } from '../contexts/UIContext';
 
 const MainLayout = () => {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const { registerCustomer, isAuthenticated } = useCustomerProfile();
   const { petList, savePet } = usePetProfile();
   const { isAuthOpen, closeAuth } = useUI();
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated || isChatOpen) {
       setIsWelcomeOpen(false);
       return;
     }
 
     const timer = window.setTimeout(() => setIsWelcomeOpen(true), 3000);
     return () => window.clearTimeout(timer);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isChatOpen]);
 
   const handleProfileSubmit = async (profileData) => {
     localStorage.setItem('mvn_has_seen_welcome', 'true');
@@ -76,7 +77,7 @@ const MainLayout = () => {
         <Outlet />
       </main>
       <Footer />
-      <FloatingContactButtons />
+      <FloatingContactButtons onChatOpenChange={setIsChatOpen} />
       <SearchModal />
       <PolicyModal />
       <AuthModal isOpen={isAuthOpen} onClose={closeAuth} />
