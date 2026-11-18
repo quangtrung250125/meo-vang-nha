@@ -2,6 +2,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+// >>> FIX-DOI-PHONG (bắt đầu)
+import { supabaseAdmin } from '../../api/_lib/db.js';
+// <<< FIX-DOI-PHONG (kết thúc)
 
 // Dùng thư mục tạm để test không đụng tới dữ liệu thật trong api/_lib
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mvn-api-'));
@@ -65,6 +68,28 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  vi.spyOn(supabaseAdmin, 'rpc').mockImplementation(async (functionName, params) => {
+    if (functionName !== 'change_room_safe') return { data: null, error: null };
+    const bookings = api.getAllBookings();
+    const booking = Object.values(bookings).flat().find((item) => item.code === params.p_booking_code);
+    if (!booking) return { data: null, error: { message: 'BOOKING_NOT_FOUND' } };
+    const occupied = api.getPeakOccupancyForRoom(
+      params.p_target_room_id,
+      bookings,
+      params.p_patch.checkIn || booking.checkIn,
+      params.p_patch.checkOut || booking.checkOut,
+      [booking.code, booking.id],
+    );
+    if (occupied + (Number(params.p_patch.cats ?? booking.cats) || 1) > params.p_capacity) {
+      return { data: null, error: { message: 'ROOM_FULL' } };
+    }
+    return {
+      data: { ok: true, booking_id: params.p_booking_code, room_id: params.p_target_room_id },
+      error: null,
+    };
+  });
+  // <<< FIX-DOI-PHONG (kết thúc)
 });
 
 describe('POST /api/bookings: kiểm tra dữ liệu đơn', () => {
@@ -503,6 +528,13 @@ describe('Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch v�
       packages: ['Gói Mèo Sang Chảnh'], paymentStatus: 'deposit_paid',
     });
     expect(res.statusCode).toBe(200);
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    expect(supabaseAdmin.rpc).toHaveBeenCalledWith('change_room_safe', expect.objectContaining({
+      p_booking_code: created.code,
+      p_target_room_id: 'VVIP-03',
+      p_capacity: 4,
+    }));
+    // <<< FIX-DOI-PHONG (kết thúc)
     const moved = find(created.code);
     expect(moved.roomId).toBe('VVIP-03');
     expect(moved.booking).toMatchObject({ cats: 3, checkOut: addDays(146), packages: ['Gói Mèo Sang Chảnh'], pending_changes: null });
@@ -516,7 +548,10 @@ describe('Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch v�
     const created = await createOwn('VIP-05', { checkIn: addDays(150), checkOut: addDays(151) });
     const res = await edit('VIP-05', created.code, { roomId: 'VVIP-02', totalPrice: 200000 });
     expect(res.statusCode).toBe(409);
-    expect(res.payload.message).toMatch(/full/);
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    // Dòng cũ: expect(res.payload.message).toMatch(/full/);
+    expect(res.payload.message).toBe('Phòng này vừa hết chỗ, vui lòng chọn phòng khác.');
+    // <<< FIX-DOI-PHONG (kết thúc)
     expect(find(created.code).roomId).toBe('VIP-05');
   });
 

@@ -473,10 +473,17 @@ export const BookingHistoryProvider = ({ children }) => {
               }
               const message = json.message || 'Máy chủ chưa ghi nhận thay đổi, vui lòng thử lại.';
               toast.error(message);
-              return { ok: false, message };
+              // >>> FIX-DOI-PHONG (bắt đầu)
+              // Dòng cũ: return { ok: false, message };
+              return { ok: false, message, status: res.status };
+              // <<< FIX-DOI-PHONG (kết thúc)
             }
             // Server đã chấp nhận thì mới ghi lên Supabase, tránh lệch dữ liệu khi bị từ chối
-            writeToSupabase();
+            // >>> FIX-DOI-PHONG (bắt đầu)
+            // Dòng cũ ghi trực tiếp cùng booking lần thứ hai sau RPC:
+            // writeToSupabase();
+            if (!json.roomChangeApplied) writeToSupabase();
+            // <<< FIX-DOI-PHONG (kết thúc)
             const serverBooking = Object.values(json.allBookings || {}).flat()
               .find((b) => b && (b.code === code || b.id === code)) || null;
             return { ok: true, serverBooking };
@@ -935,7 +942,10 @@ export const BookingHistoryProvider = ({ children }) => {
     const result = await updateBooking(bookingId, { ...editFields, ...deposit }, {
       serverUpdates: { ...editFields, customerEdit: true },
     });
-    if (!result.ok) return { ok: false, message: result.message };
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    // Dòng cũ: if (!result.ok) return { ok: false, message: result.message };
+    if (!result.ok) return { ok: false, message: result.message, status: result.status };
+    // <<< FIX-DOI-PHONG (kết thúc)
     if (result.serverBooking) {
       const serverDeposit = Object.fromEntries(
         DEPOSIT_FIELDS.filter((key) => result.serverBooking[key] !== undefined).map((key) => [key, result.serverBooking[key]])

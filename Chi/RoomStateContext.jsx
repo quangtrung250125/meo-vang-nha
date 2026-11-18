@@ -341,6 +341,9 @@ const getInitialBookings = () => {
 
 export const RoomStateProvider = ({ children }) => {
   const [bookings, setBookings] = useState(getInitialBookings);
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  const refreshRoomBookingsRef = useRef(null);
+  // <<< FIX-DOI-PHONG (kết thúc)
   const bookingHistory = useBookingHistory();
   const historyRef = useRef(bookingHistory);
   historyRef.current = bookingHistory;
@@ -572,6 +575,9 @@ export const RoomStateProvider = ({ children }) => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') fetchServerBookings();
     };
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    refreshRoomBookingsRef.current = fetchServerBookings;
+    // <<< FIX-DOI-PHONG (kết thúc)
     fetchServerBookings();
     const intervalId = setInterval(fetchServerBookings, 2000);
     window.addEventListener('focus', fetchServerBookings);
@@ -579,6 +585,9 @@ export const RoomStateProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
+      // >>> FIX-DOI-PHONG (bắt đầu)
+      refreshRoomBookingsRef.current = null;
+      // <<< FIX-DOI-PHONG (kết thúc)
       clearInterval(intervalId);
       window.removeEventListener('focus', fetchServerBookings);
       document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -1141,6 +1150,9 @@ export const RoomStateProvider = ({ children }) => {
         checkOutBooking,
         removeBooking,
         getRoomAvailability,
+        // >>> FIX-DOI-PHONG (bắt đầu)
+        refreshRoomBookings: () => refreshRoomBookingsRef.current?.(),
+        // <<< FIX-DOI-PHONG (kết thúc)
         newBookingIds,
         maintenanceRooms,
         toggleMaintenance,

@@ -1,4 +1,7 @@
-import React, { useMemo, useState } from 'react';
+// >>> FIX-DOI-PHONG (bắt đầu)
+// Dòng cũ: import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
+// <<< FIX-DOI-PHONG (kết thúc)
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -169,7 +172,10 @@ const OrderInfo = ({ booking, days }) => (
 const EditBookingContent = ({ booking, onClose }) => {
   const { customerEditBooking, globalBookingList } = useBookingHistory();
   const { petList } = usePetProfile();
-  const { bookings: roomBookings, getRoomAvailability } = useRoomState();
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  // Dòng cũ: const { bookings: roomBookings, getRoomAvailability } = useRoomState();
+  const { bookings: roomBookings, getRoomAvailability, refreshRoomBookings } = useRoomState();
+  // <<< FIX-DOI-PHONG (kết thúc)
   const { publishedItems, roomSurcharges, activeRules } = useServiceCatalog();
 
   const code = booking.code || booking.id;
@@ -206,6 +212,9 @@ const EditBookingContent = ({ booking, onClose }) => {
   const [step, setStep] = useState('edit'); // 'edit' | 'review' | 'done'
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  const saveLock = useRef(false);
+  // <<< FIX-DOI-PHONG (kết thúc)
   const [savedSummary, setSavedSummary] = useState([]);
 
   const editing = (key) => sections.has(key);
@@ -301,18 +310,43 @@ const EditBookingContent = ({ booking, onClose }) => {
   };
 
   const handleSave = async () => {
-    if (!edit || saving) return;
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    /*
+    const handleSave = async () => {
+      if (!edit || saving) return;
+      setSaving(true);
+      setError('');
+      const result = await customerEditBooking(booking.id, edit.changes, edit.summary.join('; '));
+      setSaving(false);
+      if (!result?.ok) {
+        setError(result?.message || 'Chưa lưu được thay đổi, vui lòng thử lại.');
+        setStep('edit');
+        return;
+      }
+      setSavedSummary(edit.summary);
+      setStep('done');
+    };
+    */
+    if (!edit || saving || saveLock.current) return;
+    saveLock.current = true;
     setSaving(true);
     setError('');
-    const result = await customerEditBooking(booking.id, edit.changes, edit.summary.join('; '));
-    setSaving(false);
-    if (!result?.ok) {
-      setError(result?.message || 'Chưa lưu được thay đổi, vui lòng thử lại.');
-      setStep('edit');
-      return;
+    try {
+      const result = await customerEditBooking(booking.id, edit.changes, edit.summary.join('; '));
+      if (!result?.ok) {
+        setError(result?.message || 'Chưa lưu được thay đổi, vui lòng thử lại.');
+        setStep('edit');
+        if (result?.status === 409) refreshRoomBookings();
+        return;
+      }
+      setSavedSummary(edit.summary);
+      setStep('done');
+    } finally {
+      saveLock.current = false;
+      // Dòng cũ: setSaving(false);
+      setSaving(false);
     }
-    setSavedSummary(edit.summary);
-    setStep('done');
+    // <<< FIX-DOI-PHONG (kết thúc)
   };
 
   // Phần cảnh báo hết chỗ + danh sách phòng còn chỗ (hiện ở mục Lịch đặt nếu khách đang sửa lịch, không thì ở mục Phòng)
@@ -443,7 +477,10 @@ const EditBookingContent = ({ booking, onClose }) => {
             <ArrowLeft className="w-4 h-4" />Quay lại sửa
           </button>
           <button type="button" onClick={handleSave} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-1.5 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 cursor-pointer">
-            <Save className="w-4 h-4" />{saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+            {/* >>> FIX-DOI-PHONG (bắt đầu) */}
+            {/* Dòng cũ: <Save className="w-4 h-4" />{saving ? 'Đang lưu...' : 'Lưu thay đổi'} */}
+            <Save className="w-4 h-4" />{saving ? 'Đang xử lý...' : 'Lưu thay đổi'}
+            {/* <<< FIX-DOI-PHONG (kết thúc) */}
           </button>
         </div>
       </div>
