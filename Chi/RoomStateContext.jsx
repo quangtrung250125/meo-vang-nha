@@ -469,9 +469,22 @@ export const RoomStateProvider = ({ children }) => {
   // 3. Đồng bộ Realtime đa thiết bị (Điện thoại + Máy tính) qua server trung tâm /api/bookings
   useEffect(() => {
     let isMounted = true;
+    let isFetching = false;
+    let lastFailureLogAt = 0;
+    const reportFailure = (message, error) => {
+      if (Date.now() - lastFailureLogAt < 15000) return;
+      lastFailureLogAt = Date.now();
+      console.warn(`[RoomState] ${message}`, error || '');
+    };
     const fetchServerBookings = async () => {
+      if (isFetching || document.visibilityState === 'hidden') return;
+      isFetching = true;
       try {
         const res = await callBookingsApi();
+        if (!res.ok) {
+          reportFailure(`GET /api/bookings returned HTTP ${res.status}`);
+          return;
+        }
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.bookings && isMounted) {
@@ -549,17 +562,26 @@ export const RoomStateProvider = ({ children }) => {
             historyRef.current?.applyServerSnapshot?.(Object.values(json.bookings).flat(), json.closed || []);
           }
         }
-      } catch (err) {}
+      } catch (error) {
+        reportFailure('Unable to refresh /api/bookings:', error);
+      } finally {
+        isFetching = false;
+      }
     };
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchServerBookings();
+    };
     fetchServerBookings();
     const intervalId = setInterval(fetchServerBookings, 2000);
     window.addEventListener('focus', fetchServerBookings);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       isMounted = false;
       clearInterval(intervalId);
       window.removeEventListener('focus', fetchServerBookings);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 

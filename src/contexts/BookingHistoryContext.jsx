@@ -65,6 +65,7 @@ const mergeBookings = (base, incoming) => {
 const BookingHistoryContext = createContext();
 
 export const BookingHistoryProvider = ({ children }) => {
+  const [bookingDataReady, setBookingDataReady] = useState(false);
   const [globalBookingList, setRawBookingList] = useState(() => {
     const saved = localStorage.getItem('bookingHistory');
     if (saved) {
@@ -160,6 +161,10 @@ export const BookingHistoryProvider = ({ children }) => {
       const dbOk = !dbResult?.error && Array.isArray(dbResult?.data);
       if (dbResult?.error) console.warn('Lỗi đọc bảng bookings từ Supabase:', dbResult.error);
       const dbBookings = dbOk ? dbResult.data.map(bookingFromDbRow) : [];
+      setBookingDataReady(Boolean(
+        (serverData && Array.isArray(serverData.bookings)) ||
+        (dbOk && dbBookings.length > 0)
+      ));
 
       setGlobalBookingList((prev) => {
         let next;
@@ -181,6 +186,7 @@ export const BookingHistoryProvider = ({ children }) => {
     // chưa trả đơn nào -> tải lại theo tài khoản vừa đăng nhập (admin thấy toàn bộ đơn ngay)
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) syncInitialBookings();
+      if (event === 'SIGNED_OUT') setBookingDataReady(false);
     });
 
     // 2. Kênh Realtime lắng nghe mọi sự kiện INSERT, UPDATE, DELETE từ bảng bookings
@@ -946,6 +952,7 @@ export const BookingHistoryProvider = ({ children }) => {
     <BookingHistoryContext.Provider
       value={{
         globalBookingList,
+        bookingDataReady,
         addBooking,
         upsertBooking,
         updateBooking,

@@ -10,10 +10,17 @@ const SYNC_EVENTS = [
   'REQUEST_SYNC',
   'FULL_SYNC_RESPONSE',
 ];
+const SERVER_SYNC_CACHE_MS = 5000;
 
 // Cache kênh Supabase để dùng chung toàn app
 let syncChannel = null;
 const listeners = new Set();
+const syncRequests = new Map();
+const serverSyncCache = new Map();
+
+export const invalidateServerSyncCache = () => {
+  serverSyncCache.clear();
+};
 
 // Tài khoản đang đăng nhập trên thiết bị này (CustomerContext cập nhật sau khi Supabase xác thực)
 let syncIdentity = { userId: null, isAdmin: false };
@@ -73,6 +80,7 @@ export const scopeOutgoingPayload = (payload, identity = syncIdentity) => {
 const dispatchSyncEvent = (type, rawPayload) => {
   const payload = scopeIncomingPayload(type, rawPayload);
   if (!payload) return;
+  if (type !== 'REQUEST_SYNC') invalidateServerSyncCache();
   listeners.forEach((fn) => {
     try {
       fn({ type, payload });
@@ -142,6 +150,7 @@ export const broadcastEvent = async (event, rawPayload) => {
   try {
     const payload = scopeOutgoingPayload(rawPayload);
     if (!payload) return;
+    if (event !== 'REQUEST_SYNC') invalidateServerSyncCache();
     const channel = getSyncChannel();
     if (channel) {
       await channel.send({
@@ -161,17 +170,38 @@ export { getAuthHeaders };
  * Lấy dữ liệu từ Server API (/api/sync)
  */
 export const fetchServerSync = async () => {
+  const headers = { 'Accept': 'application/json', ...(await getAuthHeaders()) };
+  const key = headers.Authorization || 'anonymous';
+  const cached = serverSyncCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  serverSyncCache.delete(key);
+  if (syncRequests.has(key)) return syncRequests.get(key);
+
+  const request = (async () => {
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'GET',
+        headers,
+      });
+      if (!res.ok) {
+        console.warn(`[CrossDeviceSync] GET /api/sync returned HTTP ${res.status}`);
+        return null;
+      }
+      const json = await res.json();
+      if (!json.success) return null;
+      serverSyncCache.set(key, { data: json.data, expiresAt: Date.now() + SERVER_SYNC_CACHE_MS });
+      return json.data;
+    } catch (err) {
+      console.warn('[CrossDeviceSync] Unable to load /api/sync:', err);
+      return null;
+    }
+  })();
+  syncRequests.set(key, request);
+
   try {
-    const res = await fetch('/api/sync', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json', ...(await getAuthHeaders()) },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.success ? json.data : null;
-  } catch (err) {
-    // API có thể không chạy nếu ở môi trường static thuần
-    return null;
+    return await request;
+  } finally {
+    if (syncRequests.get(key) === request) syncRequests.delete(key);
   }
 };
 
@@ -186,10 +216,15 @@ export const pushServerSync = async ({ bookings, pets, profiles }) => {
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
       body: JSON.stringify({ bookings, pets, profiles }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[CrossDeviceSync] POST /api/sync returned HTTP ${res.status}`);
+      return null;
+    }
     const json = await res.json();
+    if (json.success) invalidateServerSyncCache();
     return json.success ? json.data : null;
-  } catch (err) {
+  } catch (error) {
+    console.warn('[CrossDeviceSync] Unable to update /api/sync:', error);
     return null;
   }
 };

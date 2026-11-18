@@ -10,6 +10,9 @@ const UrgentTasksToday = ({
   checkInList = [],
   checkOutList = [],
   complaintsList = [],
+  loading = false,
+  error = '',
+  onRetry,
   onCheckIn,
   onCheckOut,
 }) => {
@@ -17,6 +20,28 @@ const UrgentTasksToday = ({
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const reviewsPath = location.pathname.startsWith('/review-demo') ? '/review-demo/admin?tab=urgent' : (isDirectAdminRoute ? '/admin/reviews?tab=urgent' : '/reviews?tab=urgent');
   const myBookingPath = isDirectAdminRoute ? '/admin/my-booking' : '/my-booking';
+
+  if (loading) {
+    return (
+      <div role="status" aria-label="Đang tải công việc hôm nay" aria-live="polite" className="animate-pulse rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="mb-4 h-6 w-1/2 rounded bg-gray-100" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="h-36 rounded-2xl bg-gray-50" />
+          <div className="h-36 rounded-2xl bg-gray-50" />
+          <div className="h-36 rounded-2xl bg-gray-50" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+        <span>Không thể tải dữ liệu khiếu nại: {error}</span>
+        {onRetry && <button onClick={onRetry} className="rounded-lg bg-white px-3 py-2 font-bold text-rose-700 shadow-sm">Thử lại</button>}
+      </div>
+    );
+  }
 
   const totalUrgent = checkInList.length + checkOutList.length + complaintsList.length;
 

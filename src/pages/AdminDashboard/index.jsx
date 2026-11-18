@@ -11,6 +11,7 @@ import { getDailyTask, getTodayTaskStatus, vnTime } from '../../utils/careTasks'
 import { useReviews } from '../../contexts/ReviewsContext';
 import { computeDashboardKpis, computeRevenueSeries, computeRoomHeatmap } from '../../utils/dashboardReport';
 import { todayInVietnam } from '../../utils/bookingDeposit';
+import AdminStatsLoading from '../../components/AdminStatsLoading';
 
 // Các thành phần thuộc Thẻ 1: Tổng quan
 import OverviewFilters from './OverviewFilters';
@@ -32,16 +33,27 @@ import { BedDouble, Users, AlertTriangle, ShieldCheck, CheckCircle2, Flame } fro
 import { Link, useLocation } from 'react-router-dom';
 
 const AdminDashboard = () => {
-  const { reviews } = useReviews();
+  const {
+    reviews = [],
+    loading: reviewsLoading = false,
+    error: reviewsError = '',
+    refresh: refreshReviews,
+  } = useReviews() || {};
   const location = useLocation();
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const basePrefix = isDirectAdminRoute ? '/admin' : '';
 
-  const { adminCheckIn, adminCheckOut } = useBookingHistory();
+  const { adminCheckIn, adminCheckOut, bookingDataReady = false } = useBookingHistory();
   const { bookings: roomBookings, maintenanceRooms = {}, checkInBooking, checkOutBooking } = useRoomState();
   const { petList } = usePetProfile();
   const { getLogs, addCareLog, addBulkCareLog, completeTask, undoLog } = useCareLog();
-  const { customers = [] } = useCustomerData();
+  const {
+    customers = [],
+    hasData: hasCustomerData,
+    error: customerDataError,
+    refresh: refreshCustomerData,
+  } = useCustomerData();
+  const showCustomerLoading = !hasCustomerData && !customerDataError;
 
   // 1. STATE BỘ LỌC THỜI GIAN
   const [timePreset, setTimePreset] = useState('30d'); // 'today', '7d', '30d', 'quarter', 'custom'
@@ -308,21 +320,33 @@ const AdminDashboard = () => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-xs font-bold text-white transition-colors"
           >
             <BedDouble className="w-3.5 h-3.5" />
-            <span>Phòng: {heatmapData[0]?.occupied || 0}/{heatmapData[0]?.total || ROOM_CONFIG.length}</span>
+            <span>
+              {bookingDataReady
+                ? `Phòng: ${heatmapData[0]?.occupied || 0}/${heatmapData[0]?.total || ROOM_CONFIG.length}`
+                : 'Đang tải tình trạng phòng...'}
+            </span>
           </Link>
           <Link
             to={`${basePrefix}/customers`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-xs font-bold text-white transition-colors"
           >
             <Users className="w-3.5 h-3.5" />
-            <span>{customers.length} Khách hàng</span>
+            <span>
+              {hasCustomerData
+                ? `${customers.length} Khách hàng`
+                : customerDataError ? 'Không tải được dữ liệu khách hàng' : 'Đang tải khách hàng...'}
+            </span>
           </Link>
           <Link
             to={`${basePrefix}/reviews?tab=urgent`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-xs font-bold text-white transition-colors"
           >
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>{complaintsList.length} Khiếu nại/Phản hồi</span>
+            <span>
+              {reviewsLoading
+                ? 'Đang tải khiếu nại...'
+                : reviewsError ? 'Không tải được khiếu nại' : `${complaintsList.length} Khiếu nại/Phản hồi`}
+            </span>
           </Link>
         </div>
       </div>
@@ -338,18 +362,31 @@ const AdminDashboard = () => {
       />
 
       {/* 2. 7 THẺ SỐ LIỆU CHỈ SỐ DOANH NGHIỆP (KPI) */}
-      <KpiMetricsGrid metrics={kpiMetrics} comparePrevious={comparePrevious} />
+      <KpiMetricsGrid
+        metrics={kpiMetrics}
+        comparePrevious={comparePrevious}
+        loading={showCustomerLoading}
+        error={!hasCustomerData ? customerDataError : ''}
+        onRetry={refreshCustomerData}
+      />
 
       {/* 3. BIỂU ĐỒ DOANH THU & CÔNG SUẤT PHÒNG (BẢN ĐỒ NHIỆT) */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-        <RevenueChart chartData={revenueChartData} />
-        <RoomHeatmap heatmapData={heatmapData} />
+        {hasCustomerData
+          ? <RevenueChart chartData={revenueChartData} />
+          : <AdminStatsLoading count={1} error={customerDataError} onRetry={refreshCustomerData} />}
+        <RoomHeatmap heatmapData={heatmapData} loading={!bookingDataReady} />
       </div>
 
       {/* 4. PHỄU CHUYỂN ĐỔI THU GỌN & CẦN XỬ LÝ HÔM NAY */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-        <CondensedFunnel customers={customers} />
+        {hasCustomerData
+          ? <CondensedFunnel customers={customers} />
+          : <AdminStatsLoading count={1} error={customerDataError} onRetry={refreshCustomerData} />}
         <UrgentTasksToday
+          loading={!bookingDataReady || reviewsLoading}
+          error={reviewsError}
+          onRetry={refreshReviews}
           checkInList={todayCheckInList}
           checkOutList={todayCheckOutList}
           complaintsList={complaintsList}

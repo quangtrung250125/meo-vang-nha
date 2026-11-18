@@ -4,6 +4,7 @@ import {
   TrendingUp, TrendingDown, Users, UserCheck, 
   XCircle, Minus, Sparkles
 } from 'lucide-react';
+import AdminStatsLoading from '../../components/AdminStatsLoading';
 
 /**
  * Format tiền tệ VNĐ
@@ -51,7 +52,11 @@ const DiffBadge = ({ diff, isInverse = false }) => {
   );
 };
 
-const KpiMetricsGrid = ({ metrics, comparePrevious = true }) => {
+const KpiMetricsGrid = ({ metrics, comparePrevious = true, loading = false, error = '', onRetry }) => {
+  if (loading || error) {
+    return <AdminStatsLoading count={7} error={error} onRetry={onRetry} />;
+  }
+
   const cards = [
     {
       id: 'revenue',

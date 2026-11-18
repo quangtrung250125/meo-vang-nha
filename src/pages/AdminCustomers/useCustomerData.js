@@ -6,54 +6,96 @@ import { usePetProfile } from '../../contexts/PetContext';
 import { useCustomerProfile } from '../../contexts/CustomerContext';
 import { buildCustomers } from './customerUtils';
 import { fromPetRow } from '../../utils/petRows';
+import { readAdminCustomerSnapshot, writeAdminCustomerSnapshot } from '../../utils/adminCustomerCache';
 
 const REFRESH_MS = 15000;
 const QUERY_TIMEOUT_MS = 8000;
 const EMPTY = { profiles: [], bookings: [], pets: [] };
 
-// Đọc thêm từ các bảng Supabase (nếu RLS cho phép admin đọc); lỗi thì bỏ qua
-async function loadFromSupabase() {
-  // Supabase không phản hồi (mất mạng, bị chặn) thì bỏ qua sau một lúc để trang không bị treo
-  const safe = async (query) => {
+const caches = new Map();
+const sourceRequests = new Map();
+
+const storage = () => {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage;
+  } catch (error) {
+    console.warn('[AdminCustomerData] Session storage is unavailable:', error);
+    return null;
+  }
+};
+
+const getCache = (userId) => {
+  const key = userId || 'anonymous';
+  if (!caches.has(key)) {
+    caches.set(key, userId ? readAdminCustomerSnapshot(storage(), userId) : {
+      server: EMPTY,
+      db: EMPTY,
+      lastSyncedAt: null,
+    });
+  }
+  return caches.get(key);
+};
+
+const loadSharedSources = (userId) => {
+  const key = userId || 'anonymous';
+  if (sourceRequests.has(key)) return sourceRequests.get(key);
+
+  const request = (async () => {
     try {
-      const timeout = new Promise((resolve) => setTimeout(() => resolve({ data: null }), QUERY_TIMEOUT_MS));
-      const { data, error } = await Promise.race([query, timeout]);
-      return !error && Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+      return await Promise.all([fetchServerSync(), loadFromSupabase()]);
+    } finally {
+      if (sourceRequests.get(key) === request) sourceRequests.delete(key);
+    }
+  })();
+  sourceRequests.set(key, request);
+  return request;
+};
+
+async function loadFromSupabase() {
+  const safe = async (table, query) => {
+    let timeoutId;
+    try {
+      const timeout = new Promise((resolve) => {
+        timeoutId = setTimeout(() => resolve({ timedOut: true }), QUERY_TIMEOUT_MS);
+      });
+      const result = await Promise.race([query, timeout]);
+      if (result.timedOut) {
+        console.warn(`[AdminCustomerData] Timed out loading ${table}`);
+        return { data: [], succeeded: false };
+      }
+      if (result.error) {
+        console.warn(`[AdminCustomerData] Unable to load ${table}:`, result.error.message);
+        return { data: [], succeeded: false };
+      }
+      return { data: Array.isArray(result.data) ? result.data : [], succeeded: true };
+    } catch (error) {
+      console.warn(`[AdminCustomerData] Unable to load ${table}:`, error);
+      return { data: [], succeeded: false };
+    } finally {
+      clearTimeout(timeoutId);
     }
   };
 
-  const [profiles, pets, bookings] = await Promise.all([
-    safe(supabase.from('customer_profiles').select('*')),
-    safe(supabase.from('pets').select('*')),
-    safe(supabase.from('bookings').select('*')),
+  const [profilesResult, petsResult] = await Promise.all([
+    safe('customer_profiles', supabase.from('customer_profiles').select('id,full_name,phone,email,created_at')),
+    safe('pets', supabase.from('pets').select('id,customer_id,name,data,created_at,updated_at')),
   ]);
 
   return {
-    profiles: profiles.map((p) => ({
+    profiles: profilesResult.data.map((p) => ({
       id: p.id,
       fullName: p.full_name,
       phone: p.phone,
       email: p.email,
       createdAt: p.created_at,
     })),
-    pets: pets.map(fromPetRow),
-    bookings: bookings.map((row) => ({
-      id: row.id,
-      code: row.code,
-      customerId: row.customer_id,
-      createdAt: row.created_at,
-      ...row.data,
-    })),
+    profileQuerySucceeded: profilesResult.succeeded,
+    pets: petsResult.data.map(fromPetRow),
+    petsQuerySucceeded: petsResult.succeeded,
   };
 }
 
 const NO_PROFILES = [];
-
-// Dữ liệu lần tải gần nhất, dùng chung giữa trang Khách hàng và Tổng quan: chuyển trang là có số liệu ngay,
-// không phải chờ tải lại từ đầu (trước đây mỗi lần mở trang đều bắt đầu từ 0)
-const cache = { server: EMPTY, db: EMPTY, lastSyncedAt: null };
 
 // Đơn admin vừa thay đổi trên máy này (check-in, check-out, thanh toán, hủy) nhưng máy chủ có thể chưa trả về:
 // áp lên số liệu ngay để thẻ số liệu khớp thời gian thực, tự bỏ khi máy chủ đã có trạng thái mới
@@ -91,17 +133,39 @@ const applyPatches = (list) => {
  * extraProfiles: họ tên / SĐT tài khoản khách do máy chủ đọc thêm (vd. trang Marketing).
  */
 export default function useCustomerData({ extraProfiles = NO_PROFILES } = {}) {
-  const { globalBookingList = [] } = useBookingHistory() || {};
+  const { globalBookingList = [], bookingDataReady = false } = useBookingHistory() || {};
   const { petList = [] } = usePetProfile() || {};
   const { authenticatedCustomer } = useCustomerProfile() || {};
+  const userId = authenticatedCustomer?.id || null;
+  const bookingDataReadyRef = useRef(bookingDataReady);
+  bookingDataReadyRef.current = bookingDataReady;
+  const previousBookingDataReady = useRef(bookingDataReady);
+  const currentUserId = useRef(userId);
+  currentUserId.current = userId;
 
-  const [server, setServer] = useState(cache.server);
-  const [db, setDb] = useState(cache.db);
-  const [loading, setLoading] = useState(!cache.lastSyncedAt);
-  const [lastSyncedAt, setLastSyncedAt] = useState(cache.lastSyncedAt);
+  const [state, setState] = useState(() => {
+    const cached = getCache(userId);
+    return {
+      ownerId: userId,
+      server: cached.server,
+      db: cached.db,
+      loading: !cached.lastSyncedAt,
+      hasData: Boolean(cached.lastSyncedAt),
+      lastSyncedAt: cached.lastSyncedAt,
+      error: '',
+    };
+  });
+  const activeCache = state.ownerId === userId ? state : {
+    ...getCache(userId),
+    ownerId: userId,
+    loading: !getCache(userId).lastSyncedAt,
+    hasData: Boolean(getCache(userId).lastSyncedAt),
+    error: '',
+  };
   const [patchVersion, setPatchVersion] = useState(0);
   const inFlight = useRef(false);
   const queued = useRef(false);
+  const refreshRef = useRef(null);
 
   const refresh = useCallback(async () => {
     // Đang tải dở thì không bỏ lượt: tải thêm 1 lần ngay sau đó để lấy trạng thái mới nhất (vd. vừa check-out)
@@ -110,37 +174,75 @@ export default function useCustomerData({ extraProfiles = NO_PROFILES } = {}) {
       return;
     }
     inFlight.current = true;
+    if (currentUserId.current === userId && !getCache(userId).lastSyncedAt) {
+      setState((previous) => previous.ownerId === userId
+        ? { ...previous, loading: true, error: '' }
+        : previous);
+    }
     try {
-      // Server đồng bộ thường trả về nhanh hơn Supabase, nên hiển thị ngay khi có
-      const serverTask = fetchServerSync().then((serverData) => {
-        if (serverData) {
-          cache.server = {
-            profiles: serverData.profiles || [],
-            bookings: serverData.bookings || [],
-            pets: serverData.pets || [],
-          };
-          setServer(cache.server);
-        }
-        cache.lastSyncedAt = new Date();
-        setLastSyncedAt(cache.lastSyncedAt);
-        setLoading(false);
-      });
-      const dbTask = loadFromSupabase().then((data) => {
-        cache.db = data;
-        setDb(data);
-      });
-      await Promise.all([serverTask, dbTask]);
+      const [serverData, dbData] = await loadSharedSources(userId);
+      const cached = getCache(userId);
+
+      if (serverData) {
+        cached.server = {
+          profiles: Array.isArray(serverData.profiles) ? serverData.profiles : [],
+          bookings: Array.isArray(serverData.bookings) ? serverData.bookings : [],
+          pets: Array.isArray(serverData.pets) ? serverData.pets : [],
+        };
+      }
+      cached.db = {
+        profiles: dbData.profileQuerySucceeded ? dbData.profiles : cached.db.profiles,
+        bookings: cached.db.bookings,
+        pets: dbData.petsQuerySucceeded ? dbData.pets : cached.db.pets,
+      };
+
+      const hasAuthoritativeData = Boolean(serverData) || bookingDataReadyRef.current;
+      if (hasAuthoritativeData) {
+        cached.lastSyncedAt = new Date();
+        writeAdminCustomerSnapshot(storage(), userId, cached);
+      }
+
+      if (currentUserId.current === userId) {
+        setState({
+          ownerId: userId,
+          ...cached,
+          loading: false,
+          hasData: Boolean(cached.lastSyncedAt),
+          error: cached.lastSyncedAt
+            ? ''
+            : 'Không thể xác nhận dữ liệu thống kê từ máy chủ. Hãy thử tải lại.',
+        });
+      }
     } finally {
       inFlight.current = false;
-      setLoading(false);
+      if (currentUserId.current === userId) {
+        const cached = getCache(userId);
+        setState((previous) => previous.ownerId === userId
+          ? { ...previous, loading: false }
+          : previous);
+        if (!cached.lastSyncedAt) {
+          setState((previous) => previous.ownerId === userId
+            ? { ...previous, error: 'Không thể xác nhận dữ liệu thống kê từ máy chủ. Hãy thử tải lại.' }
+            : previous);
+        }
+      }
       if (queued.current) {
         queued.current = false;
-        refresh();
+        refreshRef.current?.();
       }
     }
-  }, []);
+  }, [userId]);
+  refreshRef.current = refresh;
 
   useEffect(() => {
+    const cached = getCache(userId);
+    setState({
+      ownerId: userId,
+      ...cached,
+      loading: !cached.lastSyncedAt,
+      hasData: Boolean(cached.lastSyncedAt),
+      error: '',
+    });
     refresh();
     const timer = setInterval(refresh, REFRESH_MS);
 
@@ -168,19 +270,34 @@ export default function useCustomerData({ extraProfiles = NO_PROFILES } = {}) {
       patchListeners.delete(onPatched);
       window.removeEventListener('focus', scheduleRefresh);
     };
-  }, [refresh]);
+  }, [refresh, userId]);
+
+  useEffect(() => {
+    const becameReady = bookingDataReady && !previousBookingDataReady.current;
+    previousBookingDataReady.current = bookingDataReady;
+    if (becameReady && !inFlight.current && !getCache(userId).lastSyncedAt) {
+      refreshRef.current?.();
+    }
+  }, [bookingDataReady, userId]);
 
   const customers = useMemo(
     () => buildCustomers({
-      profiles: [...db.profiles, ...extraProfiles, ...server.profiles],
-      bookings: applyPatches([...db.bookings, ...globalBookingList, ...server.bookings]),
-      pets: [...db.pets, ...petList, ...server.pets],
+      profiles: [...activeCache.db.profiles, ...extraProfiles, ...activeCache.server.profiles],
+      bookings: applyPatches([...activeCache.db.bookings, ...globalBookingList, ...activeCache.server.bookings]),
+      pets: [...activeCache.db.pets, ...petList, ...activeCache.server.pets],
       excludeIds: [authenticatedCustomer?.id],
       excludePhones: [authenticatedCustomer?.phone],
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, server, extraProfiles, globalBookingList, petList, authenticatedCustomer?.id, authenticatedCustomer?.phone, patchVersion]
+    [activeCache, extraProfiles, globalBookingList, petList, authenticatedCustomer?.id, authenticatedCustomer?.phone, patchVersion]
   );
 
-  return { customers, loading, lastSyncedAt, refresh };
+  return {
+    customers,
+    loading: activeCache.loading,
+    hasData: activeCache.hasData,
+    error: activeCache.error,
+    lastSyncedAt: activeCache.lastSyncedAt,
+    refresh,
+  };
 }

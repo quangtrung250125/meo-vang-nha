@@ -14,6 +14,7 @@ import { MKT_STORAGE_KEYS, loadFromStorage, initialScenarios } from '../AdminMar
 import { periodOf } from '../../utils/dashboardReport';
 import { computeAdminReport, reportToCsv } from '../../utils/adminReport';
 import { todayInVietnam } from '../../utils/bookingDeposit';
+import AdminStatsLoading from '../../components/AdminStatsLoading';
 
 const TABS = [
   { id: 'revenue', label: 'Doanh thu', icon: Wallet },
@@ -346,7 +347,7 @@ const SECTION = {
 };
 
 const AdminReports = () => {
-  const { customers = [], loading, lastSyncedAt, refresh } = useCustomerData();
+  const { customers = [], loading, hasData, error, lastSyncedAt, refresh } = useCustomerData();
   const { bookings: roomBookings = {}, maintenanceRooms = {} } = useRoomState() || {};
   const { items = [], rules = [] } = useServiceCatalog();
 
@@ -416,7 +417,9 @@ const AdminReports = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2 no-print">
             <span className="text-xs text-gray-400 font-medium">
-              {lastSyncedAt ? `Cập nhật lúc ${lastSyncedAt.toLocaleTimeString('vi-VN')}` : 'Đang đồng bộ...'}
+              {lastSyncedAt
+                ? `Cập nhật lúc ${lastSyncedAt.toLocaleTimeString('vi-VN')}`
+                : error ? 'Chưa tải được dữ liệu' : 'Đang đồng bộ...'}
             </span>
             <button onClick={refresh} className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Làm mới
@@ -461,7 +464,11 @@ const AdminReports = () => {
           </div>
         </div>
 
-        {printing
+        {!hasData
+          ? loading
+            ? <AdminStatsLoading count={4} />
+            : <AdminStatsLoading error={error || 'Không thể tải số liệu báo cáo.'} onRetry={refresh} />
+          : printing
           ? TABS.map(({ id, label }, i) => (
             <section key={id} className={`space-y-4 ${i > 0 ? 'break-before-page' : ''}`}>
               <h2 className="text-lg font-black text-gray-800">{label}</h2>

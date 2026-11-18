@@ -6,6 +6,7 @@ import StatsTab from './StatsTab';
 import FunnelTab from './FunnelTab';
 import CustomerListTab from './CustomerListTab';
 import CustomerProfileTab from './CustomerProfileTab';
+import AdminStatsLoading from '../../components/AdminStatsLoading';
 
 /**
  * AdminCustomers - Trang "Khách hàng" dành cho Admin
@@ -23,7 +24,8 @@ const AdminCustomers = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = TABS.some((t) => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'stats';
   const selectedId = searchParams.get('id');
-  const { customers, loading, lastSyncedAt, refresh } = useCustomerData();
+  const { customers, loading, hasData, error, lastSyncedAt, refresh } = useCustomerData();
+  const waitingForFirstData = !hasData && !error;
 
   const goTo = (tab, id) => {
     const next = { tab };
@@ -67,22 +69,26 @@ const AdminCustomers = () => {
             <p className="text-sm text-gray-500 mt-0.5">
               Theo dõi khách hàng, hồ sơ mèo và lịch sử đặt phòng được đồng bộ từ giao diện khách hàng
             </p>
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Khách hàng {customers.length}
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-600 border border-orange-200">
-                Hồ sơ mèo {customers.reduce((sum, c) => sum + c.pets.length, 0)}
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-600 border border-gray-200">
-                Đơn đặt phòng {customers.reduce((sum, c) => sum + c.bookingCount, 0)}
-              </span>
-            </div>
+            {hasData && (
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Khách hàng {customers.length}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-600 border border-orange-200">
+                  Hồ sơ mèo {customers.reduce((sum, c) => sum + c.pets.length, 0)}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-600 border border-gray-200">
+                  Đơn đặt phòng {customers.reduce((sum, c) => sum + c.bookingCount, 0)}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400 font-medium">
-              {lastSyncedAt ? `Cập nhật lúc ${lastSyncedAt.toLocaleTimeString('vi-VN')}` : 'Đang đồng bộ...'}
+              {lastSyncedAt
+                ? `Cập nhật lúc ${lastSyncedAt.toLocaleTimeString('vi-VN')}`
+                : error ? 'Chưa tải được dữ liệu' : 'Đang đồng bộ...'}
             </span>
             <button
               onClick={refresh}
@@ -120,7 +126,11 @@ const AdminCustomers = () => {
           </div>
         </div>
 
-        {renderTab()}
+        {waitingForFirstData
+          ? <AdminStatsLoading count={8} />
+          : !hasData
+            ? <AdminStatsLoading error={error || 'Không thể tải số liệu khách hàng.'} onRetry={refresh} />
+            : renderTab()}
       </div>
     </div>
   );

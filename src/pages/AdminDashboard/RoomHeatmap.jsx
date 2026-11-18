@@ -14,7 +14,7 @@ const getHeatColor = (rate) => {
   return 'bg-purple-600 text-white border-purple-700 shadow-sm font-extrabold hover:bg-purple-700'; // 100% Kín
 };
 
-const RoomHeatmap = ({ heatmapData }) => {
+const RoomHeatmap = ({ heatmapData, loading = false }) => {
   const location = useLocation();
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
   const roomStatusPath = isDirectAdminRoute ? '/admin/room-status' : '/room-status';
@@ -23,6 +23,16 @@ const RoomHeatmap = ({ heatmapData }) => {
   const [selectedDay, setSelectedDay] = useState(null);
 
   const displayList = heatmapData.slice(0, daysCount);
+
+  if (loading) {
+    return (
+      <div role="status" aria-label="Đang tải công suất phòng" aria-live="polite" className="animate-pulse rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="mb-5 h-6 w-2/3 rounded bg-gray-100" />
+        <div className="mb-5 h-20 rounded-2xl bg-gray-50" />
+        <div className="h-40 rounded-2xl bg-gray-50" />
+      </div>
+    );
+  }
 
   // Thống kê nhanh
   const fullDays = displayList.filter((d) => d.rate >= 100).length;
