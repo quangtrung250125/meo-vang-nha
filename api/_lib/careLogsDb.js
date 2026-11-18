@@ -46,6 +46,15 @@ const persist = () => {
 // MVN_CARELOGS_DB=off hoặc MVN_BOOKINGS_DB=off: không dùng Supabase (test, máy không có mạng)
 let dbReady = process.env.MVN_CARELOGS_DB === 'off' || process.env.MVN_BOOKINGS_DB === 'off' ? false : null;
 export const isUsingDatabase = () => dbReady !== false;
+let lastDbError = null;
+export const getCareLogsDbError = () => lastDbError;
+
+const canUseMemoryFallback = () => !process.env.VERCEL && process.env.NODE_ENV !== 'production';
+const databaseUnavailable = () => {
+  const error = new Error('Cơ sở dữ liệu nhật ký chăm sóc chưa sẵn sàng.');
+  error.code = 'CARE_LOGS_DB_UNAVAILABLE';
+  return error;
+};
 
 const tryDb = async (fn) => {
   if (dbReady === false) return { ok: false };
@@ -53,13 +62,16 @@ const tryDb = async (fn) => {
     const result = await withTimeout(fn());
     if (result?.error) {
       const msg = result.error.message || '';
+      lastDbError = msg;
       if (/relation|does not exist|schema cache|not find the table|row-level security|permission denied/i.test(msg)) dbReady = false;
       console.warn('[CareLogs] Supabase:', msg);
       return { ok: false };
     }
     dbReady = true;
+    lastDbError = null;
     return { ok: true, data: result?.data };
   } catch (e) {
+    lastDbError = e.message;
     console.warn('[CareLogs] Không kết nối được Supabase:', e.message);
     return { ok: false };
   }
@@ -69,6 +81,7 @@ const tryDb = async (fn) => {
 export function resetCareLogsMemory({ useDatabase = false } = {}) {
   memory = [];
   dbReady = useDatabase ? null : false;
+  lastDbError = null;
 }
 
 const fromRow = (row) => ({
@@ -97,6 +110,7 @@ export async function listCareLogs({ customerId = null, bookingCode = null, sinc
     return query;
   });
   if (res.ok) return (res.data || []).map(fromRow);
+  if (!canUseMemoryFallback()) throw databaseUnavailable();
 
   return memory
     .filter((r) => (!customerId || r.customer_id === String(customerId))
@@ -126,6 +140,7 @@ export async function insertCareLogs(entries = []) {
 
   const res = await tryDb(() => supabaseAdmin.from(TABLE).insert(rows).select(COLUMNS));
   if (res.ok) return (res.data || rows).map(fromRow);
+  if (!canUseMemoryFallback()) throw databaseUnavailable();
 
   memory.push(...rows);
   persist();
@@ -135,6 +150,7 @@ export async function insertCareLogs(entries = []) {
 export async function getCareLog(id) {
   const res = await tryDb(() => supabaseAdmin.from(TABLE).select(COLUMNS).eq('id', id).limit(1));
   if (res.ok) return res.data?.[0] ? fromRow(res.data[0]) : null;
+  if (!canUseMemoryFallback()) throw databaseUnavailable();
   const row = memory.find((r) => r.id === id);
   return row ? fromRow(row) : null;
 }
@@ -142,6 +158,7 @@ export async function getCareLog(id) {
 export async function deleteCareLog(id) {
   const res = await tryDb(() => supabaseAdmin.from(TABLE).delete().eq('id', id));
   if (res.ok) return true;
+  if (!canUseMemoryFallback()) throw databaseUnavailable();
   const before = memory.length;
   memory = memory.filter((r) => r.id !== id);
   if (memory.length !== before) persist();

@@ -2,7 +2,14 @@ import { supabase } from '../supabaseClient';
 
 const CHANNEL_NAME = 'mvn_cross_device_sync';
 
-const SYNC_EVENTS = ['PETS_UPDATED', 'PROFILE_UPDATED', 'BOOKINGS_UPDATED', 'REQUEST_SYNC', 'FULL_SYNC_RESPONSE'];
+const SYNC_EVENTS = [
+  'PETS_UPDATED',
+  'PROFILE_UPDATED',
+  'BOOKINGS_UPDATED',
+  'CARE_LOGS_CHANGED',
+  'REQUEST_SYNC',
+  'FULL_SYNC_RESPONSE',
+];
 
 // Cache kênh Supabase để dùng chung toàn app
 let syncChannel = null;

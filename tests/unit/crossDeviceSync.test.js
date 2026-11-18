@@ -28,6 +28,11 @@ describe('Đồng bộ đa thiết bị chỉ nhận dữ liệu của chính m�
     expect(scopeIncomingPayload('PETS_UPDATED', payload, { userId: 'admin', isAdmin: true })).toBe(payload);
   });
 
+  it('khách nhận sự kiện thay đổi nhật ký chăm sóc', () => {
+    const payload = { bookingCodes: ['A'] };
+    expect(scopeIncomingPayload('CARE_LOGS_CHANGED', payload, me)).toEqual(payload);
+  });
+
   it('gắn ownerId khi gửi mèo đi', () => {
     const scoped = scopeOutgoingPayload({ pets: [{ id: 1 }, { id: 2, ownerId: 'user-b' }] }, me);
     expect(scoped.pets).toEqual([{ id: 1, ownerId: 'user-a' }]);

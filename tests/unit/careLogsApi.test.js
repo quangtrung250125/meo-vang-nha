@@ -167,4 +167,20 @@ describe('Nhật ký chăm sóc qua /api/bookings?resource=care-logs', () => {
     spy.mockRestore();
     expect(late.statusCode).toBe(409);
   });
+
+  it('production không báo lưu thành công khi nhật ký chỉ có thể ghi vào bộ nhớ tạm', async () => {
+    const previousVercel = process.env.VERCEL;
+    process.env.VERCEL = '1';
+    try {
+      const response = await logs({ token: 'token-a' });
+      expect(response.statusCode).toBe(503);
+      expect(response.payload).toMatchObject({
+        success: false,
+        message: expect.stringContaining('service role'),
+      });
+    } finally {
+      if (previousVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previousVercel;
+    }
+  });
 });

@@ -1,6 +1,6 @@
 import { getRequestUser, getBearerToken } from './auth.js';
 import { findViewableInHouseBooking } from './bookingsService.js';
-import { listCareLogs, insertCareLogs, getCareLog, deleteCareLog } from './careLogsDb.js';
+import { listCareLogs, insertCareLogs, getCareLog, deleteCareLog, getCareLogsDbError } from './careLogsDb.js';
 import { CARE_LOG_TYPES, UNDO_WINDOW_MS, taskForType, vnDateKey, vnTime } from '../../src/utils/careTasks.js';
 
 // Nhật ký chăm sóc, đi chung serverless function /api/bookings (?resource=care-logs) để không vượt
@@ -166,11 +166,20 @@ export async function handleCareLogs(req, res) {
   const user = await getRequestUser(req);
   if (!user) return res.status(401).json({ success: false, message: 'Vui lòng đăng nhập.' });
 
-  if (req.method === 'GET') return handleGet(req, res, user);
-  if (!user.isAdmin) {
-    return res.status(403).json({ success: false, message: 'Chỉ nhân viên Mèo Vắng Nhà mới cập nhật được nhật ký.' });
+  try {
+    if (req.method === 'GET') return await handleGet(req, res, user);
+    if (!user.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Chỉ nhân viên Mèo Vắng Nhà mới cập nhật được nhật ký.' });
+    }
+    if (req.method === 'POST') return await handlePost(req, res, user);
+    if (req.method === 'DELETE') return await handleDelete(req, res);
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  } catch (error) {
+    if (error?.code !== 'CARE_LOGS_DB_UNAVAILABLE') throw error;
+    console.error('[CareLogs] Không thể truy cập cơ sở dữ liệu nhật ký:', getCareLogsDbError());
+    return res.status(503).json({
+      success: false,
+      message: 'Cơ sở dữ liệu nhật ký chăm sóc chưa sẵn sàng. Cần cấu hình Supabase service role và chạy migration care_logs.',
+    });
   }
-  if (req.method === 'POST') return handlePost(req, res, user);
-  if (req.method === 'DELETE') return handleDelete(req, res);
-  return res.status(405).json({ success: false, message: 'Method not allowed' });
 }

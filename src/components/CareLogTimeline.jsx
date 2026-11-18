@@ -10,7 +10,7 @@ const ICON_MAP = {
 };
 
 const CareLogTimeline = ({ bookingId, petId }) => {
-  const { getGroupedLogs } = useCareLog();
+  const { getGroupedLogs, careLogError } = useCareLog();
   const [filterType, setFilterType] = useState('all'); // 'all', 'eating', 'mood', 'hygiene', 'health', 'media', 'report'
   
   const careLogs = getGroupedLogs(bookingId, petId);
@@ -24,6 +24,19 @@ const CareLogTimeline = ({ bookingId, petId }) => {
       logs: matchingLogs
     };
   }).filter(group => group.logs.length > 0);
+
+  if (careLogError && (!careLogs || careLogs.length === 0)) {
+    return (
+      <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-sm">
+        <h3 className="font-bold text-text-dark flex items-center gap-2 mb-2">
+          <CalendarDays className="w-4 h-4 text-primary" />
+          Nhật ký chăm sóc
+        </h3>
+        <p className="text-sm text-amber-800">{careLogError}</p>
+        <p className="text-xs text-gray-500 mt-1">Dữ liệu chưa được xác nhận đồng bộ; vui lòng thử tải lại sau.</p>
+      </div>
+    );
+  }
 
   if (!careLogs || careLogs.length === 0) {
     return (
@@ -65,6 +78,12 @@ const CareLogTimeline = ({ bookingId, petId }) => {
           Đang kết nối Realtime
         </span>
       </div>
+
+      {careLogError && (
+        <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {careLogError} Dữ liệu đang hiển thị có thể chưa phải bản mới nhất.
+        </p>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-none text-xs">

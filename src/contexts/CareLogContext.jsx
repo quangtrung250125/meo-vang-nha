@@ -20,7 +20,7 @@ const CareLogContext = createContext();
 const API_URL = '/api/bookings?resource=care-logs';
 const CHANNEL_NAME = 'mvn_carelog_channel';
 const CHANGED_EVENT = 'CARE_LOGS_CHANGED';
-const POLL_MS = 15000;
+const POLL_MS = 5000;
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const byNewest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
@@ -50,6 +50,7 @@ async function requestApi(method, body) {
 
 export const CareLogProvider = ({ children }) => {
   const [logs, setLogs] = useState([]);
+  const [careLogError, setCareLogError] = useState('');
   const channelRef = useRef(null);
 
   // Tải nhật ký theo tài khoản đang đăng nhập (Admin: 45 ngày gần đây, khách: các đơn của mình)
@@ -58,14 +59,22 @@ export const CareLogProvider = ({ children }) => {
       const headers = await getAuthHeaders();
       if (!headers.Authorization) {
         setLogs([]);
+        setCareLogError('Vui lòng đăng nhập để xem nhật ký chăm sóc.');
         return;
       }
       const res = await fetch(API_URL, { headers });
-      if (!res.ok) return;
-      const json = await res.json();
-      if (Array.isArray(json.logs)) setLogs([...json.logs].sort(byNewest));
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        setCareLogError(json.message || 'Không tải được nhật ký chăm sóc.');
+        return;
+      }
+      if (Array.isArray(json.logs)) {
+        setLogs([...json.logs].sort(byNewest));
+        setCareLogError('');
+      }
     } catch (e) {
       console.warn('Không tải được nhật ký chăm sóc:', e);
+      setCareLogError('Không kết nối được máy chủ nhật ký chăm sóc.');
     }
   }, []);
 
@@ -73,6 +82,10 @@ export const CareLogProvider = ({ children }) => {
   const notifyChanged = useCallback((bookingCodes = []) => {
     try {
       channelRef.current?.postMessage({ type: CHANGED_EVENT });
+    } catch (e) {}
+    try {
+      window.dispatchEvent(new CustomEvent('mvn_care_log_sync', { detail: { bookingCodes } }));
+      localStorage.setItem('mvn_care_log_sync_at', String(Date.now()));
     } catch (e) {}
     broadcastEvent(CHANGED_EVENT, { bookingCodes });
   }, []);
@@ -97,6 +110,28 @@ export const CareLogProvider = ({ children }) => {
       if (type === CHANGED_EVENT) refresh();
     });
 
+    const onCareLogSync = () => refresh();
+    const onStorage = (event) => {
+      if (event.key === 'mvn_care_log_sync_at') refresh();
+    };
+    window.addEventListener('mvn_care_log_sync', onCareLogSync);
+    window.addEventListener('storage', onStorage);
+
+    // Realtime trực tiếp từ bảng care_logs: INSERT/UPDATE/DELETE đều kéo lại dữ liệu mới
+    let realtimeChannel = null;
+    try {
+      realtimeChannel = supabase
+        .channel('mvn_care_logs_rt')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'care_logs' },
+          () => refresh()
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Không khởi tạo được kênh Realtime nhật ký chăm sóc:', e);
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') refresh();
     });
@@ -113,7 +148,10 @@ export const CareLogProvider = ({ children }) => {
       channelRef.current = null;
       if (unsubscribeSync) unsubscribeSync();
       subscription?.unsubscribe();
+      if (realtimeChannel) supabase.removeChannel(realtimeChannel);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('mvn_care_log_sync', onCareLogSync);
+      window.removeEventListener('storage', onStorage);
       clearInterval(timer);
     };
   }, [refresh]);
@@ -248,7 +286,7 @@ export const CareLogProvider = ({ children }) => {
     if (!bookingId || petId == null) return [];
     const todayKey = vnDateKey();
     return logs
-      .filter((l) => l.bookingCode === bookingId && sameId(l.petId, petId))
+      .filter((l) => l.bookingCode != null && String(l.bookingCode).trim() === String(bookingId).trim() && sameId(l.petId, petId))
       .map((l) => withDisplayFields(l, todayKey));
   }, [logs]);
 
@@ -275,6 +313,7 @@ export const CareLogProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     careLogs: logs,
+    careLogError,
     dailyTasks: DAILY_TASKS,
     refresh,
     addCareLog,
@@ -284,7 +323,7 @@ export const CareLogProvider = ({ children }) => {
     getLogs,
     getGroupedLogs,
     getLatestStatus,
-  }), [logs, refresh, addCareLog, addBulkCareLog, completeTask, undoLog, getLogs, getGroupedLogs, getLatestStatus]);
+  }), [logs, careLogError, refresh, addCareLog, addBulkCareLog, completeTask, undoLog, getLogs, getGroupedLogs, getLatestStatus]);
 
   return <CareLogContext.Provider value={value}>{children}</CareLogContext.Provider>;
 };

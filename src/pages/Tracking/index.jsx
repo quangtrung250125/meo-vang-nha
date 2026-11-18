@@ -912,7 +912,7 @@ const TrackingPage = () => {
 
                 {/* Care Log */}
                 {showStayDetails && (
-                  <CareLogTimeline bookingId={activeBooking.id} petId={currentPet?.id} />
+                  <CareLogTimeline bookingId={activeBooking.code || activeBooking.id} petId={currentPet?.id} />
                 )}
               </div>
 
