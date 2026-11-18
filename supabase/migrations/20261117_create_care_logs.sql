@@ -25,3 +25,23 @@ CREATE INDEX IF NOT EXISTS care_logs_created_idx ON public.care_logs (created_at
 -- Chỉ server (service role) đọc / ghi. Khách xem nhật ký qua /api/bookings?resource=care-logs,
 -- server chỉ trả về nhật ký các đơn của chính khách.
 ALTER TABLE public.care_logs ENABLE ROW LEVEL SECURITY;
+
+-- Cho phép tài khoản khách nhận Postgres Changes chỉ với nhật ký của chính mình.
+DO $$
+BEGIN
+    CREATE POLICY care_logs_customer_read_own
+        ON public.care_logs
+        FOR SELECT
+        TO authenticated
+        USING (customer_id = auth.uid()::text);
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Cho phép Realtime Postgres phát INSERT/UPDATE/DELETE từ bảng nhật ký.
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.care_logs;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
