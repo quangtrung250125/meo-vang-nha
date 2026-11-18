@@ -930,7 +930,7 @@ export const BookingHistoryProvider = ({ children }) => {
       ...(booking.staySegments ? { staySegments: null, baseCheckOut: null } : {}),
     };
     // Tính trước tiền cọc để trang khách hiện ngay, server tính lại và trả về bản chính thức
-    const deposit = getEditedDepositState({ booking, checkIn, checkOut, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice ?? booking.totalPrice }) });
+    const deposit = getEditedDepositState({ booking, checkIn, total: payableAtBooking({ ...booking, totalPrice: changes.totalPrice ?? booking.totalPrice }) });
 
     const result = await updateBooking(bookingId, { ...editFields, ...deposit }, {
       serverUpdates: { ...editFields, customerEdit: true },

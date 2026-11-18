@@ -322,11 +322,11 @@ describe('/api/sync chỉ trả dữ liệu của chính khách', () => {
 });
 
 describe('Đặt cọc khi đặt phòng', () => {
-  it('gửi bé từ 5 ngày trở lên thì đơn chờ cọc 50%', async () => {
+  it('đặt trước 6 ngày thì đơn chờ cọc 50% dù chỉ gửi 2 ngày', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
       token: 'token-a',
-      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(30), checkOut: addDays(35), totalPrice: 600000 }) },
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(6), checkOut: addDays(8), totalPrice: 600000 }) },
     });
     expect(res.payload.success).toBe(true);
     expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
@@ -336,21 +336,21 @@ describe('Đặt cọc khi đặt phòng', () => {
     expect(Math.abs(due - (Date.now() + 24 * 3600 * 1000))).toBeLessThan(60 * 1000);
   });
 
-  it('gửi đúng 5 ngày cũng cần cọc, kể cả đặt sát ngày', async () => {
+  it('đặt trước đúng 5 ngày thì không cần cọc dù gửi lâu', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
       token: 'token-a',
-      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(2), checkOut: addDays(7), totalPrice: 500000 }) },
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(5), checkOut: addDays(15), totalPrice: 500000 }) },
     });
-    expect(res.payload.booking.paymentStatus).toBe('awaiting_deposit');
-    expect(res.payload.booking.depositAmount).toBe(250000);
+    expect(res.payload.booking.paymentStatus).toBe('pay_at_checkin');
+    expect(res.payload.booking.depositAmount).toBe(0);
   });
 
-  it('gửi dưới 5 ngày thì không cần cọc, kể cả đặt trước lâu', async () => {
+  it('đặt sát ngày gửi thì không cần cọc', async () => {
     const res = await call(api.handleAddBooking, {
       method: 'POST',
       token: 'token-a',
-      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(45), checkOut: addDays(49), totalPrice: 300000 }) },
+      body: { roomId: 'VIP-01', booking: newBooking({ checkIn: addDays(2), checkOut: addDays(4), totalPrice: 300000 }) },
     });
     expect(res.payload.booking.paymentStatus).toBe('pay_at_checkin');
     expect(res.payload.booking.depositAmount).toBe(0);
@@ -495,7 +495,7 @@ describe('Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch v�
   };
 
   it('đổi phòng, số mèo, lịch và gói: áp dụng ngay, chuyển sang phòng mới, server tính lại cọc (giữ mã, chờ cọc bổ sung)', async () => {
-    const created = await createOwn('VIP-02', { checkIn: addDays(140), checkOut: addDays(142), totalPrice: 300000 });
+    const created = await createOwn('VIP-02', { checkIn: addDays(5), checkOut: addDays(7), totalPrice: 300000 });
     expect(created.paymentStatus).toBe('pay_at_checkin');
 
     const res = await edit('VIP-02', created.code, {
@@ -506,7 +506,7 @@ describe('Khách tự chỉnh sửa đơn (mèo, lịch, phòng, gói dịch v�
     const moved = find(created.code);
     expect(moved.roomId).toBe('VVIP-03');
     expect(moved.booking).toMatchObject({ cats: 3, checkOut: addDays(146), packages: ['Gói Mèo Sang Chảnh'], pending_changes: null });
-    // Khách không tự đặt "đã cọc" được: server tính theo đơn mới (6 ngày -> cọc 50%)
+    // Khách không tự đặt "đã cọc" được: ngày gửi mới cách ngày đặt hơn 5 ngày nên phải cọc
     expect(moved.booking.paymentStatus).toBe('awaiting_deposit_topup');
     expect(moved.booking.depositAmount).toBe(900000);
   });

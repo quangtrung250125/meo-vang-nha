@@ -70,7 +70,7 @@ test.describe('Đặt phòng', () => {
     return card;
   };
 
-  test('gửi bé từ 5 ngày trở lên thì giữ phòng và chờ cọc 50% mới có mã', async ({ page, pageErrors }, testInfo) => {
+  test('đặt trước hơn 5 ngày thì chờ cọc 50% mới có mã', async ({ page, pageErrors }, testInfo) => {
     // Mỗi project dùng ngày khác nhau để không tranh phòng của nhau. 5 ngày × 135.000đ = 675.000đ, cọc 337.500đ
     const card = await bookUntilStep5(page, testInfo.project.name === 'mobile' ? 100 : 90, 5);
     await expect(card.getByText('Cần đặt cọc 50% để nhận mã đặt phòng')).toBeVisible();
@@ -97,8 +97,8 @@ test.describe('Đặt phòng', () => {
     await expect(page.getByText(/Còn \d+ ngày đến ngày gửi bé/)).toBeVisible();
   });
 
-  test('gửi bé dưới 5 ngày thì không cần cọc và nhận mã ngay, dù đặt trước lâu', async ({ page, pageErrors }, testInfo) => {
-    const card = await bookUntilStep5(page, testInfo.project.name === 'mobile' ? 64 : 60);
+  test('đặt trước tối đa 5 ngày thì nhận mã ngay và không cần cọc', async ({ page, pageErrors }, testInfo) => {
+    const card = await bookUntilStep5(page, testInfo.project.name === 'mobile' ? 5 : 4);
     await expect(card.getByText('Không cần đặt cọc trước').first()).toBeVisible();
     await card.getByRole('button', { name: /gửi yêu cầu/i }).click();
 
