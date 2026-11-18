@@ -14,6 +14,9 @@ import { sanitizeOrderSource } from '../../src/utils/orderSource.js';
 import { linkConversationByRef } from './messengerService.js';
 import { quotePromo, commitPromo, onBookingClosed, setMemoryBookingsProvider } from './loyaltyService.js';
 import { payableAtBooking } from '../../src/utils/loyalty.js';
+// >>> FIX-DOI-PHONG (bắt đầu)
+import { changeRoomSafe } from './changeRoomSafe.js';
+// <<< FIX-DOI-PHONG (kết thúc)
 
 const CONFIRM_BOOKING = 'CONFIRM_BOOKING';
 
@@ -560,6 +563,9 @@ function syncToSyncStore(booking) {
 export async function updateBookingAtomic({ roomId, code, updates, validate, accessToken = null }) {
   return new Promise((resolve) => {
     bookingLock = bookingLock.then(async () => {
+      // >>> FIX-DOI-PHONG (bắt đầu)
+      let usedSafeRoomChange = false;
+      // <<< FIX-DOI-PHONG (kết thúc)
       try {
         await syncFromDb(true);
         // Kiểm tra quyền / sức chứa ngay trong khóa để không bị chen ngang giữa các request
@@ -567,7 +573,22 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
           const check = validate(globalBookings);
           if (!check.ok) return resolve({ success: false, ...check });
           updates = check.updates;
+          // >>> FIX-DOI-PHONG (bắt đầu)
+          usedSafeRoomChange = check.roomChange === true;
+          // <<< FIX-DOI-PHONG (kết thúc)
         }
+
+        // >>> FIX-DOI-PHONG (bắt đầu)
+        if (usedSafeRoomChange) {
+          const targetRoom = ROOM_CONFIG.find((room) => room.id === updates.roomId);
+          if (!targetRoom) {
+            return resolve({ success: false, error: 'Không tìm thấy phòng đích.', roomChangeError: true });
+          }
+          const patch = { ...updates };
+          delete patch.roomId;
+          await changeRoomSafe(code, targetRoom.id, targetRoom.capacity, patch);
+        }
+        // <<< FIX-DOI-PHONG (kết thúc)
 
         let found = false;
         let mergedBooking = null;
@@ -629,13 +650,32 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
         } catch (e) {}
 
         persistBookings();
-        const storedUpdated = await updateStoredBooking(code, updates, accessToken);
+        // >>> FIX-DOI-PHONG (bắt đầu)
+        // Dòng cũ ghi trực tiếp bookings sau khi đã chuyển phòng bằng RPC:
+        // const storedUpdated = await updateStoredBooking(code, updates, accessToken);
+        const storedUpdated = usedSafeRoomChange
+          ? true
+          : await updateStoredBooking(code, updates, accessToken);
+        // <<< FIX-DOI-PHONG (kết thúc)
         if (!mergedBooking && isFinished && closedFullBookings.has(code)) {
           mergedBooking = { ...closedFullBookings.get(code), ...updates };
         }
-        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated, booking: mergedBooking, reviewInviteRequested });
+        // >>> FIX-DOI-PHONG (bắt đầu)
+        // Dòng cũ: return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated, booking: mergedBooking, reviewInviteRequested });
+        return resolve({
+          success: true,
+          allBookings: globalBookings,
+          found: found || storedUpdated,
+          booking: mergedBooking,
+          reviewInviteRequested,
+          ...(usedSafeRoomChange ? { roomChangeApplied: true } : {}),
+        });
+        // <<< FIX-DOI-PHONG (kết thúc)
       } catch (err) {
-        return resolve({ success: false, error: err.message });
+        // >>> FIX-DOI-PHONG (bắt đầu)
+        // Dòng cũ: return resolve({ success: false, error: err.message });
+        return resolve({ success: false, error: err.message, ...(usedSafeRoomChange ? { roomChangeError: true } : {}) });
+        // <<< FIX-DOI-PHONG (kết thúc)
       }
     });
   });
@@ -998,10 +1038,22 @@ export function checkCustomerEdit({ booking, roomId, updates }, bookingsByRoom, 
   const error = validateNewBooking(next, room, todayStr);
   if (error) return fail(400, error);
   const cats = Number(next.cats);
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  const currentRoomId = booking.roomId || booking.selectedRoom?.id || roomId;
+  const roomChange = targetRoomId !== currentRoomId;
+  /*
   const occupied = getPeakOccupancyForRoom(targetRoomId, bookingsByRoom, next.checkIn, next.checkOut, [booking.code, booking.id].filter(Boolean));
   if (occupied + cats > room.capacity) {
     return fail(409, `Phòng ${targetRoomId} đã full trong khoảng thời gian này, vui lòng chọn phòng khác.`);
   }
+  */
+  if (!roomChange) {
+    const occupied = getPeakOccupancyForRoom(targetRoomId, bookingsByRoom, next.checkIn, next.checkOut, [booking.code, booking.id].filter(Boolean));
+    if (occupied + cats > room.capacity) {
+      return fail(409, `Phòng ${targetRoomId} đã full trong khoảng thời gian này, vui lòng chọn phòng khác.`);
+    }
+  }
+  // <<< FIX-DOI-PHONG (kết thúc)
 
   const total = Number(next.totalPrice);
   if (!Number.isFinite(total) || total < 0) return fail(400, 'Tổng tiền của đơn không hợp lệ.');
@@ -1011,7 +1063,10 @@ export function checkCustomerEdit({ booking, roomId, updates }, bookingsByRoom, 
   allowed.totalPrice = total;
   // Tiền cọc do server tính lại theo đơn mới, khách không tự đặt được
   Object.assign(allowed, getEditedDepositState({ booking, checkIn: next.checkIn, total: payableAtBooking({ ...next, totalPrice: total }) }));
-  return { ok: true, updates: allowed };
+  // >>> FIX-DOI-PHONG (bắt đầu)
+  // Dòng cũ: return { ok: true, updates: allowed };
+  return { ok: true, updates: allowed, roomChange };
+  // <<< FIX-DOI-PHONG (kết thúc)
 }
 
 export async function handleUpdateBooking(req, res) {
@@ -1038,6 +1093,21 @@ export async function handleUpdateBooking(req, res) {
       accessToken,
       validate: (bookingsByRoom) => checkCustomerUpdate({ userId: user.id, roomId, code: targetCode, updates }, bookingsByRoom),
     });
+    // >>> FIX-DOI-PHONG (bắt đầu)
+    if (result.roomChangeError) {
+      const error = String(result.error || '');
+      if (error.includes('ROOM_FULL')) {
+        return res.status(409).json({ success: false, message: 'Phòng này vừa hết chỗ, vui lòng chọn phòng khác.' });
+      }
+      if (error.includes('BOOKING_NOT_FOUND')) {
+        return res.status(404).json({ success: false, message: 'Không tìm thấy đơn đặt phòng.' });
+      }
+      if (error.includes('BOOKING_NOT_ACTIVE')) {
+        return res.status(400).json({ success: false, message: 'Đơn này không thể đổi phòng' });
+      }
+      return res.status(500).json({ success: false, message: 'Không thể đổi phòng lúc này. Vui lòng thử lại.' });
+    }
+    // <<< FIX-DOI-PHONG (kết thúc)
     if (result.ok === false) {
       return res.status(result.statusCode).json({ success: false, message: result.message });
     }
