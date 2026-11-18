@@ -46,13 +46,13 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
     { name: 'Lịch đặt', path: `${basePrefix}/my-booking`, icon: ClipboardList },
     { name: 'Khuyến mãi & điểm thưởng', path: `${basePrefix}/promotions`, icon: Tag },
     { name: 'Marketing tự động', path: `${basePrefix}/marketing`, icon: Zap },
-    { name: 'SEO Radar', path: `${basePrefix}/seo`, icon: Radio },
     { name: 'Tin tức', path: `${basePrefix}/news`, icon: Newspaper },
     { name: 'Hồ sơ mèo', path: `${basePrefix}/pet-profile`, icon: PawPrint },
     { name: 'Đặt phòng', path: `${basePrefix}/booking`, icon: Calendar },
     { name: 'Đánh giá & Phản hồi', path: `${basePrefix}/reviews`, icon: Star },
     { name: 'Báo cáo', path: `${basePrefix}/reports`, icon: BarChart3 },
     { name: 'Cài đặt', path: `${basePrefix}/settings`, icon: Settings },
+    { name: 'SEO Radar', path: `${basePrefix}/seo`, icon: Radio },
   ];
 
   const checkIsActive = (path) => {
