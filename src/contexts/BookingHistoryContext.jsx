@@ -1,8 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../supabaseClient';
-import { isReviewEligible } from '../utils/bookingReview';
-import { triggerBookingConfirmedNotification, triggerBookingCompletedNotification, sendNotification } from '../services/notificationTriggers';
+import { triggerBookingConfirmedNotification, sendNotification } from '../services/notificationTriggers';
 import {
   fetchServerSync,
   pushServerSync,
@@ -484,13 +483,6 @@ export const BookingHistoryProvider = ({ children }) => {
     if (!waitForServer) writeToSupabase();
 
     // Gửi thông báo Web Push khi hoàn tất đơn lưu trú (Check-out)
-    if (isReviewEligible(updatedData) && target && !isReviewEligible(target)) {
-      triggerBookingCompletedNotification({
-        userId: target.customerId || target.customer_id || target.customerPhone || target.ownerPhone,
-        bookingCode: target.code || target.id,
-        petNames: target.catNames || target.petProfiles?.map(p => p.name).join(', '),
-      });
-    }
 
     return serverResult;
   };

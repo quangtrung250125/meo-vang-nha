@@ -1,7 +1,8 @@
 import { getRequestUser } from './auth.js';
+import { notifyReviewReply } from './reviewNotifications.js';
 import { createReviewService } from './reviewsService.js';
 import { reviewsStore, findReviewBooking } from './reviewsDb.js';
-const service=createReviewService({store:reviewsStore,findBooking:findReviewBooking});
+const service=createReviewService({store:reviewsStore,findBooking:findReviewBooking,notifyReply:notifyReviewReply});
 export async function handleReviews(req,res,action = new URL(req.url || '/', 'http://localhost').pathname.split('/').pop()) {
  res.setHeader('Cache-Control','no-store');
  try {

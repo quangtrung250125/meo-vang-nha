@@ -15,7 +15,7 @@ const UrgentTasksToday = ({
 }) => {
   const location = useLocation();
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
-  const reviewsPath = isDirectAdminRoute ? '/admin/reviews' : '/reviews';
+  const reviewsPath = location.pathname.startsWith('/review-demo') ? '/review-demo/admin?tab=urgent' : (isDirectAdminRoute ? '/admin/reviews?tab=urgent' : '/reviews?tab=urgent');
   const myBookingPath = isDirectAdminRoute ? '/admin/my-booking' : '/my-booking';
 
   const totalUrgent = checkInList.length + checkOutList.length + complaintsList.length;

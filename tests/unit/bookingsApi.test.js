@@ -683,3 +683,8 @@ describe('Đơn đặt phòng lưu trên database', () => {
     expect(customer.payload.data.bookings.map((b) => b.code)).not.toContain('MVN-83436');
   });
 });
+
+describe('review invitation begins only at accepted checkout',()=>{
+ it('marks one invitation on the first checkout and not on repeated requests',async()=>{const booking=newBooking({checkIn:addDays(600),checkOut:addDays(602)});const added=await call(api.handleAddBooking,{method:'POST',body:{roomId:'VIP-06',booking}});expect(added.statusCode).toBe(200);const code=added.payload.booking.code;const first=await call(api.handleUpdateBooking,{method:'PUT',token:'token-admin',body:{roomId:'VIP-06',code,updates:{status:'check-out'}}});expect(first.payload.reviewInviteRequested).toBe(true);expect(first.payload.booking.reviewInvitedAt).toBeTruthy();const second=await call(api.handleUpdateBooking,{method:'PUT',token:'token-admin',body:{roomId:'VIP-06',code,updates:{status:'check-out'}}});expect(second.payload.reviewInviteRequested).toBe(false);});
+ it('does not invite customers to review a cancelled booking',async()=>{const booking=newBooking({checkIn:addDays(610),checkOut:addDays(612)});const added=await call(api.handleAddBooking,{method:'POST',body:{roomId:'VIP-06',booking}});const result=await call(api.handleUpdateBooking,{method:'PUT',token:'token-admin',body:{roomId:'VIP-06',code:added.payload.booking.code,updates:{status:'cancelled'}}});expect(result.payload.reviewInviteRequested).toBe(false);});
+});

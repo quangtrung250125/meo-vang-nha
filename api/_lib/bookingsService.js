@@ -1,4 +1,6 @@
 import fs from 'fs';
+import { isReviewEligible } from '../../src/utils/bookingReview.js';
+import { notifyReviewInvitation } from './reviewNotifications.js';
 import path from 'path';
 import { getRequestUser, getBearerToken } from './auth.js';
 import { getDepositPolicy, getEditedDepositState, isAwaitingDeposit, PAYMENT_STATUS, DEPOSIT_DEADLINE_HOURS } from '../../src/utils/bookingDeposit.js';
@@ -569,6 +571,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
 
         let found = false;
         let mergedBooking = null;
+        let reviewInviteRequested = false;
         const targetRooms = roomId ? [roomId] : Object.keys(globalBookings);
         const isFinished =
           updates?.status === 'check-out' ||
@@ -582,6 +585,10 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
           const idx = list.findIndex((b) => b.code === code || b.id === code);
           if (idx >= 0) {
             found = true;
+            if (isReviewEligible(updates) && !isReviewEligible(list[idx]) && !list[idx].reviewInvitedAt) {
+              updates = { ...updates, reviewInvitedAt: new Date().toISOString() };
+              reviewInviteRequested = true;
+            }
             mergedBooking = { ...list[idx], ...updates };
             if (isFinished) {
               rememberClosedBooking({ ...list[idx], ...updates }, new Date().toISOString());
@@ -626,7 +633,7 @@ export async function updateBookingAtomic({ roomId, code, updates, validate, acc
         if (!mergedBooking && isFinished && closedFullBookings.has(code)) {
           mergedBooking = { ...closedFullBookings.get(code), ...updates };
         }
-        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated, booking: mergedBooking });
+        return resolve({ success: true, allBookings: globalBookings, found: found || storedUpdated, booking: mergedBooking, reviewInviteRequested });
       } catch (err) {
         return resolve({ success: false, error: err.message });
       }
@@ -1046,6 +1053,9 @@ async function afterBookingChanged(result) {
   const b = result?.booking;
   if (!result?.success || !b || !FINISHED_STATUSES.includes(b.status)) return;
   await onBookingClosed(b);
+  if (result.reviewInviteRequested) {
+    try { await notifyReviewInvitation(b); } catch (error) { console.warn('[Reviews] Checkout saved; invitation failed:',error.message); }
+  }
 }
 
 export async function handleRemoveBooking(req, res) {

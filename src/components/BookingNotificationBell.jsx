@@ -11,6 +11,7 @@ import useMarketingInbox from '../hooks/useMarketingInbox';
 import { trackInboxClick } from '../services/marketingApi';
 import { isReviewEligible, reviewUrl } from '../utils/bookingReview';
 import { useReviews } from '../contexts/ReviewsContext';
+import { reviewNotifications } from '../utils/reviewInsights';
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_MS;
@@ -22,6 +23,8 @@ const isRecent = (iso) => iso && Date.now() - new Date(iso).getTime() < RECENT_M
  */
 const BookingNotificationBell = ({ className = '' }) => {
   const [open, setOpen] = useState(false);
+  const [now,setNow] = useState(Date.now);
+  useEffect(() => { const timer=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(timer); }, []);
   const ref = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,7 +49,10 @@ const BookingNotificationBell = ({ className = '' }) => {
       ? globalBookingList
       : globalBookingList.filter(b => !activeCustomer || isBookingOfCustomer(b, activeCustomer, false));
 
-    const list = [];
+    const preview = location.pathname.startsWith('/review-demo');
+    const reviewsPath = preview ? '/review-demo/admin' : location.pathname.startsWith('/admin') ? '/admin/reviews' : '/reviews';
+    const bookingsPath = preview ? '/review-demo' : '/my-booking';
+    const list = reviewNotifications(reviews,{isAdmin,userId:authenticatedCustomer?.id,now:Date.now(),reviewsPath,bookingsPath}).map(item=>({...item,icon:MessageSquare,tone:item.kind==='reply'?'bg-emerald-100 text-emerald-600':'bg-orange-100 text-orange-600'}));
     mine.forEach((b) => {
       if (!isAdmin && authenticatedCustomer && isReviewEligible(b) && !reviews.some(r=>r.bookingCode===(b.code || b.id))) {
         list.push({
@@ -184,7 +190,7 @@ const BookingNotificationBell = ({ className = '' }) => {
       });
     }
     return list.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
-  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread, reviews]);
+  }, [globalBookingList, authenticatedCustomer, customerProfile, isAdmin, inbox.messages, inbox.isUnread, reviews, now, location.pathname]);
 
   // Mở chuông thì tin Marketing đang hiện được tính là đã xem (lần sau không đếm trên chấm đỏ nữa)
   useEffect(() => {

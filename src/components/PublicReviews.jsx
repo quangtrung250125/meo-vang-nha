@@ -5,6 +5,7 @@ import { publicReviews } from '../services/reviewsApi';
 import { useReviews } from '../contexts/ReviewsContext';
 import { publicReview } from '../utils/bookingReview';
 import { SAMPLE_REVIEWS } from '../mockData/sampleReviews';
+import { showSampleReviews } from '../utils/reviewInsights';
 
 export default function PublicReviews() {
   const context = useReviews();
@@ -12,13 +13,12 @@ export default function PublicReviews() {
   useEffect(() => {
     if (context?.isDemo) return;
     let active = true;
-    publicReviews().then(data => {
-      if (active) setItems(data.reviews || []);
-    }).catch(() => {});
-    return () => { active = false; };
+    const refresh = () => publicReviews().then(data => { if(active)setItems(data.reviews || []); }).catch(()=>{});
+    refresh();const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);
+    return () => { active=false;clearInterval(timer);window.removeEventListener('focus',refresh); };
   }, [context?.isDemo]);
   const published = context?.isDemo
-    ? context.reviews.filter(r => r.published && r.publicConsent).map(publicReview)
+    ? (context.publicItems || context.reviews.filter(r => r.published && r.publicConsent).map(publicReview))
     : items;
   const average = published.length
     ? (published.reduce((sum, r) => sum + r.rating, 0) / published.length).toFixed(1)
@@ -36,7 +36,7 @@ export default function PublicReviews() {
     highlight: false,
     isSample: false,
   }));
-  const reviews = [...actualReviews, ...SAMPLE_REVIEWS];
+  const reviews = showSampleReviews(published) ? [...actualReviews,...SAMPLE_REVIEWS] : actualReviews;
   return (
       <section id="customer-reviews" className="bg-bg-cream/70 py-16 scroll-mt-24" aria-label="Đánh giá từ khách hàng">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

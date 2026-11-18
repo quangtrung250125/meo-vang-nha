@@ -1,4 +1,4 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {createReviewService} from '../../api/_lib/reviewsService.js';
 import {REVIEW_EDIT_MS,publicReview} from '../../src/utils/bookingReview.js';
 const user={id:'customer-1',fullName:'Nguyễn Thị Lan'},admin={id:'admin',isAdmin:true};
@@ -11,4 +11,9 @@ describe('review lifecycle and permissions',()=>{
  it('restricts moderation to admin and requires customer permission for publishing',async()=>{const f=fixture();await f.service.submit(user,'MVN-1',{...input,publicConsent:false});await expect(f.service.moderate(user,'MVN-1',{reply:'fake'})).rejects.toMatchObject({status:403});await expect(f.service.moderate(admin,'MVN-1',{published:true})).rejects.toMatchObject({status:409});await expect(f.service.moderate(admin,'MVN-1',{reply:' '})).rejects.toMatchObject({status:400});const review=await f.service.moderate(admin,'MVN-1',{reply:'Cảm ơn bạn'});expect(review.reply).toBe('Cảm ơn bạn');});
  it('returns only consented approved reviews publicly with abbreviated names and no identifiers',async()=>{const f=fixture();await f.service.submit(user,'MVN-1',input);expect(await f.service.published()).toEqual([]);await f.service.moderate(admin,'MVN-1',{published:true});const list=await f.service.published();expect(list).toHaveLength(1);expect(list[0].authorName).toBe('N. T. Lan');expect(list[0]).not.toHaveProperty('customerId');expect(list[0]).not.toHaveProperty('bookingCode');await f.service.moderate(admin,'MVN-1',{published:false});expect(await f.service.published()).toEqual([]);});
  it('scopes review listing to the signed-in customer',async()=>{const f=fixture();await f.service.submit(user,'MVN-1',input);expect(await f.service.list({id:'other'})).toEqual([]);expect(await f.service.list(admin)).toHaveLength(1);expect(publicReview({authorName:'Lan'}).authorName).toBe('Lan');});
+});
+
+describe('admin reply notifications',()=>{
+ it('sends after saving a changed reply, without sending again for publication or the same reply',async()=>{const rows=new Map(),sent=vi.fn(async r=>{expect(rows.get(r.bookingCode).reply).toBe(r.reply);});const service=createReviewService({store:{find:async code=>rows.get(code),save:async r=>rows.set(r.bookingCode,r)},findBooking:async()=>({customerId:user.id,status:'check-out'}),notifyReply:sent});await service.submit(user,'MVN-2',input);await service.moderate(admin,'MVN-2',{reply:'Cảm ơn bạn'});expect(sent).toHaveBeenCalledTimes(1);await service.moderate(admin,'MVN-2',{published:true});await service.moderate(admin,'MVN-2',{reply:'Cảm ơn bạn'});expect(sent).toHaveBeenCalledTimes(1);});
+ it('keeps the reply saved if a subscribed device cannot receive push',async()=>{let value;const service=createReviewService({store:{find:async()=>value,save:async r=>{value=r;}},findBooking:async()=>({customerId:user.id,status:'check-out'}),notifyReply:async()=>{throw Error('offline');}});await service.submit(user,'MVN-3',input);const result=await service.moderate(admin,'MVN-3',{reply:'Đã ghi nhận phản hồi'});expect(result.reply).toBe('Đã ghi nhận phản hồi');expect(value.reply).toBe(result.reply);});
 });

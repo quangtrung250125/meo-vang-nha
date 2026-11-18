@@ -1,3 +1,4 @@
+import { needsReviewAttention } from '../../utils/reviewInsights';
 import React, { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useBookingHistory } from '../../contexts/BookingHistoryContext';
@@ -105,7 +106,7 @@ const AdminDashboard = () => {
   const todayCheckOutList = useMemo(() => getTodayCheckOuts(roomBookings, todayDateStr), [roomBookings, todayDateStr]);
 
   // Đồng bộ khiếu nại thực tế từ module Đánh giá & Phản hồi (AdminReviews)
-  const complaintsList = useMemo(() => reviews.filter(r => r.rating < 3 && !r.reply).map(r => ({...r,id:r.bookingCode,author:r.authorName,petName:r.petNames,status:'pending'})), [reviews]);
+  const complaintsList = useMemo(() => reviews.filter(needsReviewAttention).map(r => ({...r,id:r.bookingCode,author:r.authorName,petName:r.petNames,status:'pending'})), [reviews]);
 
   // Handler Check-in 1 chạm từ Tổng quan
   const handlePerformCheckIn = (roomId, bookingId) => {
@@ -317,7 +318,7 @@ const AdminDashboard = () => {
             <span>{customers.length} Khách hàng</span>
           </Link>
           <Link
-            to={`${basePrefix}/reviews`}
+            to={`${basePrefix}/reviews?tab=urgent`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-xs text-xs font-bold text-white transition-colors"
           >
             <AlertTriangle className="w-3.5 h-3.5" />

@@ -36,20 +36,21 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
 
   // Hỗ trợ cả route /admin/... lẫn route gốc /... khi đăng nhập 0962606249
   const isDirectAdminRoute = location.pathname.startsWith('/admin');
-  const basePrefix = isDirectAdminRoute ? '/admin' : '';
+  const preview = authenticatedCustomer?.isDemo && location.pathname.startsWith('/review-demo');
+  const basePrefix = preview ? '/review-demo/admin' : isDirectAdminRoute ? '/admin' : '';
 
   const navItems = [
-    { name: 'Tổng quan', path: isDirectAdminRoute ? '/admin' : '/', icon: Home },
+    { name: 'Tổng quan', path: preview ? '/review-demo/admin/overview' : isDirectAdminRoute ? '/admin' : '/', icon: Home },
     { name: 'Tình trạng phòng', path: `${basePrefix}/room-status`, icon: LayoutDashboard },
     { name: 'Khách hàng', path: `${basePrefix}/customers`, icon: Users },
     { name: 'Dịch vụ', path: `${basePrefix}/services`, icon: Briefcase },
-    { name: 'Lịch đặt', path: `${basePrefix}/my-booking`, icon: ClipboardList },
+    { name: 'Lịch đặt', path: preview ? '/review-demo/admin/bookings' : `${basePrefix}/my-booking`, icon: ClipboardList },
     { name: 'Khuyến mãi & điểm thưởng', path: `${basePrefix}/promotions`, icon: Tag },
     { name: 'Marketing tự động', path: `${basePrefix}/marketing`, icon: Zap },
     { name: 'Tin tức', path: `${basePrefix}/news`, icon: Newspaper },
     { name: 'Hồ sơ mèo', path: `${basePrefix}/pet-profile`, icon: PawPrint },
     { name: 'Đặt phòng', path: `${basePrefix}/booking`, icon: Calendar },
-    { name: 'Đánh giá & Phản hồi', path: `${basePrefix}/reviews`, icon: Star },
+    { name: 'Đánh giá & Phản hồi', path: preview ? '/review-demo/admin' : `${basePrefix}/reviews`, icon: Star },
     { name: 'Báo cáo', path: `${basePrefix}/reports`, icon: BarChart3 },
     { name: 'Cài đặt', path: `${basePrefix}/settings`, icon: Settings },
     { name: 'SEO Radar', path: `${basePrefix}/seo`, icon: Radio },
@@ -59,6 +60,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
     if (path === '/' || path === '/admin') {
       return location.pathname === '/' || location.pathname === '/admin';
     }
+    if (preview && path === '/review-demo/admin') return location.pathname === path;
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
@@ -73,7 +75,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
       {/* 1. Logo Mèo Vắng Nhà giống hệt 100% Header khách hàng */}
       <div className="h-20 px-6 border-b border-gray-100 flex items-center justify-between shrink-0">
         <Link 
-          to={isDirectAdminRoute ? '/admin' : '/'} 
+          to={preview ? '/review-demo/admin/overview' : isDirectAdminRoute ? '/admin' : '/'}
           className="brand-lockup flex items-center gap-2" 
           aria-label="Mèo Vắng Nhà"
           onClick={() => onCloseMobile && onCloseMobile()}
@@ -108,7 +110,7 @@ const AdminSidebar = ({ isMobileOpen, onCloseMobile }) => {
 
       {/* 3. Thanh menu điều hướng gồm 6 thẻ nằm dọc ở phía bên trái màn hình */}
       <nav className="flex-1 px-4 py-3 space-y-1.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.filter(item => !preview || ['/review-demo/admin/overview','/review-demo/admin/room-status','/review-demo/admin/bookings','/review-demo/admin'].includes(item.path)).map((item) => {
           const active = checkIsActive(item.path);
           const Icon = item.icon;
           return (

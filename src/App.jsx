@@ -16,7 +16,7 @@ import Tracking from './pages/Tracking';
 import Checkout from './pages/Checkout';
 import Review from './pages/Review';
 import { ReviewsProvider } from './contexts/ReviewsContext';
-import ReviewDemo from './pages/Review/Demo';
+import ReviewDemo, { ReviewDemoOverview } from './pages/Review/Demo';
 import Admin from './pages/Admin';
 import Promotions from './pages/Promotions';
 import AdminPromotions from './pages/AdminPromotions';
@@ -98,6 +98,8 @@ function AppRoutes() {
           <Route path="review" element={<Review />} />
           <Route path="admin" element={<AdminReviews />} />
           <Route path="admin/bookings" element={<MyBooking />} />
+          <Route path="admin/overview" element={<ReviewDemoOverview />} />
+          <Route path="admin/room-status" element={<RoomStatusPage />} />
           <Route path="home" element={<Home />} />
         </Route>
       )}
